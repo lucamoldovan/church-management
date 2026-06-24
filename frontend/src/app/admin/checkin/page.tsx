@@ -1,32 +1,77 @@
 'use client'
 
 import { useState } from 'react'
-import { ScanLine, Check, AlertCircle, Utensils, LogIn, Wallet } from 'lucide-react'
+import { ScanLine, Check, AlertCircle, Utensils, LogIn, Wallet, Watch, Link2 } from 'lucide-react'
 
-interface Reg { id: string; event_title: string | null; package_name: string | null; package_price: number; payment_status: string; payment_method?: string | null; checked_in: boolean; attendee_id: string; event_id: string | null }
+interface Reg { id: string; event_title: string | null; package_name: string | null; package_price: number; payment_status: string; payment_method?: string | null; checked_in: boolean; attendee_id: string; event_id: string | null; bracelet_code?: string | null }
 
 export default function AdminCheckin() {
   const [code, setCode] = useState('')
   const [reg, setReg] = useState<Reg | null>(null)
+  const [freeBracelet, setFreeBracelet] = useState('')
+  const [braceletInput, setBraceletInput] = useState('')
   const [status, setStatus] = useState<{ type: 'ok' | 'err' | 'info'; text: string } | null>(null)
+
+  const sb = async () => (await import('@/lib/supabase/client')).createClient()
 
   const lookup = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    setReg(null); setStatus(null)
-    if (!code.trim()) return
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const held = freeBracelet
+    setReg(null); setStatus(null); setFreeBracelet(''); setBraceletInput('')
     const c = code.trim()
-    const { data } = await supabase.from('registrations').select('*').or(`qr_token.eq.${c},attendee_id.eq.${c}`).maybeSingle()
-    if (!data) { setStatus({ type: 'err', text: 'Bilet negăsit sau cod invalid.' }); return }
-    setReg(data as Reg)
-    setStatus({ type: 'info', text: (data as Reg).checked_in ? 'Atenție: deja a făcut check-in la intrare.' : 'Bilet valid.' })
+    if (!c) return
+    const supabase = await sb()
+
+    // 1) Find attendee by digital ticket (QR / attendee id) or already-assigned bracelet
+    const { data } = await supabase.from('registrations').select('*')
+      .or(`qr_token.eq.${c},attendee_id.eq.${c},bracelet_code.eq.${c}`).maybeSingle()
+    if (data) {
+      const r = data as Reg
+      setReg(r)
+      setBraceletInput(held || r.bracelet_code || '')
+      setStatus({ type: 'info', text: held ? `Participant găsit. Apasă „Asignează" pentru brățara ${held}.` : r.checked_in ? 'Atenție: deja a făcut check-in la intrare.' : r.bracelet_code ? `Brățară asignată: ${r.bracelet_code}` : 'Participant găsit. Asignează o brățară.' })
+      return
+    }
+
+    // 2) Maybe it's a free bracelet from inventory → prompt to scan the attendee next
+    const { data: band } = await supabase.from('bracelets').select('*').eq('code', c).maybeSingle()
+    if (band) {
+      if (!band.active) { setStatus({ type: 'err', text: 'Brățara este dezactivată.' }); return }
+      setFreeBracelet(c)
+      setStatus({ type: 'info', text: `Brățară liberă „${c}". Scanează acum biletul/QR-ul participantului pentru a o asigna.` })
+      return
+    }
+
+    setStatus({ type: 'err', text: 'Cod negăsit (nici participant, nici brățară).' })
+  }
+
+  const assignBracelet = async (bcode: string) => {
+    if (!reg) return
+    const c = bcode.trim()
+    if (!c) { setStatus({ type: 'err', text: 'Introdu un cod de brățară.' }); return }
+    const supabase = await sb()
+
+    const { data: band } = await supabase.from('bracelets').select('*').eq('code', c).maybeSingle()
+    if (!band) { setStatus({ type: 'err', text: 'Brățară inexistentă în inventar.' }); return }
+    if (!band.active) { setStatus({ type: 'err', text: 'Brățara este dezactivată.' }); return }
+
+    // duplicate check: bracelet already assigned to another attendee for this event
+    const { data: clash } = await supabase.from('registrations').select('id, attendee_id')
+      .eq('event_id', reg.event_id).eq('bracelet_code', c).maybeSingle()
+    if (clash && clash.id !== reg.id) { setStatus({ type: 'err', text: `Brățara este deja asignată (${clash.attendee_id}).` }); return }
+
+    const { error } = await supabase.from('registrations').update({
+      bracelet_code: c, bracelet_assigned_at: new Date().toISOString(),
+    }).eq('id', reg.id)
+    if (error) { setStatus({ type: 'err', text: error.code === '23505' ? 'Brățara este deja asignată altui participant.' : error.message }); return }
+    setReg({ ...reg, bracelet_code: c })
+    setFreeBracelet(''); setBraceletInput(c)
+    setStatus({ type: 'ok', text: `Brățară ${c} asignată ✓` })
   }
 
   const checkInEntry = async () => {
     if (!reg) return
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const supabase = await sb()
     const { data: { user } } = await supabase.auth.getUser()
     const { error: ce } = await supabase.from('checkins').insert({ registration_id: reg.id, event_id: reg.event_id, scanned_by: user?.id, type: 'entry', day_date: new Date().toISOString().slice(0, 10) })
     if (ce && ce.code === '23505') { setStatus({ type: 'err', text: 'Intrarea a fost deja validată azi.' }); return }
@@ -38,8 +83,7 @@ export default function AdminCheckin() {
 
   const checkMeal = async (meal: string) => {
     if (!reg) return
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const supabase = await sb()
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('checkins').insert({ registration_id: reg.id, event_id: reg.event_id, scanned_by: user?.id, type: 'meal', meal, day_date: new Date().toISOString().slice(0, 10) })
     if (error && error.code === '23505') { setStatus({ type: 'err', text: `Masa "${meal}" a fost deja folosită azi.` }); return }
@@ -47,34 +91,30 @@ export default function AdminCheckin() {
     setStatus({ type: 'ok', text: `Masă validată: ${meal} ✓` })
   }
 
-  const meals = [{ k: 'breakfast', l: 'Mic dejun' }, { k: 'lunch', l: 'Prânz' }, { k: 'dinner', l: 'Cină' }]
-
   const markPaid = async () => {
     if (!reg) return
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const supabase = await sb()
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('registrations').update({
-      payment_status: 'paid',
-      payment_method: 'cash',
-      amount_paid: reg.package_price,
-      paid_at: new Date().toISOString(),
-      paid_by: user?.id,
+      payment_status: 'paid', payment_method: 'cash', amount_paid: reg.package_price,
+      paid_at: new Date().toISOString(), paid_by: user?.id,
     }).eq('id', reg.id)
     if (error) { setStatus({ type: 'err', text: error.message }); return }
     setReg({ ...reg, payment_status: 'paid', payment_method: 'cash' })
     setStatus({ type: 'ok', text: 'Plată numerar înregistrată ✓' })
   }
 
+  const meals = [{ k: 'breakfast', l: 'Mic dejun' }, { k: 'lunch', l: 'Prânz' }, { k: 'dinner', l: 'Cină' }]
+
   return (
     <div data-testid="admin-checkin" className="max-w-lg">
       <div className="flex items-center gap-2 mb-6"><ScanLine className="h-6 w-6 text-primary" /><h1 className="font-heading text-3xl font-bold">Check-in</h1></div>
-      <p className="text-muted-foreground text-sm mb-5">Scanează codul QR de pe telefon sau introdu manual codul biletului / ID-ul NFC al participantului.</p>
+      <p className="text-muted-foreground text-sm mb-5">Scanează codul QR al participantului <strong>sau</strong> o brățară NFC. Brățara liberă scanată se asignează participantului scanat imediat după.</p>
 
       <form onSubmit={lookup} className="flex gap-2 mb-5">
-        <input value={code} onChange={e => setCode(e.target.value)} placeholder="Cod QR / ID participant" data-testid="checkin-code-input"
-          className="flex-1 px-4 py-3 border border-border rounded-full bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring/40" />
-        <button type="submit" data-testid="checkin-validate-button" className="bg-primary text-primary-foreground px-6 py-3 rounded-full text-sm font-semibold hover:bg-primary/90">Validează</button>
+        <input value={code} onChange={e => setCode(e.target.value)} placeholder="Cod QR participant / brățară NFC" data-testid="checkin-code-input"
+          className="flex-1 px-4 py-3 border border-border rounded-full bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring/40" autoFocus />
+        <button type="submit" data-testid="checkin-validate-button" className="bg-primary text-primary-foreground px-6 py-3 rounded-full text-sm font-semibold hover:bg-primary/90">Scanează</button>
       </form>
 
       {status && (
@@ -86,12 +126,24 @@ export default function AdminCheckin() {
       {reg && (
         <div data-testid="checkin-result" className="bg-card border border-border/60 rounded-3xl p-6 soft-shadow">
           <h2 className="font-heading font-semibold text-lg">{reg.event_title}</h2>
-          <p className="text-sm text-muted-foreground mb-1">{reg.package_name}</p>
+          <p className="text-sm text-muted-foreground mb-1">{reg.package_name} · <span className="font-mono">{reg.attendee_id}</span></p>
           <div className="flex flex-wrap gap-2 mb-5 mt-2">
             <span className={`text-xs px-3 py-1 rounded-full ${reg.payment_status === 'paid' ? 'bg-primary/10 text-primary' : reg.payment_status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-secondary text-secondary-foreground'}`}>Plată: {reg.payment_status === 'paid' ? 'plătit' : reg.payment_status === 'pending' ? 'la eveniment' : 'neplătit'}</span>
             {reg.payment_method && <span className="text-xs px-3 py-1 rounded-full bg-secondary text-secondary-foreground">{reg.payment_method === 'cash' ? 'Numerar' : 'Online'}</span>}
             <span className={`text-xs px-3 py-1 rounded-full ${reg.checked_in ? 'bg-primary/10 text-primary' : 'bg-secondary text-secondary-foreground'}`}>{reg.checked_in ? 'Prezent' : 'Neînregistrat'}</span>
+            {reg.bracelet_code && <span className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary inline-flex items-center gap-1"><Watch className="h-3 w-3" /> {reg.bracelet_code}</span>}
           </div>
+
+          {/* Bracelet assignment */}
+          <div className="border border-border/60 rounded-2xl p-4 mb-4 bg-secondary/20">
+            <div className="text-sm font-medium mb-2 flex items-center gap-1.5"><Watch className="h-4 w-4 text-primary" /> {reg.bracelet_code ? 'Reasignează brățară' : 'Asignează brățară'}</div>
+            <div className="flex gap-2">
+              <input value={braceletInput} onChange={e => setBraceletInput(e.target.value)} placeholder="Scanează / introdu codul brățării" data-testid="checkin-bracelet-input"
+                className="flex-1 px-3 py-2.5 border border-border rounded-full bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring/40" />
+              <button onClick={() => assignBracelet(braceletInput)} data-testid="checkin-assign-bracelet-button" className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2.5 rounded-full text-sm font-semibold hover:bg-primary/90"><Link2 className="h-4 w-4" /> Asignează</button>
+            </div>
+          </div>
+
           {reg.payment_status !== 'paid' && Number(reg.package_price) > 0 && (
             <button onClick={markPaid} data-testid="checkin-mark-paid-button" className="w-full inline-flex items-center justify-center gap-2 bg-amber-500 text-white py-3 rounded-full font-semibold hover:bg-amber-600 mb-4"><Wallet className="h-4 w-4" /> Încasează numerar ({reg.package_price} RON)</button>
           )}
@@ -102,6 +154,12 @@ export default function AdminCheckin() {
               <button key={m.k} onClick={() => checkMeal(m.k)} data-testid={`checkin-meal-${m.k}`} className="bg-card border border-border py-2.5 rounded-xl text-sm font-medium hover:bg-secondary/60 transition-colors">{m.l}</button>
             ))}
           </div>
+        </div>
+      )}
+
+      {freeBracelet && !reg && (
+        <div data-testid="checkin-free-bracelet" className="bg-accent/40 border border-accent/50 rounded-2xl p-4 text-sm">
+          Brățară liberă reținută: <strong>{freeBracelet}</strong>. Scanează biletul participantului pentru a o asigna.
         </div>
       )}
     </div>
