@@ -3,11 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useUser } from '@/hooks/useUser'
-import { LayoutDashboard, CalendarDays, Users, ArrowLeft, Wheat } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Users, ArrowLeft, Wheat, UsersRound, ScanLine } from 'lucide-react'
 
 const links = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
   { href: '/admin/events', label: 'Evenimente', icon: CalendarDays },
+  { href: '/admin/groups', label: 'Grupuri', icon: UsersRound },
+  { href: '/admin/checkin', label: 'Check-in', icon: ScanLine },
   { href: '/admin/users', label: 'Utilizatori', icon: Users },
 ]
 
