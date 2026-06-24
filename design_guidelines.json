@@ -1,0 +1,119 @@
+{
+  "project_context": {
+    "domain": "Church Management Web App (Casa Pâinii Ocna Mureș)",
+    "aesthetic_reference": "https://app.rhema.ro/home",
+    "theme_and_archetype": {
+      "theme": "light",
+      "archetype": "1 (Organic & Earthy)",
+      "reasoning": "The reference app uses a highly warm, welcoming, and tactile aesthetic utilizing earthy tones (terracotta, clay, peach, warm beige). This invokes a feeling of community, trust, and spirituality."
+    }
+  },
+  "typography": {
+    "font_pairing": {
+      "headings": {
+        "family": "Outfit",
+        "import_url": "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap",
+        "description": "A modern, geometric yet friendly sans-serif that provides a welcoming, accessible feel for prominent titles."
+      },
+      "body": {
+        "family": "DM Sans",
+        "import_url": "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap",
+        "description": "Clean, highly readable geometric sans-serif that pairs perfectly with Outfit, adding warmth without sacrificing legibility."
+      }
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-bold tracking-tight text-foreground",
+      "h2": "text-3xl sm:text-4xl font-semibold tracking-tight text-foreground",
+      "h3": "text-2xl sm:text-3xl font-semibold text-foreground",
+      "h4": "text-xl font-medium text-foreground",
+      "body": "text-base leading-relaxed text-muted-foreground",
+      "small": "text-sm font-medium tracking-wide uppercase text-muted-foreground"
+    }
+  },
+  "color_palette": {
+    "mode": "light",
+    "tailwind_v4_oklch_variables": {
+      "--background": "0.985 0.005 85.0",
+      "--foreground": "0.200 0.010 85.0",
+      "--card": "0.995 0.002 85.0",
+      "--card-foreground": "0.200 0.010 85.0",
+      "--popover": "0.995 0.002 85.0",
+      "--popover-foreground": "0.200 0.010 85.0",
+      "--primary": "0.600 0.120 40.0",
+      "--primary-foreground": "0.985 0.005 85.0",
+      "--secondary": "0.940 0.020 60.0",
+      "--secondary-foreground": "0.300 0.040 40.0",
+      "--muted": "0.950 0.010 85.0",
+      "--muted-foreground": "0.550 0.020 85.0",
+      "--accent": "0.900 0.040 45.0",
+      "--accent-foreground": "0.300 0.040 40.0",
+      "--destructive": "0.600 0.150 25.0",
+      "--destructive-foreground": "0.985 0.005 85.0",
+      "--border": "0.900 0.010 85.0",
+      "--input": "0.900 0.010 85.0",
+      "--ring": "0.600 0.120 40.0",
+      "--radius": "1.5rem"
+    },
+    "description": "Background is a warm cream/beige (#FAF9F6). Primary is a terracotta/clay brown (#B65A4A equivalent). Accents include soft peach and warm sand tones. The overall feel is non-clinical, heavily relying on natural earthy warmth."
+  },
+  "spacing_and_layout": {
+    "general": "Generous spacing. Use p-6, p-8 on containers. Elements must have breathing room.",
+    "border_radius": "Extremely rounded. Main cards should be rounded-3xl (1.5rem radius). Buttons pill-shaped (rounded-full). Smaller cards rounded-2xl.",
+    "shadows": "Soft, diffuse ambient shadows to lift cards off the background without harsh lines. Use 'shadow-[0_8px_30px_rgb(0,0,0,0.04)]'.",
+    "grids": "Use Bento/Masonry style grids for event categories and useful links. Mix standard squares (col-span-1) with tall portrait cards (row-span-2) to create visual tension."
+  },
+  "components_strategy": {
+    "navbar": "Sticky top with backdrop-blur-xl and bg-background/80. Clean top bar with wordmark logo on the left, user/account icon on the right (mobile) and clean nav links on desktop.",
+    "hero_carousel": "Carousel card with a featured sermon/event over a warm clay-colored editorial poster image. Add a bottom-left aligned title, speaker name, date/time, and pagination dots below the carousel. Use a gradient overlay (bg-gradient-to-t from-black/60 to-transparent) on the image to ensure text readability.",
+    "bento_cards": "For 'Utile' and 'Înscrieri' sections: Grids of rounded image cards (rounded-3xl). The label must be overlaid at the bottom-left of each card with a soft gradient behind it. Mix tall and wide cards.",
+    "sticky_bottom_bar": "For mobile views or key CTAs (like 'Descarcă aplicația' or 'Înscrie-te'), use a sticky bottom bar with backdrop-blur, containing a pill-shaped primary button.",
+    "buttons": "Pill-shaped (rounded-full). Primary buttons use the terracotta color. Secondary buttons use a soft peach/beige background with terracotta or dark text.",
+    "forms_and_auth": "Generous padding on inputs, rounded-xl or rounded-2xl inputs. Soft background for the form container."
+  },
+  "page_specific_guidelines": {
+    "home": "Implement the hero carousel (clay/warm poster backgrounds). Below it, add sections ('Utile', 'Înscrieri') using the Bento grid layout with overlaid labels.",
+    "events": "Searchable, filterable grid of event cards. Cards should feature a warm image, large rounded corners, and clear typography for category, price (RON), date, location, and spots available. Use soft shadows on hover.",
+    "event_detail": "Immersive hero image with rounded bottom corners. Content below should be well-spaced. Sidebar for packages should use a distinctive soft-peach card background. Register CTA should be sticky on mobile.",
+    "registration": "Package selection via radio cards (selectable cards with border and background shift when active). Clean order summary. Pill-shaped confirm button.",
+    "auth_pages": "Login/Signup should have a clean, centered card on a soft warm gradient or solid cream background. Use Google OAuth button with standard styling. Ensure success/verification states are friendly and welcoming.",
+    "dashboard": "Greeting header with large warm typography. Stats cards should be visually distinct (maybe varying subtle warm background tints). 'My events' list with clear status badges (pill-shaped). Attendee QR/ID card styled like a premium digital pass.",
+    "watch_live": "Video embed with a rounded-3xl container. Prominent 'LIVE' indicator in primary terracotta. Grid of past sermons below, styled similarly to the Bento cards."
+  },
+  "image_urls": {
+    "hero_and_community": [
+      {
+        "url": "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwxfHxjaHVyY2glMjB3b3JzaGlwJTIwY29tbXVuaXR5JTIwd2FybSUyMGxpZ2h0aW5nfGVufDB8fHx8MTc4MjI4NjMzMHww&ixlib=rb-4.1.0&q=85",
+        "description": "Shallow focus photography of hand and people (warm lighting)"
+      },
+      {
+        "url": "https://images.pexels.com/photos/34611896/pexels-photo-34611896.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Woman raises hand during worship in a church setting"
+      }
+    ],
+    "events_and_youth": [
+      {
+        "url": "https://images.pexels.com/photos/36729447/pexels-photo-36729447.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Group of friends playing guitar and singing by a campfire (perfect for youth/group events)"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwxfHx5b3V0aCUyMGdhdGhlcmluZyUyMGFjb3VzdGljJTIwZ3VpdGFyfGVufDB8fHx8MTc4MjI4NjMzMHww&ixlib=rb-4.1.0&q=85",
+        "description": "Person playing acoustic guitar"
+      }
+    ],
+    "bread_and_communion": [
+      {
+        "url": "https://images.unsplash.com/photo-1549413468-cd78edb7e75c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwxfHxydXN0aWMlMjBicmVhZCUyMGNvbW11bmlvbnxlbnwwfHx8fDE3ODIyODYzMzB8MA&ixlib=rb-4.1.0&q=85",
+        "description": "View of baked bread on jute (ties into the Casa Pâinii / House of Bread motif)"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "CRITICAL: The project uses Next.js App Router but the files are written in standard JavaScript (.js / .jsx), NOT TypeScript. DO NOT attempt to write or convert files to .tsx. Stick strictly to .js.",
+    "CRITICAL: You MUST keep all existing API integrations, Supabase calls, and state management intact. The user's request is purely an aesthetic UI update.",
+    "CRITICAL: Keep all functionalities strictly preserved (all 10 points mentioned in the brief: home, events, event detail, registration, login, signup, dashboard, watch live, navbar, footer).",
+    "CRITICAL: Apply the Tailwind v4 @theme inline variables to globals.css as defined in color_palette. Replace the existing generic tokens with these warm, organic oklch values.",
+    "CRITICAL: Ensure ALL interactive elements (buttons, links, form inputs, etc.) include a `data-testid` attribute in kebab-case based on their role (e.g., `data-testid=\"login-submit-button\"`).",
+    "CRITICAL: Implement the fonts using next/font/google (`Outfit` and `DMSans` or standard imports). Update tailwind config or layout.js accordingly.",
+    "CRITICAL: Use the provided images for placeholder/demo cards if necessary, matching the specific categories."
+  ]
+}

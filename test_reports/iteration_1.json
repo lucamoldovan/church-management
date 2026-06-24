@@ -1,0 +1,44 @@
+{
+  "summary": "Frontend-only UI testing of the redesigned Casa Pâinii (Next.js 16 + Supabase placeholder) app. Verified all 8 requested flows on the preview URL: home + hero carousel, navbar (desktop + mobile menu), events list (search + 5 category filters), event detail, login page, signup page, footer, and HTTP 200 for all public routes. Discovered a critical environment-config bug (Next.js dev server was blocking the preview host as a cross-origin dev resource, so /_next/* client bundles never loaded and React never hydrated, breaking ALL useState/onClick UI: carousel, filters, search, password toggles, mobile menu). Fixed by adding allowedDevOrigins to next.config.ts. After fix, every requested interactive scenario passes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "HeroCarousel",
+        "issue": "data-testid='hero-details-button' and 'hero-join-button' are rendered on all 3 slides simultaneously (all 3 slides stay in the DOM, only opacity/transform differ). Strict-mode Playwright selectors break ('resolved to 3 elements'). Recommend either: (a) suffix the testids with the slide index (e.g. hero-details-button-0/1/2), or (b) render only the active slide, or (c) make non-active slides aria-hidden + pointer-events:none and apply unique testids per slide.",
+        "selector": "[data-testid='hero-details-button']",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Please review /app/frontend/next.config.ts — I added allowedDevOrigins for the Emergent preview hostnames (*.preview.emergentagent.com, *.preview.emergentcf.cloud, *.cluster-5.preview.emergentcf.cloud, *.emergentagent.com, *.emergentcf.cloud, *.emergent.host). Without this, Next.js 16 dev server blocks /_next/* requests from the preview URL and the React client bundle never loads → zero hydration → every useState-driven UI element appears dead. Keep this config (or equivalent) for any future Emergent preview-based testing.",
+    "(LOW) Disambiguate hero-details-button / hero-join-button testids since all 3 hero slides render at once.",
+    "Supabase is still on placeholder keys — login submission, signup submission, /dashboard (correctly redirects to /login), event registration submission, and /live data were intentionally NOT tested end-to-end per the request. User needs to plug real Supabase URL + anon key into /app/frontend/.env before retesting those."
+  ],
+  "critical_code_review_comments": [
+    "next.config.ts originally had no allowedDevOrigins — required for Next.js 15+/16 dev server when accessed via a non-localhost preview origin. This is the kind of thing that should be set up once at project scaffolding so subsequent UI work isn't silently broken.",
+    "HeroCarousel renders all slides simultaneously and reuses the same data-testid across slides; this works visually but harms testability and accessibility (multiple identical accessible names, non-active CTA links still focusable/clickable beneath the active slide depending on pointer-events).",
+    "Auth pages eagerly call createClient() at submit time, which is fine; but with placeholder Supabase keys any submit triggers a network error that the catch surfaces in login-error/signup-error UI. Expected for now.",
+    "Server components (dashboard, live) correctly handle missing Supabase keys by redirecting/handling — confirmed they return 200 without runtime crashes."
+  ],
+  "updated_files": [
+    "/app/frontend/next.config.ts"
+  ],
+  "success_rate": {
+    "backend": "n/a (skipped per request)",
+    "frontend": "100% of requested UI flows after the next.config fix"
+  },
+  "test_credentials": "N/A — Supabase intentionally on placeholder keys; no auth submissions were exercised.",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All public routes (/, /events, /events/1, /events/1/register, /login, /signup, /live, /dashboard) return 200 on the preview URL. Client interactivity (HeroCarousel dots, events search + category pills, login/signup password show-hide, mobile navbar) works only because next.config.ts now whitelists Emergent preview hosts via allowedDevOrigins — do NOT remove it. When the user supplies real Supabase keys, retest: (1) login/signup form submission against Supabase, (2) /dashboard rendering for authenticated user, (3) /events/[id]/register submission, (4) /live sermon data. Known minor: duplicated data-testid on hero CTAs across 3 slides causes Playwright strict-mode failures unless you scope by slide.",
+  "rca of the issue": "Root cause: Next.js 16.2.9 dev server blocks cross-origin requests to /_next/* dev resources by default. The Emergent preview URL (a.cluster-5.preview.emergentcf.cloud / a.preview.emergentagent.com) is treated as cross-origin, so the React client bundle and HMR chunks were refused. SSR HTML rendered fine (hence pages looked correct and returned 200), but no hydration occurred. Symptom: every useState/onClick stopped working — carousel dots inert, events search and category filters had no effect, password show/hide toggles never flipped input type, mobile menu never opened. Reproduction: open any page on the preview URL → check supervisor frontend.err.log → '⚠ Blocked cross-origin request to Next.js dev resource /_next/webpack-hmr from \"<preview-host>\"'. Fix applied: added allowedDevOrigins to /app/frontend/next.config.ts covering Emergent preview hostname patterns and restarted the frontend supervisor. Verification: re-ran Playwright across home, events, login, signup, mobile — all 6 previously-failing interactions now pass (hero dots switch active state, Tabără filter shows 2 cards, no-match search shows the empty state, both password toggles flip type to 'text', mobile menu becomes visible)."
+}
