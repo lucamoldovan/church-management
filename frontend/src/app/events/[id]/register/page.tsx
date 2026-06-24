@@ -63,13 +63,21 @@ export default function RegisterPage({ params }: { params: Promise<{ id: string 
       if (error) throw error
 
       if (!isFree && inserted?.id) {
-        const res = await fetch('/api/payments/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ registration_id: inserted.id, origin: window.location.origin }),
-        })
-        const data = await res.json()
-        if (data.url) { window.location.href = data.url; return }
+        try {
+          const res = await fetch('/api/payments/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ registration_id: inserted.id, origin: window.location.origin }),
+          })
+          const ct = res.headers.get('content-type') || ''
+          if (res.ok && ct.includes('application/json')) {
+            const data = await res.json()
+            if (data.url) { window.location.href = data.url; return }
+          }
+          // payment backend unreachable (e.g. local dev) — ticket is created as 'unpaid'
+        } catch {
+          // ignore: registration already saved; payment can be completed later
+        }
       }
       setSuccess(true)
     } catch (err: unknown) {
