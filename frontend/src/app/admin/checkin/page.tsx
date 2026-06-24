@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { ScanLine, Check, AlertCircle, Utensils, LogIn } from 'lucide-react'
+import { ScanLine, Check, AlertCircle, Utensils, LogIn, Wallet } from 'lucide-react'
 
-interface Reg { id: string; event_title: string | null; package_name: string | null; payment_status: string; checked_in: boolean; attendee_id: string; event_id: string | null }
+interface Reg { id: string; event_title: string | null; package_name: string | null; package_price: number; payment_status: string; payment_method?: string | null; checked_in: boolean; attendee_id: string; event_id: string | null }
 
 export default function AdminCheckin() {
   const [code, setCode] = useState('')
@@ -49,6 +49,23 @@ export default function AdminCheckin() {
 
   const meals = [{ k: 'breakfast', l: 'Mic dejun' }, { k: 'lunch', l: 'Prânz' }, { k: 'dinner', l: 'Cină' }]
 
+  const markPaid = async () => {
+    if (!reg) return
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('registrations').update({
+      payment_status: 'paid',
+      payment_method: 'cash',
+      amount_paid: reg.package_price,
+      paid_at: new Date().toISOString(),
+      paid_by: user?.id,
+    }).eq('id', reg.id)
+    if (error) { setStatus({ type: 'err', text: error.message }); return }
+    setReg({ ...reg, payment_status: 'paid', payment_method: 'cash' })
+    setStatus({ type: 'ok', text: 'Plată numerar înregistrată ✓' })
+  }
+
   return (
     <div data-testid="admin-checkin" className="max-w-lg">
       <div className="flex items-center gap-2 mb-6"><ScanLine className="h-6 w-6 text-primary" /><h1 className="font-heading text-3xl font-bold">Check-in</h1></div>
@@ -70,10 +87,14 @@ export default function AdminCheckin() {
         <div data-testid="checkin-result" className="bg-card border border-border/60 rounded-3xl p-6 soft-shadow">
           <h2 className="font-heading font-semibold text-lg">{reg.event_title}</h2>
           <p className="text-sm text-muted-foreground mb-1">{reg.package_name}</p>
-          <div className="flex gap-2 mb-5 mt-2">
-            <span className={`text-xs px-3 py-1 rounded-full ${reg.payment_status === 'paid' ? 'bg-primary/10 text-primary' : 'bg-secondary text-secondary-foreground'}`}>Plată: {reg.payment_status}</span>
+          <div className="flex flex-wrap gap-2 mb-5 mt-2">
+            <span className={`text-xs px-3 py-1 rounded-full ${reg.payment_status === 'paid' ? 'bg-primary/10 text-primary' : reg.payment_status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-secondary text-secondary-foreground'}`}>Plată: {reg.payment_status === 'paid' ? 'plătit' : reg.payment_status === 'pending' ? 'la eveniment' : 'neplătit'}</span>
+            {reg.payment_method && <span className="text-xs px-3 py-1 rounded-full bg-secondary text-secondary-foreground">{reg.payment_method === 'cash' ? 'Numerar' : 'Online'}</span>}
             <span className={`text-xs px-3 py-1 rounded-full ${reg.checked_in ? 'bg-primary/10 text-primary' : 'bg-secondary text-secondary-foreground'}`}>{reg.checked_in ? 'Prezent' : 'Neînregistrat'}</span>
           </div>
+          {reg.payment_status !== 'paid' && Number(reg.package_price) > 0 && (
+            <button onClick={markPaid} data-testid="checkin-mark-paid-button" className="w-full inline-flex items-center justify-center gap-2 bg-amber-500 text-white py-3 rounded-full font-semibold hover:bg-amber-600 mb-4"><Wallet className="h-4 w-4" /> Încasează numerar ({reg.package_price} RON)</button>
+          )}
           <button onClick={checkInEntry} data-testid="checkin-entry-button" className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-full font-semibold hover:bg-primary/90 mb-4"><LogIn className="h-4 w-4" /> Check-in intrare</button>
           <div className="text-sm font-medium mb-2 flex items-center gap-1.5"><Utensils className="h-4 w-4 text-primary" /> Masă (azi)</div>
           <div className="grid grid-cols-3 gap-2">

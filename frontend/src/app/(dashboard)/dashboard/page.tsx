@@ -130,9 +130,11 @@ export default function DashboardPage() {
                       <span className={`text-xs px-3 py-1 rounded-full font-medium ${
                         reg.payment_status === 'paid'
                           ? 'bg-primary/10 text-primary'
+                          : reg.payment_status === 'pending'
+                          ? 'bg-amber-100 text-amber-700'
                           : 'bg-secondary text-secondary-foreground'
                       }`}>
-                        {reg.payment_status === 'paid' ? 'Plătit' : reg.package_price === 0 ? 'Gratuit' : `${reg.package_price} RON`}
+                        {reg.payment_status === 'paid' ? 'Plătit' : reg.package_price === 0 ? 'Gratuit' : reg.payment_status === 'pending' ? `La eveniment · ${reg.package_price} RON` : `${reg.package_price} RON`}
                       </span>
                       {reg.checked_in && (
                         <span className="text-xs px-3 py-1 rounded-full font-medium bg-accent/60 text-accent-foreground flex items-center gap-1">
