@@ -132,3 +132,6 @@ async def stripe_webhook(request: Request):
 
 
 app.include_router(api)
+
+from integrations import router as integrations_router  # noqa: E402
+app.include_router(integrations_router)

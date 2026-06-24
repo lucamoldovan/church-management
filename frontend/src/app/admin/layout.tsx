@@ -3,10 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useUser } from '@/hooks/useUser'
-import { LayoutDashboard, CalendarDays, Users, ArrowLeft, Wheat, UsersRound, ScanLine, Mic, Radio, Share2, CheckSquare, TrendingUp, Bell, Ticket, Watch } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Users, ArrowLeft, Wheat, UsersRound, ScanLine, Mic, Radio, Share2, CheckSquare, TrendingUp, Bell, Ticket, Watch, CalendarRange } from 'lucide-react'
 
 const links = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
+  { href: '/admin/planning', label: 'Planificare', icon: CalendarRange },
   { href: '/admin/events', label: 'Evenimente', icon: CalendarDays },
   { href: '/admin/approvals', label: 'Aprobări', icon: CheckSquare },
   { href: '/admin/attendees', label: 'Participanți', icon: Ticket },
