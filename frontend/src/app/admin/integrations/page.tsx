@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plug, Calendar, Facebook, CheckCircle2, XCircle, Instagram, MessageCircle, Mail, Bell } from 'lucide-react'
+import { Plug, Calendar, Share2, CheckCircle2, XCircle, Camera, MessageCircle, Mail, Bell } from 'lucide-react'
 
 interface Status {
   google: { configured: boolean; connected: boolean; calendar_id: string }
@@ -38,7 +38,7 @@ export default function AdminIntegrations() {
   )
 
   const future = [
-    { icon: Instagram, label: 'Instagram' },
+    { icon: Camera, label: 'Instagram' },
     { icon: MessageCircle, label: 'WhatsApp' },
     { icon: Mail, label: 'Email' },
     { icon: Bell, label: 'Push' },
@@ -70,7 +70,7 @@ export default function AdminIntegrations() {
 
           {/* Facebook */}
           <div data-testid="integration-facebook" className="bg-card border border-border/60 rounded-3xl p-6 soft-shadow">
-            <div className="flex items-center gap-3 mb-4"><span className="h-11 w-11 rounded-full bg-primary/10 text-primary flex items-center justify-center"><Facebook className="h-5 w-5" /></span><div><h2 className="font-heading font-semibold">Facebook Page</h2><p className="text-xs text-muted-foreground">Postează posterul + linkul de înscriere</p></div></div>
+            <div className="flex items-center gap-3 mb-4"><span className="h-11 w-11 rounded-full bg-primary/10 text-primary flex items-center justify-center"><Share2 className="h-5 w-5" /></span><div><h2 className="font-heading font-semibold">Facebook Page</h2><p className="text-xs text-muted-foreground">Postează posterul + linkul de înscriere</p></div></div>
             <div className="flex flex-wrap gap-2 mb-4">
               <Pill ok={!!status?.facebook.configured} label={status?.facebook.configured ? `Pagină: ${status?.facebook.page_id}` : 'Lipsesc credențiale'} />
             </div>

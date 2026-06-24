@@ -22,6 +22,19 @@ Super admin: luca2009moldovan17@gmail.com.
 - Admin (role-gated): Overview, Events CRUD (+approval status), Approvals queue, Groups CRUD, Check-in (QR/NFC code + meal tracking, duplicate-proof), Sermons CRUD, Livestream config, Social media, Notifications broadcast (in-app), Analytics (revenue/tickets/checkins/per-event), Users roles.
 - Stripe backend: POST /api/payments/checkout (server-derived amount), GET /api/payments/status/{id}, POST /api/webhook/stripe. VERIFIED creating live test sessions.
 
+## Spec expansion — Phases 1–5 (June 24 2026)
+**LIVE SCHEMA NOTE:** live DB uses `event_packages` (not ticket_types) and `events` has columns date/time/price/department(text). schema.sql is stale — trust the live DB.
+- **Phase 1 — Payment options:** registration offers Online (Stripe) vs "Pay at event" (cash). New cols on registrations: payment_method, amount_paid, paid_at, paid_by. Statuses: unpaid|pending|paid|partial. Staff "Încasează numerar" at check-in. New Admin → Participanți (/admin/attendees) with payment-status filter + inline cash collection. (Phase 1 migration APPLIED.)
+- **Phase 2 — NFC bracelets:** new `bracelets` inventory table; registrations gain bracelet_code + bracelet_assigned_at (unique per event). Admin → Brățări (/admin/bracelets): bulk add, filter, release/reassign, activate. Check-in assigns bracelet by scanning bracelet or attendee QR (held-bracelet flow). No bracelet generated at registration (digital QR kept).
+- **Phase 3 — Event request & approval:** events gain expected_attendance, budget_notes, resource_notes, facility_requirements[], review_comments, reviewed_by/at. Admin → Evenimente form is now a full proposal form with **poster upload to Supabase Storage bucket `posters`** + facility checklist (lib/eventOptions.ts). Approvals page shows full request details + statuses + comments + "Cere modificări".
+- **Phase 4 — Planning dashboard:** /admin/planning — pending/approved/upcoming counts, resource allocation, upcoming list, and **conflict detection** (same-date shared facility or location).
+- **Phase 5 — Auto-publishing:** backend `integrations.py` — Google Calendar OAuth (connect + push) and Facebook Page photo post. `integration_tokens` table; events gain publish_google/publish_facebook/google_event_id/facebook_post_id/publish_log. Admin → Integrări (/admin/integrations) shows status + Google connect. Approvals "Publică pe canale" triggers POST /api/events/{id}/publish. Degrades gracefully when keys absent. Future channels (Instagram/WhatsApp/Email/Push) stubbed in UI.
+
+## ⚠️ Pending user actions
+- Run `/app/supabase/migrations/_consolidated_phases_2_3_5.sql` in Supabase SQL Editor (Phase 1 already applied).
+- Phase 5 credentials (backend/.env): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET (+register redirect `{BASE}/api/oauth/calendar/callback`), optional GOOGLE_CALENDAR_ID; FB_PAGE_ID, FB_PAGE_ACCESS_TOKEN.
+- Provide a staff test login (or disable email confirm) so admin/auth flows can be auto-tested. NOT yet E2E tested by agent.
+
 ## Verified
 - All routes HTTP 200. Public events/live render live DB data. Stripe checkout session creation verified via curl.
 - NOT auto-tested E2E: authenticated/admin UI flows (email confirmation on; agent has no confirmed password). Owner verifying manually.

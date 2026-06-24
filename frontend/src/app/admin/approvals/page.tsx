@@ -17,6 +17,7 @@ export default function AdminApprovals() {
   const [msg, setMsg] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [comment, setComment] = useState('')
+  const [targets, setTargets] = useState<{ g: boolean; f: boolean }>({ g: false, f: false })
 
   const load = useCallback(async () => {
     const { createClient } = await import('@/lib/supabase/client')
@@ -34,6 +35,37 @@ export default function AdminApprovals() {
     const { error } = await supabase.from('events').update(payload).eq('id', id)
     setMsg(error ? error.message : `Status setat: ${STATUS_LABELS[status] || status}`)
     setComment('')
+    load()
+  }
+
+  const publishNow = async (id: string) => {
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('events').update({
+      status: 'published', publish_google: targets.g, publish_facebook: targets.f,
+      reviewed_by: user?.id, reviewed_at: new Date().toISOString(),
+    }).eq('id', id)
+    if (error) { setMsg(error.message); return }
+    // Trigger external auto-publishing (Google Calendar / Facebook) if selected
+    if (targets.g || targets.f) {
+      try {
+        const res = await fetch(`/api/events/${id}/publish`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ origin: window.location.origin }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const parts: string[] = []
+          if (data.log?.google) parts.push(`Google: ${data.log.google.ok ? 'ok' : data.log.google.error}`)
+          if (data.log?.facebook) parts.push(`Facebook: ${data.log.facebook.ok ? 'ok' : data.log.facebook.error}`)
+          setMsg(`Publicat ✓ ${parts.join(' · ')}`)
+        } else { setMsg('Publicat pe site ✓ (publicarea externă a eșuat)') }
+      } catch { setMsg('Publicat pe site ✓ (backend indisponibil pentru canale externe)') }
+    } else {
+      setMsg('Publicat pe site ✓')
+    }
+    setTargets({ g: false, f: false })
     load()
   }
 
@@ -76,6 +108,16 @@ export default function AdminApprovals() {
                   ) : <span className="text-muted-foreground">Niciuna specificată</span>}
                 </div>
                 {ev.review_comments && <div className="md:col-span-2 bg-secondary/40 rounded-xl p-3 text-muted-foreground"><strong className="text-foreground">Comentariu anterior:</strong> {ev.review_comments}</div>}
+
+                <div className="md:col-span-2 border border-border/60 rounded-xl p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Publicare automată</div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" data-testid={`approval-target-google-${ev.id}`} checked={targets.g} onChange={e => setTargets({ ...targets, g: e.target.checked })} className="h-4 w-4 rounded accent-primary" /> Google Calendar</label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" data-testid={`approval-target-fb-${ev.id}`} checked={targets.f} onChange={e => setTargets({ ...targets, f: e.target.checked })} className="h-4 w-4 rounded accent-primary" /> Facebook</label>
+                    <button onClick={() => publishNow(ev.id)} data-testid={`approval-publish-channels-${ev.id}`} className="ml-auto inline-flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-full hover:bg-primary/90"><Send className="h-4 w-4" /> Publică pe canale</button>
+                  </div>
+                </div>
+
                 <div className="md:col-span-2 flex gap-2">
                   <input value={expanded === ev.id ? comment : ''} onChange={e => setComment(e.target.value)} placeholder="Comentariu / cere modificări..." data-testid={`approval-comment-${ev.id}`} className="flex-1 px-4 py-2.5 border border-border rounded-full bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring/40" />
                   <button onClick={() => review(ev.id, 'draft', true)} data-testid={`approval-request-changes-${ev.id}`} className="inline-flex items-center gap-1.5 text-sm bg-amber-500 text-white px-4 py-2.5 rounded-full hover:bg-amber-600 whitespace-nowrap"><MessageSquare className="h-4 w-4" /> Cere modificări</button>
