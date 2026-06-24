@@ -48,7 +48,8 @@ export default function RegisterPage({ params }: { params: Promise<{ id: string 
       const supabase = createClient()
       const pkg = packages[selectedPackage]
       const attendeeId = `ATT-${new Date().getFullYear()}-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`
-      const { error } = await supabase.from('registrations').insert({
+      const isFree = Number(pkg.price) === 0
+      const { data: inserted, error } = await supabase.from('registrations').insert({
         event_title: event.title,
         user_id: user.id,
         event_id: event.id,
@@ -56,10 +57,20 @@ export default function RegisterPage({ params }: { params: Promise<{ id: string 
         package_name: pkg.name,
         package_price: pkg.price,
         status: 'confirmed',
-        payment_status: Number(pkg.price) === 0 ? 'paid' : 'unpaid',
+        payment_status: isFree ? 'paid' : 'unpaid',
         attendee_id: attendeeId,
-      })
+      }).select('id').single()
       if (error) throw error
+
+      if (!isFree && inserted?.id) {
+        const res = await fetch('/api/payments/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ registration_id: inserted.id, origin: window.location.origin }),
+        })
+        const data = await res.json()
+        if (data.url) { window.location.href = data.url; return }
+      }
       setSuccess(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'A apărut o eroare')
