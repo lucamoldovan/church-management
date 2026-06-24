@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Calendar, MapPin, QrCode, User, LogOut, Check, Clock } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 
 interface Profile {
   full_name: string
@@ -19,6 +20,7 @@ interface Registration {
   status: string
   payment_status: string
   attendee_id: string
+  qr_token: string | null
   checked_in: boolean
   created_at: string
 }
@@ -174,9 +176,12 @@ export default function DashboardPage() {
               <span className="font-medium text-sm">ID Participant</span>
             </div>
             {registrations.length > 0 ? (
-              <div>
-                <div className="text-xs text-primary-foreground/70 mb-1">Cardul tău digital</div>
-                <div className="text-sm font-mono font-bold tracking-wide bg-white/15 rounded-xl px-3 py-2.5 backdrop-blur-sm">{registrations[0].attendee_id}</div>
+              <div className="flex flex-col items-center">
+                <div className="bg-white rounded-2xl p-3 mb-3" data-testid="dashboard-qr-code">
+                  <QRCodeSVG value={registrations[0].qr_token || registrations[0].attendee_id} size={132} level="M" />
+                </div>
+                <div className="text-xs text-primary-foreground/70 mb-1 self-start">Cardul tău digital</div>
+                <div className="w-full text-sm font-mono font-bold tracking-wide bg-white/15 rounded-xl px-3 py-2.5 backdrop-blur-sm text-center">{registrations[0].attendee_id}</div>
               </div>
             ) : (
               <p className="text-xs text-primary-foreground/80">ID-ul tău va apărea după înregistrarea la primul eveniment.</p>
