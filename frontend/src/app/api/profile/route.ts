@@ -8,7 +8,7 @@ export async function GET() {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const env = await (await import('@/lib/cloudflare')).getEnv()
   const profile = await env.CHURCH_DB.prepare(
-    'SELECT id, full_name, email, phone, role, nfc_id, department, photo_url, date_of_birth, emergency_contact FROM profiles WHERE id = ?'
+    'SELECT id, full_name, email, phone, role, nfc_id, department, avatar_url AS photo_url, date_of_birth, emergency_contact FROM profiles WHERE id = ?'
   ).bind(auth.userId).first()
   return NextResponse.json(profile ?? null)
 }
