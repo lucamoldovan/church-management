@@ -3,7 +3,7 @@
 import { authClient } from '@/lib/auth-client'
 
 type Filter = { op: string; field: string; value?: unknown; operator?: string }
-type QueryResult<T = any> = { data: T; error: Error | null; count?: number | null }
+export type DbError = Error & { code?: string; details?: string; hint?: string }\ntype QueryResult<T = any> = { data: T; error: DbError | null; count?: number | null }
 
 class ClientQuery<T = any> implements PromiseLike<QueryResult<T>> {
   private filters: Filter[] = []
@@ -26,7 +26,7 @@ class ClientQuery<T = any> implements PromiseLike<QueryResult<T>> {
   }
   insert(payload: any) { this.action = 'insert'; this.payload = payload; return this }
   update(payload: any) { this.action = 'update'; this.payload = payload; return this }
-  upsert(payload: any) { this.action = 'upsert'; this.payload = payload; return this }
+  upsert(payload: any, _options?: { onConflict?: string; ignoreDuplicates?: boolean }) { this.action = 'upsert'; this.payload = payload; return this }
   delete() { this.action = 'delete'; return this }
   eq(field: string, value: unknown) { this.filters.push({ op: 'eq', field, value }); return this }
   neq(field: string, value: unknown) { this.filters.push({ op: 'neq', field, value }); return this }
@@ -62,7 +62,7 @@ class ClientQuery<T = any> implements PromiseLike<QueryResult<T>> {
       })
       const body = (await response.json()) as { data?: any; error?: any; count?: number | null }
       if (!response.ok || body.error) {
-        return { data: null, error: new Error(body.error?.message || body.error || 'Database error'), count: body.count ?? null }
+        const error = new Error(body.error?.message || body.error || 'Database error') as DbError\n        error.code = body.error?.code\n        return { data: null, error, count: body.count ?? null }
       }
       return { data: body.data ?? null, error: null, count: body.count ?? null }
     } catch (error) {
@@ -80,7 +80,7 @@ function storage() {
           form.set('bucket', bucket); form.set('path', path); form.set('file', file)
           const response = await fetch('/api/storage', { method: 'POST', body: form })
           const body = (await response.json()) as { data?: any; error?: any }
-          return { data: body.data ?? null, error: response.ok ? null : new Error(body.error?.message || body.error || 'Upload failed') }
+          return { data: body.data ?? null, error: response.ok ? null : new Error(body.error?.message || body.error || 'Upload failed') as DbError }
         },
         getPublicUrl(path: string) {
           return { data: { publicUrl: `${window.location.origin}/api/storage?path=${encodeURIComponent(path)}` } }
