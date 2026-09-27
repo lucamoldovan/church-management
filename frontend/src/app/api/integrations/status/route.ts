@@ -3,19 +3,9 @@ import { getAuthContext, isStaff } from '@/lib/auth'
 
 export const runtime = 'edge'
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const serviceKey = process.env.SUPABASE_SERVICE_KEY || ''
+import { d1Rest } from '@/lib/d1-rest'
 
-async function sbFetch(path: string) {
-  const res = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-    },
-  })
-  const text = await res.text()
-  return text ? JSON.parse(text) : null
-}
+async function sbFetch(path: string, options?: RequestInit) { return d1Rest(path, options) }
 
 export async function GET() {
   const auth = await getAuthContext()
