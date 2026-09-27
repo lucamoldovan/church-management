@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAuthContext, isStaff } from '@/lib/auth'
+import { getEnv } from '@/lib/cloudflare'
 
 export const runtime = 'edge'
 
@@ -7,7 +8,8 @@ export async function GET() {
   const auth = await getAuthContext()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!isStaff(auth.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  const token = process.env.PLANNING_CENTER_TOKEN
+  const env = await getEnv()
+  const token = env.PLANNING_CENTER_TOKEN
   if (!token) return NextResponse.json({ configured: false, plans: [] })
   const res = await fetch('https://api.planningcenteronline.com/services/v2/plans?per_page=25', {
     headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
