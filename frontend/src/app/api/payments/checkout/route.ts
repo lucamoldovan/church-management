@@ -22,18 +22,24 @@ async function sbFetch(path: string, options?: RequestInit) {
   return text ? JSON.parse(text) : null
 }
 
+const isUuid = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthContext()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { registration_id, origin } = await request.json()
-    if (!registration_id || !origin) {
-      return NextResponse.json({ error: 'registration_id and origin are required' }, { status: 400 })
+    const { registration_id } = await request.json()
+    if (!isUuid(registration_id)) {
+      return NextResponse.json({ error: 'Invalid registration_id' }, { status: 400 })
     }
 
-    const regs = await sbFetch(`registrations?id=eq.${registration_id}&select=*`)
-    if (!regs || regs.length === 0) return NextResponse.json({ error: 'Inregistrare negasita' }, { status: 404 })
+    const regs = await sbFetch(`registrations?id=eq.${encodeURIComponent(registration_id)}&select=*`)
+    if (!regs || regs.length === 0) {
+      return NextResponse.json({ error: 'Inregistrare negasita' }, { status: 404 })
+    }
 
     const reg = regs[0]
     const canManage = isStaff(auth.role)
@@ -43,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     const amount = parseFloat(reg.package_price || '0')
     if (amount <= 0) {
-      await sbFetch(`registrations?id=eq.${registration_id}`, {
+      await sbFetch(`registrations?id=eq.${encodeURIComponent(registration_id)}`, {
         method: 'PATCH',
         body: JSON.stringify({ payment_status: 'paid' }),
       })
@@ -54,8 +60,9 @@ export async function POST(request: NextRequest) {
     if (!stripeKey) return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
 
     const stripe = new Stripe(stripeKey)
-    const successUrl = `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`
-    const cancelUrl = `${origin}/dashboard`
+    const requestOrigin = new URL(request.url).origin
+    const successUrl = `${requestOrigin}/payment/success?session_id={CHECKOUT_SESSION_ID}`
+    const cancelUrl = `${requestOrigin}/dashboard`
     const metadata: Record<string, string> = {
       registration_id: String(registration_id),
       user_id: String(reg.user_id || ''),
