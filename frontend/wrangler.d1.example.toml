@@ -1,0 +1,17 @@
+# Copy the CHURCH_DB binding into wrangler.toml after creating the D1 database.
+# Cloudflare can also add this binding from Workers > Settings > Bindings.
+
+[[d1_databases]]
+binding = "CHURCH_DB"
+database_name = "church-management"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# Optional Cloudflare-native resources used by later migration phases:
+#
+# [[r2_buckets]]
+# binding = "MEDIA"
+# bucket_name = "church-management-media"
+#
+# [[send_email]]
+# name = "EMAIL"
+# allowed_sender_addresses = ["noreply@YOUR_DOMAIN"]
