@@ -3,24 +3,9 @@ import { getAuthContext, isStaff } from '@/lib/auth'
 
 export const runtime = 'edge'
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const serviceKey = process.env.SUPABASE_SERVICE_KEY || ''
-const TIMEZONE = process.env.EVENT_TIMEZONE || 'Europe/Bucharest'
+import { d1Rest } from '@/lib/d1-rest'
 
-async function sbFetch(path: string, options?: RequestInit) {
-  const res = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
-    ...options,
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-      'Content-Type': 'application/json',
-      ...(options?.headers as Record<string, string> || {}),
-    },
-  })
-  if (!res.ok) throw new Error(`Supabase error ${res.status}: ${await res.text()}`)
-  const text = await res.text()
-  return text ? JSON.parse(text) : null
-}
+async function sbFetch(path: string, options?: RequestInit) { return d1Rest(path, options) }
 
 async function getGoogleAccessToken(): Promise<string | null> {
   const clientId = process.env.GOOGLE_CLIENT_ID
