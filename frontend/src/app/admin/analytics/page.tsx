@@ -13,7 +13,8 @@ export default function AdminAnalytics() {
       const [{ data: regs }, { count: checkins }, { count: members }] = await Promise.all([
         supabase.from('registrations').select('event_title, package_price, payment_status'),
         supabase.from('checkins').select('id', { count: 'exact', head: true }).eq('type', 'entry'),
-        supabase.from('group_memberships').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
+        // group_members is the correct table name (schema.sql creates group_members)
+        supabase.from('group_members').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
       ])
       const list = regs || []
       const revenue = list.filter(r => r.payment_status === 'paid').reduce((s, r) => s + Number(r.package_price || 0), 0)

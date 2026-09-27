@@ -25,6 +25,9 @@ alter table public.profiles add column if not exists avatar_url text;
 alter table public.profiles add column if not exists bio text;
 alter table public.profiles add column if not exists role text not null default 'member';
 alter table public.profiles add column if not exists nfc_id text;
+alter table public.profiles add column if not exists date_of_birth date;
+alter table public.profiles add column if not exists department text;
+alter table public.profiles add column if not exists emergency_contact text;
 alter table public.profiles add column if not exists created_at timestamptz not null default now();
 do $$ begin
   alter table public.profiles add constraint profiles_nfc_id_key unique (nfc_id);
@@ -98,7 +101,9 @@ create table if not exists public.events (
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.ticket_types (
+-- event_packages is the canonical table name used by all frontend code.
+-- ticket_types is kept as a view for backward compatibility.
+create table if not exists public.event_packages (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete cascade,
   name text not null,
@@ -110,6 +115,9 @@ create table if not exists public.ticket_types (
   sort_order int default 0,
   created_at timestamptz not null default now()
 );
+
+create or replace view public.ticket_types as
+  select * from public.event_packages;
 
 -- ---------------------------------------------------------------------
 -- REGISTRATIONS / TICKETS (extend existing)
@@ -127,7 +135,8 @@ create table if not exists public.registrations (
   created_at timestamptz not null default now()
 );
 alter table public.registrations add column if not exists event_id uuid references public.events(id) on delete set null;
-alter table public.registrations add column if not exists ticket_type_id uuid references public.ticket_types(id) on delete set null;
+alter table public.registrations add column if not exists package_id uuid references public.event_packages(id) on delete set null;
+alter table public.registrations add column if not exists ticket_type_id uuid references public.event_packages(id) on delete set null;
 alter table public.registrations add column if not exists qr_token text default encode(gen_random_bytes(16),'hex');
 alter table public.registrations add column if not exists checked_in_at timestamptz;
 do $$ begin
@@ -162,9 +171,16 @@ create table if not exists public.study_groups (
   name text not null,
   description text,
   leader_id uuid references public.profiles(id) on delete set null,
+  -- Legacy column names (kept for compat)
   day_of_week text,
   time_label text,
   location text,
+  -- Column names used by all frontend code
+  meeting_day text,
+  meeting_time text,
+  meeting_location text,
+  is_active boolean default true,
+  member_count int default 0,
   capacity int default 0,
   image_url text,
   created_at timestamptz not null default now()
@@ -232,14 +248,32 @@ create table if not exists public.livestream_config (
 );
 
 -- ---------------------------------------------------------------------
--- SOCIAL LINKS / NOTIFICATIONS / PAYMENTS
+-- SOCIAL MEDIA (used by contact page, live page, admin social page)
+-- social_links kept as legacy; social_media is the active table
 -- ---------------------------------------------------------------------
+create table if not exists public.social_media (
+  id uuid primary key default gen_random_uuid(),
+  platform text not null,
+  url text,
+  is_active boolean default true,
+  display_order int default 0
+);
+
 create table if not exists public.social_links (
   id uuid primary key default gen_random_uuid(),
-  platform text not null,                        -- youtube, facebook, instagram, tiktok, whatsapp
+  platform text not null,
   url text,
   is_active boolean default true,
   sort_order int default 0
+);
+
+create table if not exists public.contact_messages (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  email text not null,
+  subject text,
+  message text not null,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.notifications (
@@ -272,7 +306,7 @@ create table if not exists public.payment_transactions (
 alter table public.profiles enable row level security;
 alter table public.departments enable row level security;
 alter table public.events enable row level security;
-alter table public.ticket_types enable row level security;
+alter table public.event_packages enable row level security;
 alter table public.registrations enable row level security;
 alter table public.checkins enable row level security;
 alter table public.study_groups enable row level security;
@@ -282,8 +316,10 @@ alter table public.group_attendance enable row level security;
 alter table public.group_announcements enable row level security;
 alter table public.sermons enable row level security;
 alter table public.livestream_config enable row level security;
+alter table public.social_media enable row level security;
 alter table public.social_links enable row level security;
 alter table public.notifications enable row level security;
+alter table public.contact_messages enable row level security;
 alter table public.payment_transactions enable row level security;
 
 -- PROFILES
@@ -308,11 +344,11 @@ create policy events_staff_write on public.events for all
   using (public.is_staff() or created_by = auth.uid())
   with check (public.is_staff() or created_by = auth.uid());
 
--- TICKET TYPES (read with event; staff manage)
-drop policy if exists ticket_types_read on public.ticket_types;
-create policy ticket_types_read on public.ticket_types for select using (true);
-drop policy if exists ticket_types_write on public.ticket_types;
-create policy ticket_types_write on public.ticket_types for all using (public.is_staff()) with check (public.is_staff());
+-- EVENT PACKAGES
+drop policy if exists event_packages_read on public.event_packages;
+create policy event_packages_read on public.event_packages for select using (true);
+drop policy if exists event_packages_write on public.event_packages;
+create policy event_packages_write on public.event_packages for all using (public.is_staff()) with check (public.is_staff());
 
 -- REGISTRATIONS (own; staff read/manage all)
 drop policy if exists reg_own_read on public.registrations;
@@ -386,11 +422,23 @@ create policy live_read on public.livestream_config for select using (true);
 drop policy if exists live_admin on public.livestream_config;
 create policy live_admin on public.livestream_config for all using (public.is_admin()) with check (public.is_admin());
 
--- SOCIAL LINKS (public read; admin write)
+-- SOCIAL MEDIA
+drop policy if exists social_media_read on public.social_media;
+create policy social_media_read on public.social_media for select using (true);
+drop policy if exists social_media_admin on public.social_media;
+create policy social_media_admin on public.social_media for all using (public.is_admin()) with check (public.is_admin());
+
+-- SOCIAL LINKS (legacy)
 drop policy if exists social_read on public.social_links;
 create policy social_read on public.social_links for select using (true);
 drop policy if exists social_admin on public.social_links;
 create policy social_admin on public.social_links for all using (public.is_admin()) with check (public.is_admin());
+
+-- CONTACT MESSAGES
+drop policy if exists contact_insert on public.contact_messages;
+create policy contact_insert on public.contact_messages for insert with check (true);
+drop policy if exists contact_admin_read on public.contact_messages;
+create policy contact_admin_read on public.contact_messages for select using (public.is_admin());
 
 -- NOTIFICATIONS (own; admin can create for anyone)
 drop policy if exists notif_own on public.notifications;
@@ -414,12 +462,12 @@ insert into public.departments (name, description) values
   ('Administrativ','Coordonare generală')
 on conflict do nothing;
 
-insert into public.social_links (platform, url, is_active, sort_order) values
-  ('youtube','https://www.youtube.com/@BisericaCasaPainii', true, 1),
-  ('facebook','https://www.facebook.com/CasaPainii.OcnaMures/', true, 2),
-  ('instagram','', false, 3),
-  ('tiktok','', false, 4),
-  ('whatsapp','', false, 5)
+insert into public.social_media (platform, url, is_active, display_order) values
+  ('youtube',   'https://www.youtube.com/@BisericaCasaPainii', true,  1),
+  ('facebook',  'https://www.facebook.com/CasaPainii.OcnaMures/', true, 2),
+  ('instagram', '', false, 3),
+  ('tiktok',    '', false, 4),
+  ('whatsapp',  '', false, 5)
 on conflict do nothing;
 
 -- Seed the 6 demo events + ticket types (only if events table is empty)
@@ -441,7 +489,8 @@ begin
     insert into public.events (title, description, event_type, date_label, time_label, location, category, capacity, is_free, base_price, status)
     values ('Tabără de Copii','Tabără pentru copii cu activități, jocuri și studiu biblic.','camp','1-5 August 2026','09:00','Ocna Mureș','Tabără',50,false,100,'published') returning id into e6;
 
-    insert into public.ticket_types (event_id, name, description, price, attendance_type, includes_meals, sort_order) values
+    -- Seed into event_packages (canonical table name)
+    insert into public.event_packages (event_id, name, description, price, attendance_type, includes_meals, sort_order) values
       (e1,'Tabără completă','Toate zilele taberei, mese incluse',150,'full',true,1),
       (e1,'Weekend','Vineri seară până Duminică',80,'partial',true,2),
       (e1,'O zi','O singură zi la alegere',30,'day_pass',true,3),
