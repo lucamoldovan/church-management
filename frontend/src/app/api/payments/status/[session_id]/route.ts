@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { getAuthContext, isStaff } from '@/lib/auth'
 
 export const runtime = 'edge'
 
@@ -9,70 +10,46 @@ const serviceKey = process.env.SUPABASE_SERVICE_KEY || ''
 async function sbFetch(path: string, options?: RequestInit) {
   const res = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
     ...options,
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-      'Content-Type': 'application/json',
-      ...(options?.headers as Record<string, string> || {}),
-    },
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json', ...(options?.headers as Record<string, string> || {}) },
   })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Supabase error ${res.status}: ${text}`)
-  }
+  if (!res.ok) throw new Error(`Supabase error ${res.status}: ${await res.text()}`)
   const text = await res.text()
   return text ? JSON.parse(text) : null
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ session_id: string }> }
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ session_id: string }> }) {
   try {
-    const { session_id } = await params
+    const auth = await getAuthContext()
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const { session_id } = await params
     const stripeKey = process.env.STRIPE_SECRET_KEY
-    if (!stripeKey) {
-      return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
+    if (!stripeKey) return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
+
+    const txs = await sbFetch(`payment_transactions?session_id=eq.${session_id}&select=user_id,registration_id`)
+    if (!txs?.length) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+    if (String(txs[0].user_id) !== auth.userId && !isStaff(auth.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const stripe = new Stripe(stripeKey)
     const session = await stripe.checkout.sessions.retrieve(session_id)
-
     const status = session.status || 'unknown'
     const paymentStatus = session.payment_status || 'unknown'
     const now = new Date().toISOString()
 
-    // Update transaction record
     await sbFetch(`payment_transactions?session_id=eq.${session_id}`, {
       method: 'PATCH',
       body: JSON.stringify({ status, payment_status: paymentStatus, updated_at: now }),
     })
 
-    // If paid, mark the registration
-    if (paymentStatus === 'paid') {
-      const txs = await sbFetch(
-        `payment_transactions?session_id=eq.${session_id}&select=registration_id`
-      )
-      if (txs && txs[0]?.registration_id) {
-        await sbFetch(`registrations?id=eq.${txs[0].registration_id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ payment_status: 'paid' }),
-        })
-      }
+    if (paymentStatus === 'paid' && txs[0].registration_id) {
+      await sbFetch(`registrations?id=eq.${txs[0].registration_id}`, { method: 'PATCH', body: JSON.stringify({ payment_status: 'paid' }) })
     }
 
-    return NextResponse.json({
-      status,
-      payment_status: paymentStatus,
-      amount_total: session.amount_total,
-      currency: session.currency,
-    })
+    return NextResponse.json({ status, payment_status: paymentStatus, amount_total: session.amount_total, currency: session.currency })
   } catch (err) {
     console.error('[payments/status]', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 })
   }
 }
