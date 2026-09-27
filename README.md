@@ -7,7 +7,7 @@ A full-stack church management platform for Casa Pâinii.
 | Layer | Technology |
 |---|---|
 | Frontend + API | Next.js 16 (App Router, TypeScript) |
-| Database & Auth | Supabase (Postgres + RLS + Auth + Storage) |
+| Database & Auth | Cloudflare D1 + Better Auth + R2 |
 | Payments | Stripe |
 | Deployment | Cloudflare Workers via OpenNext |
 
@@ -54,17 +54,17 @@ Create `frontend/.env.local` from the repository root `.env.example`.
 
 ### 2. Database
 
-Run these SQL files in order in the Supabase SQL Editor:
+Apply the Cloudflare D1 migration with `npm run db:migrate` from `frontend/`.
 
-1. `supabase/schema.sql`
-2. `supabase/migrations/phase1_payments.sql`
-3. `supabase/migrations/phase2_bracelets.sql`
-4. `supabase/migrations/phase3_event_planning.sql`
-5. `supabase/migrations/phase5_integrations.sql`
-6. `supabase/migrations/phase6_bracelet_history.sql`
-7. `supabase/migrations/phase7_schema_fixes.sql`
-8. `supabase/migrations/phase8_missing_tables.sql`
-9. `supabase/migrations/phase9_event_packages_and_profile_fields.sql`
+1. `frontend/migrations/0001_cloudflare_native.sql
+2. `frontend/migrations/0001_cloudflare_native.sql
+3. `frontend/migrations/0001_cloudflare_native.sql
+4. `frontend/migrations/0001_cloudflare_native.sql
+5. `frontend/migrations/0001_cloudflare_native.sql
+6. `frontend/migrations/0001_cloudflare_native.sql
+7. `frontend/migrations/0001_cloudflare_native.sql
+8. `frontend/migrations/0001_cloudflare_native.sql
+9. `frontend/migrations/0001_cloudflare_native.sql
 
 The `posters` Supabase Storage bucket must exist and be public if Facebook/event-poster publishing is enabled.
 
@@ -120,9 +120,9 @@ Configure these in Cloudflare **Build Variables and Secrets** / Worker environme
 
 | Variable | Required | Type |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Variable |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Variable |
-| `SUPABASE_SERVICE_KEY` | Yes | Secret |
+| `BETTER_AUTH_SECRET` | Yes | Variable |
+| `BETTER_AUTH_URL` | Yes | Variable |
+| `EMAIL_FROM` | Yes | Secret |
 | `STRIPE_SECRET_KEY` | Yes for payments | Secret |
 | `STRIPE_WEBHOOK_SECRET` | Yes for payments | Secret |
 | `GOOGLE_CLIENT_ID` | Optional | Variable |
@@ -162,12 +162,12 @@ The OAuth flow uses an HTTP-only state cookie to bind the callback to the initia
 
 ## Security Model
 
-- Supabase Auth identifies the current user.
+- Better Auth manages accounts and sessions in Cloudflare D1.
 - Sensitive API routes enforce authentication and staff/owner authorization.
 - Server-side Supabase access uses `SUPABASE_SERVICE_KEY`, which must remain secret.
 - Stripe webhooks verify the Stripe signature before changing payment state.
 - Google OAuth callbacks require an authenticated staff user and validate OAuth state.
-- Public/client Supabase keys are safe to expose; service-role and third-party secrets are not.
+- Keep `BETTER_AUTH_SECRET` and third-party credentials private.
 
 ## Database Notes
 
