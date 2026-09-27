@@ -6,7 +6,7 @@ type Filter = { op: string; field: string; value?: unknown; operator?: string }
 export type DbError = Error & { code?: string; details?: string; hint?: string }
 type QueryResult<T = any> = { data: T; error: DbError | null; count?: number | null }
 
-class ClientQuery<T = any> implements PromiseLike<QueryResult<T>> {
+class ClientQuery implements PromiseLike<QueryResult<any>> {
   private filters: Filter[] = []
   private action: 'select' | 'insert' | 'update' | 'delete' | 'upsert' = 'select'
   private columns = '*'
@@ -43,8 +43,8 @@ class ClientQuery<T = any> implements PromiseLike<QueryResult<T>> {
   maybeSingle() { this.singleMode = 'maybeSingle'; return this }
   or(value: string) { this.orValue = value; return this }
 
-  then<TResult1 = QueryResult<T>, TResult2 = never>(
-    onfulfilled?: ((value: QueryResult<T>) => TResult1 | PromiseLike<TResult1>) | null,
+  then<TResult1 = QueryResult<any>, TResult2 = never>(
+    onfulfilled?: ((value: QueryResult<any>) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
     return this.execute().then(onfulfilled, onrejected)
@@ -95,7 +95,7 @@ function storage() {
 
 export function createClient() {
   return {
-    from: (table: string) => new ClientQuery<any>(table),
+    from: (table: string) => new ClientQuery(table),
     auth: {
       getUser: async () => {
         const result = await authClient.getSession()
