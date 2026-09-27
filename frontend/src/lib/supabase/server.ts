@@ -11,7 +11,7 @@ export async function createClient() {
   const auth = await getAuth()
   const session = await auth.api.getSession({ headers: await headers() })
   return {
-    from: <T = any>(table: string) => new ServerQuery<T>(env.CHURCH_DB, table),
+    from: (table: string) => new ServerQuery<any>(env.CHURCH_DB, table),
     auth: { getUser: async () => ({
       data: { user: session?.user ? { id: session.user.id, email: session.user.email, name: session.user.name } : null },
       error: null,
