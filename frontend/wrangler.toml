@@ -3,12 +3,10 @@ main = ".open-next/worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-# Assets produced by @opennextjs/cloudflare
 [assets]
 directory = ".open-next/assets"
 
-# Set these in the Cloudflare Pages dashboard under Settings > Environment Variables.
-# Do NOT commit real values here.
+# Public configuration only. Set secrets with `wrangler secret put` or the Cloudflare dashboard.
 [vars]
 NEXT_PUBLIC_SUPABASE_URL = ""
 NEXT_PUBLIC_SUPABASE_ANON_KEY = ""
