@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Casa Pâinii — Church Management Platform
 
-## Getting Started
+This directory contains the deployable Next.js application.
 
-First, run the development server:
+## Stack
+
+- Next.js App Router + TypeScript
+- Supabase Auth, Postgres, RLS and Storage
+- Stripe payments
+- Cloudflare Workers via OpenNext
+
+## Development
 
 ```bash
+cd frontend
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create `frontend/.env.local` with the variables documented in the repository root `.env.example`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cloudflare build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd frontend
+npm install
+npm run build:cf
+wrangler deploy
+```
 
-## Learn More
+The Worker entrypoint is configured in `wrangler.toml` as `.open-next/worker.js`.
 
-To learn more about Next.js, take a look at the following resources:
+Set production variables/secrets in Cloudflare. Never commit service-role, Stripe, OAuth, or Facebook secrets.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Database
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Run the Supabase schema and migrations from the repository root in order:
 
-## Deploy on Vercel
+1. `supabase/schema.sql`
+2. `phase1_payments.sql`
+3. `phase2_bracelets.sql`
+4. `phase3_event_planning.sql`
+5. `phase5_integrations.sql`
+6. `phase6_bracelet_history.sql`
+7. `phase7_schema_fixes.sql`
+8. `phase8_missing_tables.sql`
+9. `phase9_event_packages_and_profile_fields.sql`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The `posters` Storage bucket must exist and be public if event poster publishing is enabled.
