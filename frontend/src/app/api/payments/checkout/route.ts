@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
     const auth = await getAuthContext()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const body = await request.json() as { registration_id?: unknown }\n    const { registration_id } = body
+    const body = await request.json() as { registration_id?: unknown }
+    const { registration_id } = body
     if (!isUuid(registration_id)) {
       return NextResponse.json({ error: 'Invalid registration_id' }, { status: 400 })
     }
