@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthContext, isStaff } from '@/lib/auth'
 
 export const runtime = 'edge'
 
@@ -150,6 +151,10 @@ export async function POST(
   { params }: { params: Promise<{ event_id: string }> }
 ) {
   try {
+    const auth = await getAuthContext()
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!isStaff(auth.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
     const { event_id } = await params
     const { origin } = await request.json()
 
