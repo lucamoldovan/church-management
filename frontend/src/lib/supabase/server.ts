@@ -1,25 +1,5 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-
-export async function createClient() {
-  const cookieStore = await cookies()
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {}
-        },
-      },
-    }
-  )
-}
+import { getEnv } from '@/lib/cloudflare'
+import { getAuth } from '@/lib/auth'
+import { headers } from 'next/headers'
+export async function createClient(){const env=await getEnv();const auth=await getAuth();const session=await auth.api.getSession({headers:await headers()});return {from:(table:string)=>new ServerQuery(env.CHURCH_DB,table),auth:{getUser:async()=>({data:{user:session?.user?{id:session.user.id,email:session.user.email,name:session.user.name}:null},error:null})}}}
+class ServerQuery{private filters:any[]=[];private action='select';private columns='*';private payload:any;private orderBy:any;private singleMode:any;private orFilter:any;constructor(private db:D1Database,private table:string){}select(c='*'){this.columns=c;this.action='select';return this}insert(p:any){this.action='insert';this.payload=p;return this}update(p:any){this.action='update';this.payload=p;return this}delete(){this.action='delete';return this}eq(f:string,v:any){this.filters.push({op:'eq',field:f,value:v});return this}neq(f:string,v:any){this.filters.push({op:'neq',field:f,value:v});return this}ilike(f:string,v:any){this.filters.push({op:'ilike',field:f,value:v});return this}is(f:string,v:any){this.filters.push({op:'is',field:f,value:v});return this}or(v:string){this.orFilter=v;return this}order(f:string,o?:any){this.orderBy={field:f,ascending:o?.ascending!==false};return this}single(){this.singleMode='single';return this}maybeSingle(){this.singleMode='maybeSingle';return this}then(resolve:any,reject?:any){return this.execute().then(resolve,reject)}async execute(){const r=await fetch((process.env.BETTER_AUTH_URL||'http://localhost:3000')+'/api/db',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({table:this.table,action:this.action,columns:this.columns,filters:this.filters,or:this.orFilter,order:this.orderBy,payload:this.payload,single:this.singleMode})});return r.json()}}
