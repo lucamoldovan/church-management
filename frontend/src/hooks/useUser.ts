@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { authClient } from '@/lib/auth-client'
 
 export interface Profile {
   id: string
@@ -26,16 +27,16 @@ export function useUser() {
   useEffect(() => {
     let mounted = true
     const load = async () => {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: session } = await authClient.getSession()
+      const user = session?.user
       if (!mounted) return
       if (!user) {
         setUser(null); setProfile(null); setLoading(false)
         return
       }
       setUser({ id: user.id, email: user.email ?? '' })
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      const profileResponse = await fetch(`/api/profile?userId=${encodeURIComponent(user.id)}`)
+      const prof = profileResponse.ok ? await profileResponse.json() : null
       if (!mounted) return
       setProfile(prof as Profile)
       setLoading(false)
