@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Plus, Trash2, Pencil, X, Upload, ImageIcon } from 'lucide-react'
+import { Plus, Trash2, Pencil, X, Upload, ImageIcon, RefreshCw, CalendarPlus, ExternalLink } from 'lucide-react'
 import { formatPrice } from '@/lib/eventImages'
 import { FACILITY_OPTIONS, EVENT_STATUSES, STATUS_LABELS, statusBadge } from '@/lib/eventOptions'
 
@@ -25,6 +25,9 @@ export default function AdminEvents() {
   const [editing, setEditing] = useState<Form | null>(null)
   const [msg, setMsg] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [calendarEvents, setCalendarEvents] = useState<Array<{id:string; title:string; description:string; location:string; start:string|null; end:string|null; htmlLink:string|null}>>([])
+  const [calendarLoading, setCalendarLoading] = useState(false)
+  const [calendarMsg, setCalendarMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -35,6 +38,40 @@ export default function AdminEvents() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  const syncCalendar = async () => {
+    setCalendarLoading(true); setCalendarMsg('')
+    try {
+      const res = await fetch('/api/integrations/google/events')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Nu s-a putut citi calendarul.')
+      const localIds = new Set(events.map(e => (e as Ev & { google_event_id?: string }).google_event_id))
+      setCalendarEvents((data.events || []).filter((e: any) => !localIds.has(e.id)))
+      if (!(data.events || []).length) setCalendarMsg('Nu există evenimente viitoare în calendar.')
+    } catch (e) { setCalendarMsg(e instanceof Error ? e.message : 'Eroare la sincronizare.') }
+    setCalendarLoading(false)
+  }
+
+  const importCalendarEvent = async (ev: typeof calendarEvents[number]) => {
+    setCalendarMsg('')
+    try {
+      const res = await fetch('/api/integrations/google/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ google_id: ev.id, title: ev.title, description: ev.description, location: ev.location, start: ev.start, end: ev.end }) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Importul a eșuat.')
+      const start = ev.start ? new Date(ev.start) : null
+      setEditing({
+        ...empty,
+        id: data.event_id || data.event?.id,
+        title: ev.title,
+        description: ev.description,
+        location: ev.location,
+        date: start ? start.toISOString().slice(0,10) : '',
+        time: start ? start.toISOString().slice(11,16) : '',
+      })
+      setCalendarEvents(prev => prev.filter(x => x.id !== ev.id))
+      await load()
+    } catch (e) { setCalendarMsg(e instanceof Error ? e.message : 'Importul a eșuat.') }
+  }
+
 
   const uploadPoster = async (file: File) => {
     setUploading(true); setMsg('')
@@ -95,15 +132,40 @@ export default function AdminEvents() {
 
   return (
     <div data-testid="admin-events">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <h1 className="font-heading text-3xl font-bold">Evenimente</h1>
-        <button data-testid="admin-event-new" onClick={() => setEditing({ ...empty })}
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={syncCalendar} disabled={calendarLoading} className="inline-flex items-center gap-2 bg-secondary px-4 py-2.5 rounded-full text-sm font-semibold hover:bg-secondary/70 disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${calendarLoading ? 'animate-spin' : ''}`} /> {calendarLoading ? 'Se sincronizează...' : 'Sincronizează Calendar'}
+          </button>
+          <button data-testid="admin-event-new" onClick={() => setEditing({ ...empty })}
           className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors">
           <Plus className="h-4 w-4" /> Propune eveniment
         </button>
       </div>
 
       {msg && <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-2xl text-sm mb-4">{msg}</div>}
+      {calendarMsg && <div className="bg-secondary text-secondary-foreground px-4 py-3 rounded-2xl text-sm mb-4">{calendarMsg}</div>}
+
+      {calendarEvents.length > 0 && (
+        <div className="bg-card border border-border/60 rounded-3xl p-5 mb-5 soft-shadow">
+          <div className="flex items-center justify-between mb-4">
+            <div><h2 className="font-heading font-semibold">Evenimente din Google Calendar</h2><p className="text-xs text-muted-foreground mt-1">Nu sunt încă în platformă. Importă-le ca schițe și adaugă posterul/detaliile.</p></div>
+            <CalendarPlus className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex flex-col gap-2">
+            {calendarEvents.map(ev => (
+              <div key={ev.id} className="border border-border/60 rounded-2xl p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0"><div className="font-medium text-sm truncate">{ev.title}</div><div className="text-xs text-muted-foreground">{ev.start ? new Date(ev.start).toLocaleString('ro-RO') : 'Fără dată'}{ev.location ? ' · ' + ev.location : ''}</div></div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {ev.htmlLink && <a href={ev.htmlLink} target="_blank" rel="noopener noreferrer" className="p-2 rounded-full hover:bg-secondary"><ExternalLink className="h-4 w-4" /></a>}
+                  <button onClick={() => importCalendarEvent(ev)} className="bg-primary text-primary-foreground px-4 py-2 rounded-full text-xs font-semibold">Importă</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3">
         {events.map(ev => (
