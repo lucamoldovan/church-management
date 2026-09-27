@@ -2,6 +2,7 @@ interface CloudflareEnv {
   CHURCH_DB: D1Database
   MEDIA: R2Bucket
   EMAIL: SendEmail
+  EMAIL_FROM?: string
   BETTER_AUTH_SECRET: string
   BETTER_AUTH_URL?: string
   GOOGLE_CLIENT_ID?: string
