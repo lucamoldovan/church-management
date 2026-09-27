@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { getAuthContext, isStaff } from '@/lib/auth'
 
 export const runtime = 'edge'
 
@@ -16,29 +17,31 @@ async function sbFetch(path: string, options?: RequestInit) {
       ...(options?.headers as Record<string, string> || {}),
     },
   })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Supabase error ${res.status}: ${text}`)
-  }
+  if (!res.ok) throw new Error(`Supabase error ${res.status}: ${await res.text()}`)
   const text = await res.text()
   return text ? JSON.parse(text) : null
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await getAuthContext()
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const { registration_id, origin } = await request.json()
     if (!registration_id || !origin) {
       return NextResponse.json({ error: 'registration_id and origin are required' }, { status: 400 })
     }
 
     const regs = await sbFetch(`registrations?id=eq.${registration_id}&select=*`)
-    if (!regs || regs.length === 0) {
-      return NextResponse.json({ error: 'Inregistrare negasita' }, { status: 404 })
-    }
-    const reg = regs[0]
-    const amount = parseFloat(reg.package_price || '0')
+    if (!regs || regs.length === 0) return NextResponse.json({ error: 'Inregistrare negasita' }, { status: 404 })
 
-    // Free ticket - mark paid immediately, no Stripe needed
+    const reg = regs[0]
+    const canManage = isStaff(auth.role)
+    if (String(reg.user_id) !== auth.userId && !canManage) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const amount = parseFloat(reg.package_price || '0')
     if (amount <= 0) {
       await sbFetch(`registrations?id=eq.${registration_id}`, {
         method: 'PATCH',
@@ -48,12 +51,9 @@ export async function POST(request: NextRequest) {
     }
 
     const stripeKey = process.env.STRIPE_SECRET_KEY
-    if (!stripeKey) {
-      return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
-    }
+    if (!stripeKey) return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
 
     const stripe = new Stripe(stripeKey)
-
     const successUrl = `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`
     const cancelUrl = `${origin}/dashboard`
     const metadata: Record<string, string> = {
@@ -67,44 +67,29 @@ export async function POST(request: NextRequest) {
       mode: 'payment',
       success_url: successUrl,
       cancel_url: cancelUrl,
-      line_items: [
-        {
-          price_data: {
-            currency: 'ron',
-            unit_amount: Math.round(amount * 100),
-            product_data: {
-              name: reg.event_title || 'Bilet eveniment',
-              description: reg.package_name || undefined,
-            },
-          },
-          quantity: 1,
+      line_items: [{
+        price_data: {
+          currency: 'ron',
+          unit_amount: Math.round(amount * 100),
+          product_data: { name: reg.event_title || 'Bilet eveniment', description: reg.package_name || undefined },
         },
-      ],
+        quantity: 1,
+      }],
       metadata,
     })
 
-    // Record the transaction
     await sbFetch('payment_transactions', {
       method: 'POST',
       headers: { Prefer: 'return=minimal' } as Record<string, string>,
       body: JSON.stringify({
-        user_id: reg.user_id,
-        registration_id,
-        session_id: session.id,
-        amount,
-        currency: 'ron',
-        status: 'initiated',
-        payment_status: 'pending',
-        metadata,
+        user_id: reg.user_id, registration_id, session_id: session.id, amount,
+        currency: 'ron', status: 'initiated', payment_status: 'pending', metadata,
       }),
     })
 
     return NextResponse.json({ url: session.url, session_id: session.id })
   } catch (err) {
     console.error('[payments/checkout]', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Internal error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 })
   }
 }
