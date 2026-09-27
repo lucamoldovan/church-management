@@ -17,6 +17,7 @@ async function sbFetch(path: string, options?: RequestInit) {
       ...(options?.headers as Record<string, string> || {}),
     },
   })
+  if (!res.ok) throw new Error(`Supabase error ${res.status}: ${await res.text()}`)
   const text = await res.text()
   return text ? JSON.parse(text) : null
 }
@@ -30,12 +31,10 @@ async function getGoogleAccessToken(): Promise<string | null> {
   if (!rows || !rows[0]?.tokens?.refresh_token) return null
 
   const tok = rows[0].tokens
-  // Use existing token if still valid (with 60s buffer)
   if (tok.expiry && new Date(tok.expiry).getTime() > Date.now() + 60000) {
     return tok.access_token
   }
 
-  // Refresh the token
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -78,10 +77,7 @@ function buildEventTimes(event: Record<string, unknown>) {
   }
 }
 
-async function publishToGoogle(
-  event: Record<string, unknown>,
-  calendarId: string
-): Promise<string> {
+async function publishToGoogle(event: Record<string, unknown>, calendarId: string): Promise<string> {
   const accessToken = await getGoogleAccessToken()
   if (!accessToken) throw new Error('Google Calendar nu este conectat.')
 
@@ -99,7 +95,7 @@ async function publishToGoogle(
   const calPath = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`
 
   const res = existingId
-    ? await fetch(`${calPath}/${existingId}`, {
+    ? await fetch(`${calPath}/${encodeURIComponent(existingId)}`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -121,10 +117,7 @@ async function publishToGoogle(
   return data.id
 }
 
-async function publishToFacebook(
-  event: Record<string, unknown>,
-  link: string
-): Promise<string> {
+async function publishToFacebook(event: Record<string, unknown>, link: string): Promise<string> {
   const pageId = process.env.FB_PAGE_ID
   const pageToken = process.env.FB_PAGE_ACCESS_TOKEN
   if (!pageId || !pageToken) throw new Error('Facebook nu este configurat.')
@@ -137,14 +130,18 @@ async function publishToFacebook(
     access_token: pageToken,
   })
 
-  const res = await fetch(
-    `https://graph.facebook.com/v19.0/${pageId}/photos`,
-    { method: 'POST', body: formData }
-  )
+  const res = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(pageId)}/photos`, {
+    method: 'POST',
+    body: formData,
+  })
   const data = await res.json()
   if (data.error) throw new Error(data.error.message || 'Eroare Facebook')
   return data.post_id || data.id
 }
+
+const isUuid = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 
 export async function POST(
   request: NextRequest,
@@ -156,14 +153,15 @@ export async function POST(
     if (!isStaff(auth.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const { event_id } = await params
-    const { origin } = await request.json()
+    if (!isUuid(event_id)) return NextResponse.json({ error: 'Invalid event_id' }, { status: 400 })
 
-    const rows = await sbFetch(`events?id=eq.${event_id}&select=*`)
+    const rows = await sbFetch(`events?id=eq.${encodeURIComponent(event_id)}&select=*`)
     if (!rows || rows.length === 0) {
       return NextResponse.json({ error: 'Eveniment negasit' }, { status: 404 })
     }
     const event = rows[0]
-    const link = `${origin}/events/${event_id}`
+    const requestOrigin = new URL(request.url).origin
+    const link = `${requestOrigin}/events/${event_id}`
     const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary'
 
     const log: Record<string, unknown> = {}
@@ -191,7 +189,7 @@ export async function POST(
 
     if (Object.keys(log).length > 0) {
       update.publish_log = log
-      await sbFetch(`events?id=eq.${event_id}`, {
+      await sbFetch(`events?id=eq.${encodeURIComponent(event_id)}`, {
         method: 'PATCH',
         body: JSON.stringify(update),
       })
