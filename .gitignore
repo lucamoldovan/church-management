@@ -1,7 +1,29 @@
+# Environment files - never commit secrets
 .env
 .env.*
 *.env
+.env.local
+backend/.env
+frontend/.env.local
 credentials.json
 *.pem
 *.key
 .credentials
+
+# Emergent AI agent artifacts - not needed in production
+.emergent/
+memory/
+
+# Cloudflare / Vercel build output
+.vercel/
+.wrangler/
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
