@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getEnv } from '@/lib/cloudflare'
 import Stripe from 'stripe'
 import { getAuthContext, isStaff } from '@/lib/auth'
+import { getEnv } from '@/lib/cloudflare'
 
 export const runtime = 'edge'
 
@@ -42,7 +44,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ free: true })
     }
 
-    const stripeKey = process.env.STRIPE_SECRET_KEY
+    const env = await getEnv()
+    const stripeKey = env.STRIPE_SECRET_KEY
     if (!stripeKey) return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
 
     const stripe = new Stripe(stripeKey)
