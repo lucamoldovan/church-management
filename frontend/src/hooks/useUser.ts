@@ -27,21 +27,24 @@ export function useUser() {
   useEffect(() => {
     let mounted = true
     const load = async () => {
-      const { data: session } = await authClient.getSession()
-      const user = session?.user
-      if (!mounted) return
-      if (!user) {
-        setUser(null); setProfile(null); setLoading(false)
-        return
+      try {
+        const { data: session } = await authClient.getSession()
+        const currentUser = session?.user
+        if (!mounted) return
+        if (!currentUser) {
+          setUser(null); setProfile(null); setLoading(false)
+          return
+        }
+        setUser({ id: currentUser.id, email: currentUser.email ?? '' })
+        const response = await fetch('/api/profile', { cache: 'no-store' })
+        const prof = response.ok ? await response.json() : null
+        if (!mounted) return
+        setProfile(prof as Profile | null)
+      } finally {
+        if (mounted) setLoading(false)
       }
-      setUser({ id: user.id, email: user.email ?? '' })
-      const profileResponse = await fetch(`/api/profile?userId=${encodeURIComponent(user.id)}`)
-      const prof = profileResponse.ok ? await profileResponse.json() : null
-      if (!mounted) return
-      setProfile(prof as Profile)
-      setLoading(false)
     }
-    load()
+    void load()
     return () => { mounted = false }
   }, [])
 
