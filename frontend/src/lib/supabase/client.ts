@@ -6,7 +6,7 @@ type Filter = { op: string; field: string; value?: unknown; operator?: string }
 export type DbError = Error & { code?: string; details?: string; hint?: string }
 type QueryResult<T = any> = { data: T; error: DbError | null; count?: number | null }
 
-class ClientQuery implements PromiseLike<QueryResult<any>> {
+class ClientQuery {
   private filters: Filter[] = []
   private action: 'select' | 'insert' | 'update' | 'delete' | 'upsert' = 'select'
   private columns = '*'
@@ -47,10 +47,13 @@ class ClientQuery implements PromiseLike<QueryResult<any>> {
   // Supabase-style query shim backed by a dynamic D1 API, so callers should not
   // inherit PromiseLike's unknown inference through TypeScript's Awaited.
   then(
-    onfulfilled?: ((value: QueryResult<any>) => any) | null,
-    onrejected?: ((reason: any) => any) | null,
-  ): any {
-    return this.execute().then(onfulfilled, onrejected)
+    onfulfilled?: ((value: QueryResult<any>) => unknown) | null,
+    onrejected?: ((reason: unknown) => unknown) | null,
+  ): Promise<any> {
+    return this.execute().then(
+      onfulfilled as ((value: QueryResult<any>) => any) | undefined,
+      onrejected as ((reason: any) => any) | undefined,
+    )
   }
 
   private async execute(): Promise<QueryResult<any>> {
