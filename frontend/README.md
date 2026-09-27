@@ -34,20 +34,14 @@ Set production variables/secrets in Cloudflare. Never commit service-role, Strip
 
 ## Database
 
-Run the Supabase schema and migrations from the repository root in order:
+Apply the D1 migrations from this directory:
 
-1. `frontend/migrations/0001_cloudflare_native.sql
-2. `phase1_payments.sql`
-3. `phase2_bracelets.sql`
-4. `phase3_event_planning.sql`
-5. `phase5_integrations.sql`
-6. `phase6_bracelet_history.sql`
-7. `phase7_schema_fixes.sql`
-8. `phase8_missing_tables.sql`
-9. `phase9_event_packages_and_profile_fields.sql`
+```bash
+cd frontend
+npm run db:migrate
+```
 
-The `posters` Storage bucket must exist and be public if event poster publishing is enabled.
-
+The D1 schema includes authentication, members, events, registrations, check-ins, bracelets, groups, payments, integrations, services and production state.
 
 ## Integrations added
 
