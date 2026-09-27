@@ -9,9 +9,3 @@ binding = "ASSETS"
 
 [observability]
 enabled = true
-
-# Public configuration only. Set secrets with `wrangler secret put`
-# or configure them in Cloudflare Workers Builds.
-[vars]
-NEXT_PUBLIC_SUPABASE_URL = ""
-NEXT_PUBLIC_SUPABASE_ANON_KEY = ""
