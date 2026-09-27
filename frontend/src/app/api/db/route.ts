@@ -32,7 +32,7 @@ function addWhere(filters:any[],orValue:string|undefined,table:string,joinProfil
  if(orValue){
   const ors:string[]=[]
   for(const part of String(orValue).split(',')){
-   const m=part.match(/^([A-Za-z_][A-Za-z0-9_.]*)\\.eq\\.(.*)$/)
+   const m=part.match(/^([A-Za-z_][A-Za-z0-9_.]*)\.eq\.(.*)$/)
    if(m){const col=m[1].includes('.')?m[1].replace('profiles.','p.'):'t.'+m[1];ors.push(col+' = ?');binds.push(m[2])}
   }
   if(ors.length)clauses.push('('+ors.join(' OR ')+')')
