@@ -6,6 +6,7 @@ import { Plug, Calendar, Share2, CheckCircle2, XCircle, Camera, MessageCircle, M
 interface Status {
   google: { configured: boolean; connected: boolean; calendar_id: string }
   facebook: { configured: boolean; page_id: string | null }
+  youtube: { configured: boolean; channel_id: string | null }
 }
 
 export default function AdminIntegrations() {
@@ -66,6 +67,13 @@ export default function AdminIntegrations() {
             ) : (
               <p className="text-xs text-muted-foreground">Adaugă GOOGLE_CLIENT_ID și GOOGLE_CLIENT_SECRET în backend pentru a activa.</p>
             )}
+          </div>
+
+          {/* YouTube Live */}
+          <div data-testid="integration-youtube" className="bg-card border border-border/60 rounded-3xl p-6 soft-shadow">
+            <div className="flex items-center gap-3 mb-4"><span className="h-11 w-11 rounded-full bg-primary/10 text-primary flex items-center justify-center"><Share2 className="h-5 w-5" /></span><div><h2 className="font-heading font-semibold">YouTube Live</h2><p className="text-xs text-muted-foreground">Detectează automat când canalul este live și afișează transmisia</p></div></div>
+            <Pill ok={!!status?.youtube.configured} label={status?.youtube.configured ? 'Configurat' : 'Lipsesc credențiale'} />
+            {!status?.youtube.configured && <p className="text-xs text-muted-foreground mt-3">Adaugă YOUTUBE_API_KEY și YOUTUBE_CHANNEL_ID în Cloudflare.</p>}
           </div>
 
           {/* Facebook */}
