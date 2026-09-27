@@ -3,8 +3,9 @@ import { NextResponse } from 'next/server'
 export const runtime = 'edge'
 
 export async function GET() {
-  const apiKey = process.env.YOUTUBE_API_KEY
-  const channelId = process.env.YOUTUBE_CHANNEL_ID
+  const env = await getEnv()
+  const apiKey = env.YOUTUBE_API_KEY
+  const channelId = env.YOUTUBE_CHANNEL_ID
   if (!apiKey || !channelId) return NextResponse.json({ configured: false, live: false, video: null })
   const params = new URLSearchParams({ part: 'snippet', channelId, eventType: 'live', type: 'video', maxResults: '1', key: apiKey })
   try {
