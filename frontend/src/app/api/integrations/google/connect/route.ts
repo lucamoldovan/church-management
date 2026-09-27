@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext, isStaff } from '@/lib/auth'
+import { getEnv } from '@/lib/cloudflare'
 
 export const runtime = 'edge'
 
@@ -16,8 +17,9 @@ export async function GET(request: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!isStaff(auth.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const clientId = process.env.GOOGLE_CLIENT_ID
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const env = await getEnv()
+  const clientId = env.GOOGLE_CLIENT_ID
+  const clientSecret = env.GOOGLE_CLIENT_SECRET
 
   if (!clientId || !clientSecret) {
     return NextResponse.json({ error: 'Google credentials not configured.' }, { status: 503 })
