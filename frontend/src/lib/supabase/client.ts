@@ -43,15 +43,10 @@ class ClientQuery {
   maybeSingle() { this.singleMode = 'maybeSingle'; return this }
   or(value: string) { this.orValue = value; return this }
 
-  // Deliberately expose a broad thenable type here: this is a legacy-compatible
-  // Supabase-style query shim backed by a dynamic D1 API, so callers should not
-  // inherit PromiseLike's unknown inference through TypeScript's Awaited.
-  then<TResult1 = QueryResult<any>, TResult2 = never>(
-    onfulfilled?: ((value: QueryResult<any>) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
-  ): Promise<TResult1 | TResult2> {
-    return this.execute().then(onfulfilled ?? undefined, onrejected ?? undefined)
-  }
+  // Match the native Promise<T> then signature exactly so TypeScript's Awaited<T>
+  // resolves this legacy Supabase-style query to QueryResult<any>.
+  then: Promise<QueryResult<any>>['then'] = (onfulfilled, onrejected) =>
+    this.execute().then(onfulfilled, onrejected)
 
   private async execute(): Promise<QueryResult<any>> {
     try {
