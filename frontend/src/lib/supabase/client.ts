@@ -78,7 +78,7 @@ function storage() {
   return {
     from(bucket: string) {
       return {
-        async upload(path: string, file: File) {
+        async upload(path: string, file: File, _options?: { upsert?: boolean }) {
           const form = new FormData()
           form.set('bucket', bucket); form.set('path', path); form.set('file', file)
           const response = await fetch('/api/storage', { method: 'POST', body: form })
@@ -95,7 +95,7 @@ function storage() {
 
 export function createClient() {
   return {
-    from: <T = any>(table: string) => new ClientQuery<T>(table),
+    from: (table: string) => new ClientQuery<any>(table),
     auth: {
       getUser: async () => {
         const result = await authClient.getSession()
