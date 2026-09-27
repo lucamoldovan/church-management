@@ -10,7 +10,19 @@ export async function getAuth() {
     database: env.CHURCH_DB,
     baseURL: env.BETTER_AUTH_URL || undefined,
     secret: env.BETTER_AUTH_SECRET,
-    emailAndPassword: { enabled: true, requireEmailVerification: false },
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: false,
+      sendResetPassword: async ({ user, url }) => {
+        await env.EMAIL.send({
+          to: user.email,
+          from: 'noreply@yourdomain.com',
+          subject: 'Resetează parola - Casa Pâinii',
+          text: 'Accesează linkul pentru a reseta parola: ' + url,
+          html: '<p>Accesează linkul pentru a reseta parola:</p><p><a href="' + url + '">Resetează parola</a></p>',
+        })
+      },
+    },
     socialProviders: env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? {
       google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET },
     } : undefined,
