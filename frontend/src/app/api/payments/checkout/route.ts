@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getEnv } from '@/lib/cloudflare'
 import Stripe from 'stripe'
 import { getAuthContext, isStaff } from '@/lib/auth'
 import { getEnv } from '@/lib/cloudflare'
 
 export const runtime = 'edge'
-
-import { d1Rest } from '@/lib/d1-rest'
-
-async function sbFetch(path: string, options?: RequestInit) { return d1Rest(path, options) }
 
 const isUuid = (value: unknown): value is string =>
   typeof value === 'string' &&
@@ -24,34 +19,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid registration_id' }, { status: 400 })
     }
 
-    const regs = await sbFetch(`registrations?id=eq.${encodeURIComponent(registration_id)}&select=*`)
-    if (!regs || regs.length === 0) {
-      return NextResponse.json({ error: 'Inregistrare negasita' }, { status: 404 })
-    }
+    const env = await getEnv()
+    const reg = await env.CHURCH_DB.prepare('SELECT * FROM registrations WHERE id=?')
+      .bind(registration_id)
+      .first<Record<string, unknown>>()
 
-    const reg = regs[0]
+    if (!reg) return NextResponse.json({ error: 'Inregistrare negasita' }, { status: 404 })
+
     const canManage = isStaff(auth.role)
     if (String(reg.user_id) !== auth.userId && !canManage) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const amount = parseFloat(reg.package_price || '0')
+    const amount = Number(reg.package_price || 0)
     if (amount <= 0) {
-      await sbFetch(`registrations?id=eq.${encodeURIComponent(registration_id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ payment_status: 'paid' }),
-      })
+      await env.CHURCH_DB.prepare('UPDATE registrations SET payment_status=? WHERE id=?')
+        .bind('paid', registration_id)
+        .run()
       return NextResponse.json({ free: true })
     }
 
-    const env = await getEnv()
-    const stripeKey = env.STRIPE_SECRET_KEY
-    if (!stripeKey) return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
+    if (!env.STRIPE_SECRET_KEY) {
+      return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
+    }
 
-    const stripe = new Stripe(stripeKey)
-    const requestOrigin = new URL(request.url).origin
-    const successUrl = `${requestOrigin}/payment/success?session_id={CHECKOUT_SESSION_ID}`
-    const cancelUrl = `${requestOrigin}/dashboard`
+    const stripe = new Stripe(env.STRIPE_SECRET_KEY)
+    const origin = new URL(request.url).origin
     const metadata: Record<string, string> = {
       registration_id: String(registration_id),
       user_id: String(reg.user_id || ''),
@@ -61,27 +54,35 @@ export async function POST(request: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
-      success_url: successUrl,
-      cancel_url: cancelUrl,
+      success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/dashboard`,
       line_items: [{
         price_data: {
           currency: 'ron',
           unit_amount: Math.round(amount * 100),
-          product_data: { name: reg.event_title || 'Bilet eveniment', description: reg.package_name || undefined },
+          product_data: {
+            name: String(reg.event_title || 'Bilet eveniment'),
+            description: reg.package_name ? String(reg.package_name) : undefined,
+          },
         },
         quantity: 1,
       }],
       metadata,
     })
 
-    await sbFetch('payment_transactions', {
-      method: 'POST',
-      headers: { Prefer: 'return=minimal' } as Record<string, string>,
-      body: JSON.stringify({
-        user_id: reg.user_id, registration_id, session_id: session.id, amount,
-        currency: 'ron', status: 'initiated', payment_status: 'pending', metadata: JSON.stringify(metadata),
-      }),
-    })
+    await env.CHURCH_DB.prepare(
+      'INSERT INTO payment_transactions (id,user_id,registration_id,session_id,amount,currency,status,payment_status,metadata) VALUES (?,?,?,?,?,?,?,?,?)'
+    ).bind(
+      crypto.randomUUID(),
+      reg.user_id,
+      registration_id,
+      session.id,
+      amount,
+      'ron',
+      'initiated',
+      'pending',
+      JSON.stringify(metadata),
+    ).run()
 
     return NextResponse.json({ url: session.url, session_id: session.id })
   } catch (err) {
