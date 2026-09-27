@@ -1,195 +1,109 @@
 # Casa Pâinii — Church Management Platform
 
-A full-stack church management platform for Casa Pâinii.
+Cloudflare-native church management platform for Casa Pâinii.
 
-## Tech Stack
+## Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend + API | Next.js 16 (App Router, TypeScript) |
-| Database & Auth | Cloudflare D1 + Better Auth + R2 |
-| Payments | Stripe |
-| Deployment | Cloudflare Workers via OpenNext |
+- Next.js 16 + TypeScript
+- Cloudflare Workers + OpenNext
+- Cloudflare D1 — primary database
+- Better Auth — authentication and sessions
+- Cloudflare R2 — uploaded media
+- Cloudflare Email Service — transactional email
+- Stripe — payments
+- Google Calendar / YouTube / Facebook / Planning Center integrations
 
-The project has **no separate Python backend**. Server-side business logic and API endpoints live in Next.js Route Handlers under `frontend/src/app/api` and run in the Cloudflare Worker.
+There is no Python backend and no Supabase dependency.
 
-## Features
-
-- Member profiles and role-based authentication
-- Events with registration, ticketing, and approval workflow
-- Stripe payment integration (online + cash at event)
-- QR code tickets and NFC bracelet check-in system
-- Study groups with attendance tracking
-- Admin dashboard with analytics
-- Sermon library and livestream configuration
-- Google Calendar and Facebook auto-publishing
-- Role-based access control
-
-## Project Structure
+## Structure
 
 ```
 church-management/
-├── frontend/              # Deployable Next.js application
-│   ├── src/app/           # Pages + API Route Handlers
-│   ├── src/lib/           # Supabase/auth helpers
-│   ├── open-next.config.ts
-│   ├── wrangler.toml
+├── frontend/
+│   ├── src/app/              # Pages and API routes
+│   ├── src/lib/              # Cloudflare, auth and data helpers
+│   ├── migrations/           # D1 migrations
+│   ├── wrangler.toml         # D1/R2/Email bindings
 │   └── package.json
-├── supabase/
-│   ├── schema.sql
-│   └── migrations/
 └── .env.example
 ```
 
-## Local Development
-
-### 1. Install
+## Local setup
 
 ```bash
 cd frontend
 npm install
 ```
 
-Create `frontend/.env.local` from the repository root `.env.example`.
-
-### 2. Database
-
-Apply the Cloudflare D1 migration with `npm run db:migrate` from `frontend/`.
-
-1. `frontend/migrations/0001_cloudflare_native.sql
-2. `frontend/migrations/0001_cloudflare_native.sql
-3. `frontend/migrations/0001_cloudflare_native.sql
-4. `frontend/migrations/0001_cloudflare_native.sql
-5. `frontend/migrations/0001_cloudflare_native.sql
-6. `frontend/migrations/0001_cloudflare_native.sql
-7. `frontend/migrations/0001_cloudflare_native.sql
-8. `frontend/migrations/0001_cloudflare_native.sql
-9. `frontend/migrations/0001_cloudflare_native.sql
-
-The `posters` Supabase Storage bucket must exist and be public if Facebook/event-poster publishing is enabled.
-
-### 3. Run
+Create the D1 database and set its ID in `frontend/wrangler.toml`, then run:
 
 ```bash
-cd frontend
+npm run db:migrate
 npm run dev
 ```
 
-## Cloudflare Workers Deployment
-
-Cloudflare currently supports Next.js on Workers through multiple paths; this repository intentionally uses the **OpenNext adapter** for the existing Next.js application.
-
-### Option A — Cloudflare Workers Builds
-
-Connect the GitHub repository to Cloudflare Workers Builds.
-
-Set the project root to:
-
-```
-frontend
-```
-
-Build command:
+For the Workers runtime:
 
 ```bash
-npm install && npm run build:cf
-```
-
-Deploy command:
-
-```bash
-npx wrangler deploy
-```
-
-Cloudflare Workers Builds supports a separate build command and deploy command. citeturn0search7
-
-### Option B — Wrangler locally
-
-```bash
-cd frontend
-npm install
 npm run preview
-npm run deploy
 ```
 
-`preview` builds and runs the application through the Workers/OpenNext runtime; `deploy` builds and deploys it.
+## Cloudflare resources
 
-## Required Cloudflare Variables / Secrets
+Create/configure:
 
-Configure these in Cloudflare **Build Variables and Secrets** / Worker environment settings:
+1. D1 database named `church-management`
+2. R2 bucket named `church-management-media`
+3. Email Service sending domain
+4. Workers Paid plan for outbound Email Service
+5. Better Auth secret
 
-| Variable | Required | Type |
-|---|---|---|
-| `BETTER_AUTH_SECRET` | Yes | Variable |
-| `BETTER_AUTH_URL` | Yes | Variable |
-| `EMAIL_FROM` | Yes | Secret |
-| `STRIPE_SECRET_KEY` | Yes for payments | Secret |
-| `STRIPE_WEBHOOK_SECRET` | Yes for payments | Secret |
-| `GOOGLE_CLIENT_ID` | Optional | Variable |
-| `GOOGLE_CLIENT_SECRET` | Optional | Secret |
-| `GOOGLE_CALENDAR_ID` | Optional | Variable |
-| `FB_PAGE_ID` | Optional | Variable |
-| `FB_PAGE_ACCESS_TOKEN` | Optional | Secret |
-| `EVENT_TIMEZONE` | Optional | Variable |
+Then replace `REPLACE_WITH_D1_DATABASE_ID` in `wrangler.toml`.
 
-**Never commit service-role, Stripe, OAuth, or Facebook secrets.**
+Cloudflare's Workers platform exposes D1/R2 and other resources through bindings, and Email Service provides an `EMAIL` binding for transactional mail. citeturn2search7turn5search0
 
-## Stripe Webhook
+## Environment variables
 
-Create a Stripe webhook endpoint:
+| Variable | Required |
+|---|---|
+| `BETTER_AUTH_SECRET` | Yes |
+| `BETTER_AUTH_URL` | Yes |
+| `EMAIL_FROM` | Yes for email |
+| `STRIPE_SECRET_KEY` | Payments |
+| `STRIPE_WEBHOOK_SECRET` | Payments |
+| `GOOGLE_CLIENT_ID` | Google OAuth |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth |
+| `GOOGLE_CALENDAR_ID` | Google Calendar |
+| `YOUTUBE_API_KEY` | YouTube Live |
+| `YOUTUBE_CHANNEL_ID` | YouTube Live |
+| `PLANNING_CENTER_TOKEN` | Planning Center |
+| `FB_PAGE_ID` | Facebook |
+| `FB_PAGE_ACCESS_TOKEN` | Facebook |
+| `EVENT_TIMEZONE` | Optional, defaults to Europe/Bucharest |
 
-```
-https://YOUR_DOMAIN/api/payments/webhook
-```
+Never commit secrets.
 
-Listen for:
+## Database
 
-- `checkout.session.completed`
+The D1 migration creates the application database, including members, roles, events, registrations, bracelets, check-ins, groups, sermons, payments, integrations, Planning Center service data, production/Connector state, audit logs and Control Center data.
 
-Set its signing secret as `STRIPE_WEBHOOK_SECRET`.
+Better Auth uses the same D1 database for its user/session/account/verification tables. citeturn0search1turn3search0
 
-## Google Calendar OAuth
+## Deployment
 
-Create a Google OAuth 2.0 Web application and add:
+In Cloudflare Workers Builds:
 
-```
-https://YOUR_DOMAIN/api/oauth/calendar/callback
-```
+- Root directory: `frontend`
+- Build command: `npm install && npm run build:cf`
 
-Then configure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+The repository intentionally keeps OpenNext because this project already uses that deployment path. Cloudflare currently recommends vinext for new Next.js applications, while continuing to document OpenNext for existing applications. citeturn2search1
 
-The OAuth flow uses an HTTP-only state cookie to bind the callback to the initiating browser session.
+## Security
 
-## Security Model
-
-- Better Auth manages accounts and sessions in Cloudflare D1.
-- Sensitive API routes enforce authentication and staff/owner authorization.
-- Server-side Supabase access uses `SUPABASE_SERVICE_KEY`, which must remain secret.
-- Stripe webhooks verify the Stripe signature before changing payment state.
-- Google OAuth callbacks require an authenticated staff user and validate OAuth state.
-- Keep `BETTER_AUTH_SECRET` and third-party credentials private.
-
-## Database Notes
-
-The canonical event package table is `event_packages`. The phase 9 migration provides a compatibility view named `ticket_types`.
-
-Important tables include:
-
-- `profiles`
-- `events`
-- `event_packages`
-- `registrations`
-- `checkins`
-- `bracelets`
-- `bracelet_assignments`
-- `study_groups`
-- `group_members`
-- `group_meetings`
-- `group_attendance`
-- `sermons`
-- `livestream_config`
-- `payment_transactions`
-- `notifications`
-- `social_media`
-- `contact_messages`
-- `integration_tokens`
+- Better Auth handles authentication.
+- Protected API routes validate sessions server-side.
+- Staff/admin capabilities are checked server-side.
+- D1 is never exposed directly to the browser.
+- R2 uploads require authenticated staff access.
+- Stripe webhooks verify their signatures.
+- OAuth callbacks validate state.
