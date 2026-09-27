@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getEnv } from '@/lib/cloudflare'
 
 // Edge runtime - compatible with Cloudflare Pages
 // We verify the Stripe webhook signature manually using SubtleCrypto
@@ -57,8 +58,9 @@ async function verifyStripeSignature(
 }
 
 export async function POST(request: NextRequest) {
-  const stripeKey = process.env.STRIPE_SECRET_KEY
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+  const env = await getEnv()
+  const stripeKey = env.STRIPE_SECRET_KEY
+  const webhookSecret = env.STRIPE_WEBHOOK_SECRET
 
   if (!stripeKey || !webhookSecret) {
     return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
