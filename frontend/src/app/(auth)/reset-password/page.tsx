@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Wheat, MailCheck } from 'lucide-react'
+import { authClient } from '@/lib/auth-client'
 
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState('')
@@ -13,10 +14,11 @@ export default function ResetPasswordPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setError('')
     try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/update-password` })
-      if (error) throw error
+      const { error } = await authClient.requestPasswordReset({
+        email,
+        redirectTo: `${window.location.origin}/update-password`,
+      })
+      if (error) throw new Error(error.message || 'Nu am putut trimite linkul')
       setSent(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'A apărut o eroare')
