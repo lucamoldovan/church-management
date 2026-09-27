@@ -7,11 +7,19 @@ compatibility_flags = ["nodejs_compat"]
 directory = ".open-next/assets"
 binding = "ASSETS"
 
-[observability]
-enabled = true
-
 [[d1_databases]]
 binding = "CHURCH_DB"
 database_name = "church-management"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
 migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "church-management-media"
+
+[[send_email]]
+name = "EMAIL"
+remote = true
+
+[observability]
+enabled = true
