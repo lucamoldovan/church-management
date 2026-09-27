@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       headers: { Prefer: 'return=minimal' } as Record<string, string>,
       body: JSON.stringify({
         user_id: reg.user_id, registration_id, session_id: session.id, amount,
-        currency: 'ron', status: 'initiated', payment_status: 'pending', metadata,
+        currency: 'ron', status: 'initiated', payment_status: 'pending', metadata: JSON.stringify(metadata),
       }),
     })
 
