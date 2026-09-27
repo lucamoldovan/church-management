@@ -13,6 +13,7 @@ interface CloudflareEnv {
   FB_PAGE_ACCESS_TOKEN?: string
   YOUTUBE_API_KEY?: string
   YOUTUBE_CHANNEL_ID?: string
+  PLANNING_CENTER_TOKEN?: string
   STRIPE_SECRET_KEY?: string
   STRIPE_WEBHOOK_SECRET?: string
 }
