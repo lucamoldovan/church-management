@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { authClient } from '@/lib/auth-client'
 import Link from 'next/link'
 import { Eye, EyeOff, Wheat } from 'lucide-react'
 
@@ -17,10 +18,8 @@ export default function LoginPage() {
     setError('')
 
     try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) throw error
+      const result = await authClient.signIn.email({ email, password })
+      if (result.error) throw new Error(result.error.message || 'Autentificare eșuată')
       window.location.href = '/dashboard'
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'A apărut o eroare')
@@ -108,9 +107,7 @@ export default function LoginPage() {
           <button
             data-testid="login-google-button"
             onClick={async () => {
-              const { createClient } = await import('@/lib/supabase/client')
-              const supabase = createClient()
-              await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/auth/callback` } })
+              await authClient.signIn.social({ provider: 'google', callbackURL: '/dashboard' })
             }}
             className="w-full border border-border bg-background py-3 rounded-full text-sm font-medium hover:bg-secondary/60 transition-colors flex items-center justify-center gap-2"
           >
