@@ -160,6 +160,9 @@ export async function POST(
       return NextResponse.json({ error: 'Eveniment negasit' }, { status: 404 })
     }
     const event = rows[0]
+    if (!['approved', 'published'].includes(String(event.status))) {
+      return NextResponse.json({ error: 'Evenimentul trebuie aprobat înainte de publicare.' }, { status: 409 })
+    }
     const requestOrigin = new URL(request.url).origin
     const link = `${requestOrigin}/events/${event_id}`
     const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary'
