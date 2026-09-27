@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthContext, isStaff } from '@/lib/auth'
 
 export const runtime = 'edge'
 
@@ -16,20 +17,27 @@ async function sbFetch(path: string, options?: RequestInit) {
       ...(options?.headers as Record<string, string> || {}),
     },
   })
+  if (!res.ok) throw new Error(`Supabase error ${res.status}: ${await res.text()}`)
   const text = await res.text()
   return text ? JSON.parse(text) : null
 }
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
+  const adminUrl = `${url.origin}/admin/integrations`
+  const auth = await getAuthContext()
+
+  if (!auth) return NextResponse.redirect(`${adminUrl}?google=unauthorized`)
+  if (!isStaff(auth.role)) return NextResponse.redirect(`${adminUrl}?google=forbidden`)
+
   const code = url.searchParams.get('code')
-  const redirectUri = `${url.protocol}//${url.host}/api/oauth/calendar/callback`
-  const adminUrl = `${url.protocol}//${url.host}/admin/integrations`
+  const error = url.searchParams.get('error')
+  const redirectUri = `${url.origin}/api/oauth/calendar/callback`
 
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
 
-  if (!code || !clientId || !clientSecret) {
+  if (error || !code || !clientId || !clientSecret) {
     return NextResponse.redirect(`${adminUrl}?google=error`)
   }
 
