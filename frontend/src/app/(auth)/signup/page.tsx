@@ -12,7 +12,6 @@ export default function SignupPage() {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,21 +32,6 @@ export default function SignupPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  if (success) {
-    return (
-      <div data-testid="signup-success" className="min-h-[85vh] flex items-center justify-center px-4">
-        <div className="text-center max-w-md bg-card border border-border/60 rounded-3xl p-10 soft-shadow-lg animate-rise">
-          <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary mb-5">
-            <MailCheck className="h-8 w-8" />
-          </span>
-          <h1 className="font-heading text-2xl font-bold mb-2">Verifică emailul</h1>
-          <p className="text-muted-foreground">Am trimis un link de confirmare la <strong className="text-foreground">{email}</strong>. Verifică inbox-ul și confirmă contul.</p>
-          <Link href="/login" className="mt-6 inline-block text-primary hover:underline font-medium">Înapoi la login</Link>
-        </div>
-      </div>
-    )
   }
 
   return (
