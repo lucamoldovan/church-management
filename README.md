@@ -77,7 +77,7 @@ npm run dev
 
 ## Cloudflare Workers Deployment
 
-Cloudflare currently supports Next.js on Workers through multiple paths; this repository intentionally uses the **OpenNext adapter** for the existing Next.js application. Cloudflare documents OpenNext as a supported path for maintaining existing OpenNext applications. citeturn0search1
+Cloudflare currently supports Next.js on Workers through multiple paths; this repository intentionally uses the **OpenNext adapter** for the existing Next.js application.
 
 ### Option A — Cloudflare Workers Builds
 
