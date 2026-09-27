@@ -10,8 +10,8 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "db:migrate": "wrangler d1 migrations apply CHURCH_DB",
-    "db:local": "wrangler d1 execute CHURCH_DB --local --file=./migrations/0001_cloudflare_native.sql",
-    "db:remote": "wrangler d1 execute CHURCH_DB --remote --file=./migrations/0001_cloudflare_native.sql",
+    "db:local": "wrangler d1 migrations apply CHURCH_DB --local",
+    "db:remote": "wrangler d1 migrations apply CHURCH_DB --remote",
     "start": "next dev -H 0.0.0.0 -p 3000",
     "lint": "eslint"
   },
