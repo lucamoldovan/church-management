@@ -1,1 +1,2 @@
-ALTER TABLE profiles ADD COLUMN photo_url TEXT;
+-- Compatibility migration intentionally contains no schema change.
+-- Profile API reads avatar_url and aliases it as photo_url.
