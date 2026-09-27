@@ -1,15 +1,17 @@
-# Casa Painii - Church Management Platform
+# Casa Pâinii — Church Management Platform
 
-A full-stack church management platform for **Casa Painii Ocna Mures** (Pentecostal church).
+A full-stack church management platform for Casa Pâinii.
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 16 (App Router, TypeScript) |
-| Database & Auth | Supabase (Postgres + RLS + Auth) |
+| Frontend + API | Next.js 16 (App Router, TypeScript) |
+| Database & Auth | Supabase (Postgres + RLS + Auth + Storage) |
 | Payments | Stripe |
-| Deployment | Cloudflare Workers (via @opennextjs/cloudflare) |
+| Deployment | Cloudflare Workers via OpenNext |
+
+The project has **no separate Python backend**. Server-side business logic and API endpoints live in Next.js Route Handlers under `frontend/src/app/api` and run in the Cloudflare Worker.
 
 ## Features
 
@@ -21,201 +23,173 @@ A full-stack church management platform for **Casa Painii Ocna Mures** (Pentecos
 - Admin dashboard with analytics
 - Sermon library and livestream configuration
 - Google Calendar and Facebook auto-publishing
-- Role-based access control (super_admin, leadership, event_manager, group_leader, checkin_staff, volunteer, member)
+- Role-based access control
 
 ## Project Structure
 
 ```
 church-management/
-├── frontend/          # Next.js application (deploy this)
-│   ├── src/
-│   │   ├── app/       # App Router pages + API routes
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   └── lib/
-│   ├── wrangler.toml  # Cloudflare Workers config
+├── frontend/              # Deployable Next.js application
+│   ├── src/app/           # Pages + API Route Handlers
+│   ├── src/lib/           # Supabase/auth helpers
+│   ├── open-next.config.ts
+│   ├── wrangler.toml
 │   └── package.json
 ├── supabase/
-│   ├── schema.sql     # Main schema - run this first
-│   └── migrations/    # Phase migrations - run in order
-├── backend/           # Removed: all application APIs run through Next.js/Cloudflare
-└── .env.example       # Environment variable template
+│   ├── schema.sql
+│   └── migrations/
+└── .env.example
 ```
 
 ## Local Development
 
-### Prerequisites
-
-- Node.js 18+
-- A Supabase project (supabase.com)
-- A Stripe account (stripe.com)
-
-### 1. Clone and install
+### 1. Install
 
 ```bash
-git clone https://github.com/lucamoldovan/church-management.git
-cd church-management/frontend
+cd frontend
 npm install
 ```
 
-### 2. Configure environment variables
+Create `frontend/.env.local` from the repository root `.env.example`.
 
-Create `frontend/.env.local` (copy from `.env.example` at the repo root):
+### 2. Database
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_KEY=your-service-role-key
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-```
+Run these SQL files in order in the Supabase SQL Editor:
 
-### 3. Set up the database
+1. `supabase/schema.sql`
+2. `supabase/migrations/phase1_payments.sql`
+3. `supabase/migrations/phase2_bracelets.sql`
+4. `supabase/migrations/phase3_event_planning.sql`
+5. `supabase/migrations/phase5_integrations.sql`
+6. `supabase/migrations/phase6_bracelet_history.sql`
+7. `supabase/migrations/phase7_schema_fixes.sql`
+8. `supabase/migrations/phase8_missing_tables.sql`
+9. `supabase/migrations/phase9_event_packages_and_profile_fields.sql`
 
-In your Supabase SQL Editor, run these files **in order**:
+The `posters` Supabase Storage bucket must exist and be public if Facebook/event-poster publishing is enabled.
 
-1. `supabase/schema.sql` - main schema, RLS policies, seed data
-2. `supabase/migrations/phase1_payments.sql` - cash payment columns
-3. `supabase/migrations/phase2_bracelets.sql` - NFC bracelet inventory
-4. `supabase/migrations/phase3_event_planning.sql` - event approval workflow
-5. `supabase/migrations/phase5_integrations.sql` - Google/Facebook integration tokens
-6. `supabase/migrations/phase6_bracelet_history.sql` - bracelet assignment history
-7. `supabase/migrations/phase7_schema_fixes.sql` - study_groups column alignment
-8. `supabase/migrations/phase8_missing_tables.sql` - social_media, contact_messages
-9. `supabase/migrations/phase9_event_packages_and_profile_fields.sql` - event package compatibility and profile fields
-
-Then promote yourself to super admin:
-
-```sql
-UPDATE public.profiles SET role = 'super_admin' WHERE email = 'your@email.com';
-```
-
-Create the Storage bucket manually in Supabase dashboard:
-- Storage > New bucket > Name: **posters** > Public: **enabled**
-
-### 4. Run locally
+### 3. Run
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-Open http://localhost:3000
+## Cloudflare Workers Deployment
 
----
+Cloudflare currently supports Next.js on Workers through multiple paths; this repository intentionally uses the **OpenNext adapter** for the existing Next.js application. Cloudflare documents OpenNext as a supported path for maintaining existing OpenNext applications. citeturn0search1
 
-## Cloudflare Deployment
+### Option A — Cloudflare Workers Builds
 
-This project deploys as a **Cloudflare Worker** using `@opennextjs/cloudflare`.
+Connect the GitHub repository to Cloudflare Workers Builds.
 
-### 1. Install Wrangler
+Set the project root to:
 
-```bash
-npm install -g wrangler
-wrangler login
+```
+frontend
 ```
 
-### 2. Build for Cloudflare
+Build command:
+
+```bash
+npm install && npm run build:cf
+```
+
+Deploy command:
+
+```bash
+npx wrangler deploy
+```
+
+Cloudflare Workers Builds supports a separate build command and deploy command. citeturn0search7
+
+### Option B — Wrangler locally
 
 ```bash
 cd frontend
 npm install
-npm run build:cf
+npm run preview
+npm run deploy
 ```
 
-This runs `npx @opennextjs/cloudflare build` which produces `.open-next/`.
+`preview` builds and runs the application through the Workers/OpenNext runtime; `deploy` builds and deploys it.
 
-### 3. Deploy
+## Required Cloudflare Variables / Secrets
 
-```bash
-wrangler deploy
-```
+Configure these in Cloudflare **Build Variables and Secrets** / Worker environment settings:
 
-Or connect your GitLab repository to Cloudflare Workers in the dashboard:
-- **Framework**: Next.js (via OpenNext)
-- **Build command**: `cd frontend && npm install && npx @opennextjs/cloudflare build`
-- **Output**: handled by wrangler.toml
-
-### 4. Set environment variables in Cloudflare
-
-Go to **Cloudflare Workers > your worker > Settings > Variables** and add:
-
-| Variable | Required | Description |
+| Variable | Required | Type |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon/public key |
-| `SUPABASE_SERVICE_KEY` | Yes | Supabase service role key |
-| `STRIPE_SECRET_KEY` | Yes (payments) | Stripe secret key |
-| `STRIPE_WEBHOOK_SECRET` | Yes (payments) | Stripe webhook signing secret |
-| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
-| `GOOGLE_CALENDAR_ID` | No | Google Calendar ID (default: `primary`) |
-| `FB_PAGE_ID` | No | Facebook Page ID |
-| `FB_PAGE_ACCESS_TOKEN` | No | Facebook Page access token |
-| `EVENT_TIMEZONE` | No | Timezone for events (default: `Europe/Bucharest`) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Variable |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Variable |
+| `SUPABASE_SERVICE_KEY` | Yes | Secret |
+| `STRIPE_SECRET_KEY` | Yes for payments | Secret |
+| `STRIPE_WEBHOOK_SECRET` | Yes for payments | Secret |
+| `GOOGLE_CLIENT_ID` | Optional | Variable |
+| `GOOGLE_CLIENT_SECRET` | Optional | Secret |
+| `GOOGLE_CALENDAR_ID` | Optional | Variable |
+| `FB_PAGE_ID` | Optional | Variable |
+| `FB_PAGE_ACCESS_TOKEN` | Optional | Secret |
+| `EVENT_TIMEZONE` | Optional | Variable |
 
-### 5. Configure Stripe webhook
+**Never commit service-role, Stripe, OAuth, or Facebook secrets.**
 
-In the Stripe Dashboard:
+## Stripe Webhook
 
-1. Go to **Developers > Webhooks > Add endpoint**
-2. URL: `https://your-worker.workers.dev/api/payments/webhook`
-3. Events to listen for: `checkout.session.completed`
-4. Copy the **Signing secret** and set it as `STRIPE_WEBHOOK_SECRET`
+Create a Stripe webhook endpoint:
 
-### 6. Configure Google Calendar OAuth (optional)
+```
+https://YOUR_DOMAIN/api/payments/webhook
+```
 
-In Google Cloud Console:
+Listen for:
 
-1. Create a project and enable the **Google Calendar API**
-2. Create **OAuth 2.0 credentials** (Web application)
-3. Add authorized redirect URI: `https://your-worker.workers.dev/api/oauth/calendar/callback`
-4. Copy Client ID and Secret and set as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
-5. In the admin panel, go to **Integrations** and click **Connect Google Calendar**
+- `checkout.session.completed`
 
----
+Set its signing secret as `STRIPE_WEBHOOK_SECRET`.
 
-## Required Cloudflare Resources
+## Google Calendar OAuth
 
-- **Cloudflare Workers** - hosts the Next.js app and API routes
+Create a Google OAuth 2.0 Web application and add:
 
-No D1, R2, KV, or other Cloudflare resources are needed. Supabase handles the database, auth, and file storage.
+```
+https://YOUR_DOMAIN/api/oauth/calendar/callback
+```
 
----
+Then configure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
-## Database Schema Overview
+The OAuth flow uses an HTTP-only state cookie to bind the callback to the initiating browser session.
 
-All tables have Row Level Security (RLS) enabled.
+## Security Model
 
-| Table | Description |
-|---|---|
-| `profiles` | User profiles with roles |
-| `events` | Church events with approval workflow |
-| `ticket_types` | Ticket packages per event |
-| `registrations` | Event registrations with QR tokens |
-| `checkins` | Entry and meal check-in records |
-| `bracelets` | NFC bracelet inventory |
-| `bracelet_assignments` | Bracelet assignment history |
-| `study_groups` | Small groups |
-| `group_members` | Group membership |
-| `group_meetings` | Meeting records |
-| `group_attendance` | Per-meeting attendance |
-| `sermons` | Sermon library |
-| `livestream_config` | Live stream settings |
-| `payment_transactions` | Stripe payment records |
-| `notifications` | In-app notifications |
-| `social_media` | Social media links |
-| `contact_messages` | Contact form submissions |
-| `integration_tokens` | Google/Facebook OAuth tokens |
+- Supabase Auth identifies the current user.
+- Sensitive API routes enforce authentication and staff/owner authorization.
+- Server-side Supabase access uses `SUPABASE_SERVICE_KEY`, which must remain secret.
+- Stripe webhooks verify the Stripe signature before changing payment state.
+- Google OAuth callbacks require an authenticated staff user and validate OAuth state.
+- Public/client Supabase keys are safe to expose; service-role and third-party secrets are not.
 
-## Roles
+## Database Notes
 
-| Role | Access |
-|---|---|
-| `super_admin` | Full access to everything |
-| `leadership` | Full admin access |
-| `event_manager` | Manage events and check-in |
-| `group_leader` | Manage their own group |
-| `checkin_staff` | Check-in and bracelet operations |
-| `volunteer` | Basic member access |
-| `member` | Own profile and registrations |
+The canonical event package table is `event_packages`. The phase 9 migration provides a compatibility view named `ticket_types`.
+
+Important tables include:
+
+- `profiles`
+- `events`
+- `event_packages`
+- `registrations`
+- `checkins`
+- `bracelets`
+- `bracelet_assignments`
+- `study_groups`
+- `group_members`
+- `group_meetings`
+- `group_attendance`
+- `sermons`
+- `livestream_config`
+- `payment_transactions`
+- `notifications`
+- `social_media`
+- `contact_messages`
+- `integration_tokens`
