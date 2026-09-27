@@ -5,6 +5,7 @@ export const runtime = 'edge'
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const serviceKey = process.env.SUPABASE_SERVICE_KEY || ''
+const STATE_COOKIE = 'google_oauth_state'
 
 async function sbFetch(path: string, options?: RequestInit) {
   const res = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
@@ -31,15 +32,31 @@ export async function GET(request: NextRequest) {
   if (!isStaff(auth.role)) return NextResponse.redirect(`${adminUrl}?google=forbidden`)
 
   const code = url.searchParams.get('code')
+  const state = url.searchParams.get('state')
+  const expectedState = request.cookies.get(STATE_COOKIE)?.value
   const error = url.searchParams.get('error')
   const redirectUri = `${url.origin}/api/oauth/calendar/callback`
+
+  const responseFor = (flag: string) => {
+    const response = NextResponse.redirect(`${adminUrl}?google=${flag}`)
+    response.cookies.set(STATE_COOKIE, '', {
+      httpOnly: true,
+      secure: url.protocol === 'https:',
+      sameSite: 'lax',
+      path: '/api/oauth/calendar/callback',
+      maxAge: 0,
+    })
+    return response
+  }
+
+  if (error || !code || !state || !expectedState || state !== expectedState) {
+    return responseFor('error')
+  }
 
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
 
-  if (error || !code || !clientId || !clientSecret) {
-    return NextResponse.redirect(`${adminUrl}?google=error`)
-  }
+  if (!clientId || !clientSecret) return responseFor('error')
 
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -55,9 +72,7 @@ export async function GET(request: NextRequest) {
     })
 
     const tok = await tokenRes.json()
-    if (tok.error || !tok.access_token) {
-      return NextResponse.redirect(`${adminUrl}?google=error`)
-    }
+    if (tok.error || !tok.access_token) return responseFor('error')
 
     const expiry = new Date(
       Date.now() + (tok.expires_in || 3600) * 1000
@@ -73,8 +88,8 @@ export async function GET(request: NextRequest) {
       }),
     })
 
-    return NextResponse.redirect(`${adminUrl}?google=connected`)
+    return responseFor('connected')
   } catch {
-    return NextResponse.redirect(`${adminUrl}?google=error`)
+    return responseFor('error')
   }
 }
