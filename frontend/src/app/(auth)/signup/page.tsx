@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Eye, EyeOff, Wheat, MailCheck } from 'lucide-react'
+import { authClient } from '@/lib/auth-client'
 
 export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -19,14 +20,13 @@ export default function SignupPage() {
     setError('')
 
     try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { error } = await supabase.auth.signUp({
+      const { error } = await authClient.signUp.email({
         email,
         password,
-        options: { data: { full_name: name } }
+        name,
+        callbackURL: '/dashboard',
       })
-      if (error) throw error
+      if (error) throw new Error(error.message || 'Înregistrarea a eșuat')
       setSuccess(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'A apărut o eroare')
@@ -106,9 +106,9 @@ export default function SignupPage() {
                   data-testid="signup-password-input"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  placeholder="Minim 6 caractere"
+                  placeholder="Minim 8 caractere"
                   required
-                  minLength={6}
+                  minLength={8}
                   className="w-full px-4 py-3 border border-border rounded-xl bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 transition-shadow pr-11"
                 />
                 <button
@@ -140,9 +140,7 @@ export default function SignupPage() {
           <button
             data-testid="signup-google-button"
             onClick={async () => {
-              const { createClient } = await import('@/lib/supabase/client')
-              const supabase = createClient()
-              await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/auth/callback` } })
+              await authClient.signIn.social({ provider: 'google', callbackURL: '/dashboard' })
             }}
             className="w-full border border-border bg-background py-3 rounded-full text-sm font-medium hover:bg-secondary/60 transition-colors flex items-center justify-center gap-2"
           >
