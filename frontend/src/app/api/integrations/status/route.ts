@@ -26,6 +26,8 @@ export async function GET() {
   const googleCalendarId = process.env.GOOGLE_CALENDAR_ID || 'primary'
   const fbPageId = process.env.FB_PAGE_ID
   const fbToken = process.env.FB_PAGE_ACCESS_TOKEN
+  const youtubeApiKey = process.env.YOUTUBE_API_KEY
+  const youtubeChannelId = process.env.YOUTUBE_CHANNEL_ID
 
   let googleConnected = false
   if (googleClientId && googleClientSecret) {
@@ -46,6 +48,10 @@ export async function GET() {
     facebook: {
       configured: !!(fbPageId && fbToken),
       page_id: fbPageId || null,
+    },
+    youtube: {
+      configured: !!(youtubeApiKey && youtubeChannelId),
+      channel_id: youtubeChannelId || null,
     },
   })
 }
