@@ -10,7 +10,11 @@ declare global {
     }
     NDEFReader?: new () => {
       scan(options?: { signal?: AbortSignal }): Promise<void>
-      onreading: ((event: { message: { records: Array<{ recordType: string; data: BufferSource | string }> } }) => void
+      onreading: (event: {
+        message: {
+          records: Array<{ recordType: string; data: BufferSource | string }>
+        }
+      }) => void
       onreadingerror?: (() => void) | null
     }
   }
@@ -28,7 +32,10 @@ export default function CodeScanner({ onScan, onClose }: Props) {
   const [nfcStatus, setNfcStatus] = useState('')
   const [mode, setMode] = useState<'qr' | 'nfc'>('qr')
   const onScanRef = useRef(onScan)
-  useEffect(() => { onScanRef.current = onScan }, [onScan])
+
+  useEffect(() => {
+    onScanRef.current = onScan
+  }, [onScan])
 
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach(t => t.stop())
@@ -37,46 +44,60 @@ export default function CodeScanner({ onScan, onClose }: Props) {
 
   useEffect(() => {
     if (mode !== 'qr') return
+
     let cancelled = false
+
     const start = async () => {
       if (!window.BarcodeDetector) {
         setError('Browserul nu suportă scanarea QR nativă. Poți folosi câmpul manual.')
         return
       }
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: 'environment' } },
           audio: false,
         })
+
         if (cancelled) {
           stream.getTracks().forEach(t => t.stop())
           return
         }
+
         streamRef.current = stream
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream
           await videoRef.current.play()
         }
+
         const detector = new window.BarcodeDetector({ formats: ['qr_code'] })
+
         const scan = async () => {
           if (cancelled || !videoRef.current || videoRef.current.readyState < 2) return
+
           try {
             const codes = await detector.detect(videoRef.current)
             const value = codes.find(c => c.rawValue)?.rawValue
+
             if (value) {
               stopCamera()
               onScanRef.current(value, 'qr')
               return
             }
           } catch {}
+
           if (!cancelled) requestAnimationFrame(scan)
         }
+
         requestAnimationFrame(scan)
       } catch {
         setError('Nu pot accesa camera. Verifică permisiunea pentru cameră și folosește HTTPS.')
       }
     }
+
     start()
+
     return () => {
       cancelled = true
       stopCamera()
@@ -86,22 +107,32 @@ export default function CodeScanner({ onScan, onClose }: Props) {
   const scanNfc = async () => {
     setError('')
     setNfcStatus('')
+
     if (!window.NDEFReader) {
       setError('NFC nu este disponibil în acest browser. Pe Android, încearcă Chrome și asigură-te că NFC este activat.')
       return
     }
+
     try {
       const reader = new window.NDEFReader()
+
       reader.onreading = (event) => {
         const record = event.message.records[0]
         if (!record) return
+
         let value = ''
-        if (typeof record.data === 'string') value = record.data
-        else {
-          try { value = new TextDecoder().decode(record.data) } catch {}
+
+        if (typeof record.data === 'string') {
+          value = record.data
+        } else {
+          try {
+            value = new TextDecoder().decode(record.data)
+          } catch {}
         }
+
         if (value) onScanRef.current(value.trim(), 'nfc')
       }
+
       await reader.scan()
       setNfcStatus('Apropie brățara/cardul NFC de telefon...')
     } catch {
@@ -117,15 +148,24 @@ export default function CodeScanner({ onScan, onClose }: Props) {
             <h2 className="font-heading font-bold text-lg">Scanare</h2>
             <p className="text-xs text-muted-foreground">QR sau NFC</p>
           </div>
-          <button onClick={() => { stopCamera(); onClose() }} className="p-2 rounded-full hover:bg-secondary/60"><X className="h-5 w-5" /></button>
+          <button onClick={() => { stopCamera(); onClose() }} className="p-2 rounded-full hover:bg-secondary/60">
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         <div className="p-5">
           <div className="flex gap-2 mb-4">
-            <button onClick={() => { setMode('qr'); setError(''); setNfcStatus('') }} className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-full text-sm font-semibold ${mode === 'qr' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>
+            <button
+              onClick={() => { setMode('qr'); setError(''); setNfcStatus('') }}
+              className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-full text-sm font-semibold ${mode === 'qr' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}
+            >
               <Camera className="h-4 w-4" /> QR / Cameră
             </button>
-            <button onClick={() => { setMode('nfc'); stopCamera(); scanNfc() }} className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-full text-sm font-semibold ${mode === 'nfc' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>
+
+            <button
+              onClick={() => { setMode('nfc'); stopCamera(); scanNfc() }}
+              className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-full text-sm font-semibold ${mode === 'nfc' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}
+            >
               <Smartphone className="h-4 w-4" /> NFC
             </button>
           </div>
@@ -144,8 +184,16 @@ export default function CodeScanner({ onScan, onClose }: Props) {
             </div>
           )}
 
-          {error && <div className="mt-4 flex gap-2 items-start bg-destructive/10 text-destructive p-3 rounded-2xl text-sm"><AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />{error}</div>}
-          <p className="text-xs text-muted-foreground mt-4 text-center">Dacă scanarea nu este disponibilă, poți folosi în continuare câmpul manual.</p>
+          {error && (
+            <div className="mt-4 flex gap-2 items-start bg-destructive/10 text-destructive p-3 rounded-2xl text-sm">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              {error}
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground mt-4 text-center">
+            Dacă scanarea nu este disponibilă, poți folosi în continuare câmpul manual.
+          </p>
         </div>
       </div>
     </div>
