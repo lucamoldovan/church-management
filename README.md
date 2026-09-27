@@ -38,7 +38,7 @@ church-management/
 ├── supabase/
 │   ├── schema.sql     # Main schema - run this first
 │   └── migrations/    # Phase migrations - run in order
-├── backend/           # Legacy Python FastAPI (deprecated - replaced by Next.js API routes)
+├── backend/           # Removed: all application APIs run through Next.js/Cloudflare
 └── .env.example       # Environment variable template
 ```
 
@@ -53,7 +53,7 @@ church-management/
 ### 1. Clone and install
 
 ```bash
-git clone https://gitlab.com/casa-painii-group1/church-management.git
+git clone https://github.com/lucamoldovan/church-management.git
 cd church-management/frontend
 npm install
 ```
@@ -82,6 +82,7 @@ In your Supabase SQL Editor, run these files **in order**:
 6. `supabase/migrations/phase6_bracelet_history.sql` - bracelet assignment history
 7. `supabase/migrations/phase7_schema_fixes.sql` - study_groups column alignment
 8. `supabase/migrations/phase8_missing_tables.sql` - social_media, contact_messages
+9. `supabase/migrations/phase9_event_packages_and_profile_fields.sql` - event package compatibility and profile fields
 
 Then promote yourself to super admin:
 
