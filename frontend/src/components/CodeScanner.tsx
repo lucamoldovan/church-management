@@ -27,6 +27,8 @@ export default function CodeScanner({ onScan, onClose }: Props) {
   const [error, setError] = useState('')
   const [nfcStatus, setNfcStatus] = useState('')
   const [mode, setMode] = useState<'qr' | 'nfc'>('qr')
+  const onScanRef = useRef(onScan)
+  useEffect(() => { onScanRef.current = onScan }, [onScan])
 
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach(t => t.stop())
@@ -63,7 +65,7 @@ export default function CodeScanner({ onScan, onClose }: Props) {
             const value = codes.find(c => c.rawValue)?.rawValue
             if (value) {
               stopCamera()
-              onScan(value, 'qr')
+              onScanRef.current(value, 'qr')
               return
             }
           } catch {}
@@ -79,7 +81,7 @@ export default function CodeScanner({ onScan, onClose }: Props) {
       cancelled = true
       stopCamera()
     }
-  }, [mode, onScan])
+  }, [mode])
 
   const scanNfc = async () => {
     setError('')
@@ -98,7 +100,7 @@ export default function CodeScanner({ onScan, onClose }: Props) {
         else {
           try { value = new TextDecoder().decode(record.data) } catch {}
         }
-        if (value) onScan(value.trim(), 'nfc')
+        if (value) onScanRef.current(value.trim(), 'nfc')
       }
       await reader.scan()
       setNfcStatus('Apropie brățara/cardul NFC de telefon...')
