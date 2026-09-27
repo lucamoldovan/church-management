@@ -14,7 +14,7 @@ export async function GET() {
   const res = await fetch('https://api.planningcenteronline.com/services/v2/plans?per_page=25', {
     headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
   })
-  const data = await res.json()
+  const data = await res.json() as any
   if (!res.ok) return NextResponse.json({ configured: true, plans: [], error: data?.errors?.[0]?.detail || 'Planning Center request failed.' }, { status: res.status })
   return NextResponse.json({
     configured: true,
