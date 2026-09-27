@@ -16,6 +16,7 @@ const links = [
   { href: '/admin/groups', label: 'Grupuri', icon: UsersRound },
   { href: '/admin/sermons', label: 'Predici', icon: Mic },
   { href: '/admin/livestream', label: 'Live', icon: Radio },
+  { href: '/admin/services', label: 'Services', icon: Radio },
   { href: '/admin/social', label: 'Social', icon: Share2 },
   { href: '/admin/integrations', label: 'Integrări', icon: Plug },
   { href: '/admin/notifications', label: 'Notificări', icon: Bell },
