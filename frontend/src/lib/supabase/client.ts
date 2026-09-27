@@ -3,7 +3,8 @@
 import { authClient } from '@/lib/auth-client'
 
 type Filter = { op: string; field: string; value?: unknown; operator?: string }
-export type DbError = Error & { code?: string; details?: string; hint?: string }\ntype QueryResult<T = any> = { data: T; error: DbError | null; count?: number | null }
+export type DbError = Error & { code?: string; details?: string; hint?: string }
+type QueryResult<T = any> = { data: T; error: DbError | null; count?: number | null }
 
 class ClientQuery<T = any> implements PromiseLike<QueryResult<T>> {
   private filters: Filter[] = []
@@ -62,7 +63,9 @@ class ClientQuery<T = any> implements PromiseLike<QueryResult<T>> {
       })
       const body = (await response.json()) as { data?: any; error?: any; count?: number | null }
       if (!response.ok || body.error) {
-        const error = new Error(body.error?.message || body.error || 'Database error') as DbError\n        error.code = body.error?.code\n        return { data: null, error, count: body.count ?? null }
+        const error = new Error(body.error?.message || body.error || 'Database error') as DbError
+        error.code = body.error?.code
+        return { data: null, error, count: body.count ?? null }
       }
       return { data: body.data ?? null, error: null, count: body.count ?? null }
     } catch (error) {
