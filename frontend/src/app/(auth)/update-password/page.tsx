@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Wheat, Eye, EyeOff, Check } from 'lucide-react'
+import { authClient } from '@/lib/auth-client'
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('')
@@ -10,14 +11,18 @@ export default function UpdatePasswordPage() {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+  const [token, setToken] = useState<string | null>(null)
+
+  useEffect(() => {
+    setToken(new URLSearchParams(window.location.search).get('token'))
+  }, [])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setError('')
     try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { error } = await supabase.auth.updateUser({ password })
-      if (error) throw error
+      if (!token) throw new Error('Linkul de resetare este invalid sau a expirat')
+      const { error } = await authClient.resetPassword({ newPassword: password, token })
+      if (error) throw new Error(error.message || 'Parola nu a putut fi actualizată')
       setDone(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'A apărut o eroare')
@@ -46,7 +51,7 @@ export default function UpdatePasswordPage() {
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Parolă nouă</label>
                 <div className="relative">
-                  <input type={show ? 'text' : 'password'} data-testid="update-password-input" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} placeholder="Minim 6 caractere"
+                  <input type={show ? 'text' : 'password'} data-testid="update-password-input" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} placeholder="Minim 8 caractere"
                     className="w-full px-4 py-3 border border-border rounded-xl bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 pr-11" />
                   <button type="button" onClick={() => setShow(!show)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground">{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
                 </div>
