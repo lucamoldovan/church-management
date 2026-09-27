@@ -44,7 +44,7 @@ async function currentUser(){return getAuthContext()}
 
 export async function POST(request:Request){
  try{
-  const body=await request.json()
+  const body=(await request.json()) as Record<string, any>
   const table=String(body.table||'')
   const action=body.action||'select'
   if(!TABLES.has(table))return NextResponse.json({error:'Table not allowed'}, {status:400})
