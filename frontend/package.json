@@ -9,12 +9,16 @@
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "db:migrate": "wrangler d1 migrations apply CHURCH_DB",
+    "db:local": "wrangler d1 execute CHURCH_DB --local --file=./migrations/0001_cloudflare_native.sql",
+    "db:remote": "wrangler d1 execute CHURCH_DB --remote --file=./migrations/0001_cloudflare_native.sql",
     "start": "next dev -H 0.0.0.0 -p 3000",
     "lint": "eslint"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
+    "better-auth": "^1.7.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "geist": "^1.7.2",
