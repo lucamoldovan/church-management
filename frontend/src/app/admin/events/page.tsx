@@ -143,6 +143,7 @@ export default function AdminEvents() {
           <Plus className="h-4 w-4" /> Propune eveniment
         </button>
       </div>
+      </div>
 
       {msg && <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-2xl text-sm mb-4">{msg}</div>}
       {calendarMsg && <div className="bg-secondary text-secondary-foreground px-4 py-3 rounded-2xl text-sm mb-4">{calendarMsg}</div>}
