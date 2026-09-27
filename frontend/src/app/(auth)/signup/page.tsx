@@ -27,7 +27,7 @@ export default function SignupPage() {
         callbackURL: '/dashboard',
       })
       if (error) throw new Error(error.message || 'Înregistrarea a eșuat')
-      setSuccess(true)
+      window.location.assign('/dashboard')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'A apărut o eroare')
     } finally {
