@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { ScanLine, Check, AlertCircle, Utensils, LogIn, Wallet, Watch, Link2, Search, User } from 'lucide-react'
+import { ScanLine, Check, AlertCircle, Utensils, LogIn, Wallet, Watch, Link2, Search, User, Camera, Smartphone } from 'lucide-react'
+import CodeScanner from '@/components/CodeScanner'
 
 interface Profile { full_name: string | null; email: string | null }
 interface Reg {
@@ -19,16 +20,49 @@ export default function AdminCheckin() {
   const [searching, setSearching] = useState(false)
   const [braceletInput, setBraceletInput] = useState('')    // reassign field on attendee card
   const [status, setStatus] = useState<{ type: 'ok' | 'err' | 'info'; text: string } | null>(null)
+  const [scannerOpen, setScannerOpen] = useState(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const sb = async () => (await import('@/lib/supabase/client')).createClient()
   const name = (r: Reg | null) => r?.profiles?.full_name || r?.attendee_id || '—'
+  const handleScan = (value: string, source: 'qr' | 'nfc') => {
+    setScannerOpen(false)
+    setCode(value)
+    setStatus({ type: 'info', text: `Cod ${source === 'nfc' ? 'NFC' : 'QR'} citit: ${value}` })
+    setTimeout(() => { void lookupCode(value) }, 0)
+  }
+
+  const lookupCode = async (value: string) => {
+    setReg(null); setStatus(null); setFreeBracelet(''); setBraceletInput(''); setResults([]); setSearch('')
+    const c = value.trim()
+    if (!c) return
+    const supabase = await sb()
+    const { data } = await supabase.from('registrations').select('*, profiles(full_name,email)')
+      .or(`qr_token.eq.${c},attendee_id.eq.${c},bracelet_code.eq.${c}`).maybeSingle()
+    if (data) {
+      const r = data as Reg
+      setReg(r); setBraceletInput(r.bracelet_code || '')
+      setStatus({ type: 'info', text: r.bracelet_code ? `Brățară activă: ${r.bracelet_code}` : 'Participant găsit. Caută/scanează pentru a asigna o brățară.' })
+      return
+    }
+    const { data: band } = await supabase.from('bracelets').select('*').eq('code', c).maybeSingle()
+    if (band) {
+      if (!band.active) { setStatus({ type: 'err', text: 'Brățară dezactivată (pierdută/deteriorată).' }); return }
+      setFreeBracelet(c)
+      setStatus({ type: 'info', text: `Brățară liberă „${c}". Caută participantul după nume pentru a o asigna.` })
+      return
+    }
+    setStatus({ type: 'err', text: 'Cod negăsit (nici participant, nici brățară).' })
+  }
+
 
   const lookup = async (e?: React.FormEvent) => {
     e?.preventDefault()
     setReg(null); setStatus(null); setFreeBracelet(''); setBraceletInput(''); setResults([]); setSearch('')
     const c = code.trim()
     if (!c) return
+    await lookupCode(c)
+    return
     const supabase = await sb()
 
     // 1) attendee by digital ticket (QR / attendee id) or an already-assigned bracelet
@@ -155,11 +189,18 @@ export default function AdminCheckin() {
       <div className="flex items-center gap-2 mb-6"><ScanLine className="h-6 w-6 text-primary" /><h1 className="font-heading text-3xl font-bold">Check-in</h1></div>
       <p className="text-muted-foreground text-sm mb-5">Scanează o brățară (QR/NFC) <strong>sau</strong> codul QR al participantului. Brățara liberă → caută participantul după nume pentru a o asigna.</p>
 
-      <form onSubmit={lookup} className="flex gap-2 mb-5">
-        <input value={code} onChange={e => setCode(e.target.value)} placeholder="Scanează brățară / QR participant" data-testid="checkin-code-input"
-          className="flex-1 px-4 py-3 border border-border rounded-full bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring/40" autoFocus />
-        <button type="submit" data-testid="checkin-validate-button" className="bg-primary text-primary-foreground px-6 py-3 rounded-full text-sm font-semibold hover:bg-primary/90">Scanează</button>
-      </form>
+      <div className="flex gap-2 mb-5">
+        <form onSubmit={lookup} className="flex gap-2 flex-1">
+          <input value={code} onChange={e => setCode(e.target.value)} placeholder="Cod QR / brățară" data-testid="checkin-code-input"
+            className="flex-1 px-4 py-3 border border-border rounded-full bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring/40" autoFocus />
+          <button type="submit" data-testid="checkin-validate-button" className="bg-primary text-primary-foreground px-5 py-3 rounded-full text-sm font-semibold hover:bg-primary/90">OK</button>
+        </form>
+        <button type="button" onClick={() => setScannerOpen(true)} data-testid="checkin-open-scanner" className="inline-flex items-center gap-2 bg-secondary px-4 py-3 rounded-full text-sm font-semibold hover:bg-secondary/70" title="Scanează QR sau NFC">
+          <Camera className="h-4 w-4" /><span className="hidden sm:inline">Scanează</span>
+        </button>
+      </div>
+
+      {scannerOpen && <CodeScanner onScan={handleScan} onClose={() => setScannerOpen(false)} />}
 
       {status && (
         <div data-testid="checkin-status" className={`flex items-center gap-2 px-4 py-3 rounded-2xl text-sm mb-5 ${status.type === 'ok' ? 'bg-primary/10 text-primary' : status.type === 'err' ? 'bg-destructive/10 text-destructive' : 'bg-secondary text-secondary-foreground'}`}>
@@ -212,8 +253,9 @@ export default function AdminCheckin() {
           <div className="border border-border/60 rounded-2xl p-4 mb-4 bg-secondary/20">
             <div className="text-sm font-medium mb-2 flex items-center gap-1.5"><Watch className="h-4 w-4 text-primary" /> {reg.bracelet_code ? 'Reasignează brățară' : 'Asignează brățară'}</div>
             <div className="flex gap-2">
-              <input value={braceletInput} onChange={e => setBraceletInput(e.target.value)} placeholder="Scanează / introdu codul brățării" data-testid="checkin-bracelet-input"
+              <input value={braceletInput} onChange={e => setBraceletInput(e.target.value)} placeholder="Cod brățară" data-testid="checkin-bracelet-input"
                 className="flex-1 px-3 py-2.5 border border-border rounded-full bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring/40" />
+              <button type="button" onClick={() => setScannerOpen(true)} className="p-2.5 rounded-full bg-secondary" title="Scanează brățara"><Smartphone className="h-4 w-4" /></button>
               <button onClick={() => assignAndCheckIn(reg, braceletInput, false)} data-testid="checkin-assign-bracelet-button" className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2.5 rounded-full text-sm font-semibold hover:bg-primary/90"><Link2 className="h-4 w-4" /> Asignează</button>
             </div>
           </div>
