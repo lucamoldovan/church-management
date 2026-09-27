@@ -58,33 +58,7 @@ export default function AdminCheckin() {
 
   const lookup = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    setReg(null); setStatus(null); setFreeBracelet(''); setBraceletInput(''); setResults([]); setSearch('')
-    const c = code.trim()
-    if (!c) return
-    await lookupCode(c)
-    return
-    const supabase = await sb()
-
-    // 1) attendee by digital ticket (QR / attendee id) or an already-assigned bracelet
-    const { data } = await supabase.from('registrations').select('*, profiles(full_name,email)')
-      .or(`qr_token.eq.${c},attendee_id.eq.${c},bracelet_code.eq.${c}`).maybeSingle()
-    if (data) {
-      const r = data as Reg
-      setReg(r); setBraceletInput(r.bracelet_code || '')
-      setStatus({ type: 'info', text: r.bracelet_code ? `Brățară activă: ${r.bracelet_code}` : 'Participant găsit. Caută/scanează pentru a asigna o brățară.' })
-      return
-    }
-
-    // 2) maybe a pre-made bracelet from inventory → enter assign mode (search by name)
-    const { data: band } = await supabase.from('bracelets').select('*').eq('code', c).maybeSingle()
-    if (band) {
-      if (!band.active) { setStatus({ type: 'err', text: 'Brățară dezactivată (pierdută/deteriorată).' }); return }
-      setFreeBracelet(c)
-      setStatus({ type: 'info', text: `Brățară liberă „${c}". Caută participantul după nume pentru a o asigna.` })
-      return
-    }
-
-    setStatus({ type: 'err', text: 'Cod negăsit (nici participant, nici brățară).' })
+    await lookupCode(code)
   }
 
   const doSearch = (term: string) => {
