@@ -5,7 +5,7 @@ This directory contains the deployable Next.js application.
 ## Stack
 
 - Next.js App Router + TypeScript
-- Supabase Auth, Postgres, RLS and Storage
+- Better Auth, Cloudflare D1 and R2
 - Stripe payments
 - Cloudflare Workers via OpenNext
 
@@ -36,7 +36,7 @@ Set production variables/secrets in Cloudflare. Never commit service-role, Strip
 
 Run the Supabase schema and migrations from the repository root in order:
 
-1. `supabase/schema.sql`
+1. `frontend/migrations/0001_cloudflare_native.sql
 2. `phase1_payments.sql`
 3. `phase2_bracelets.sql`
 4. `phase3_event_planning.sql`
