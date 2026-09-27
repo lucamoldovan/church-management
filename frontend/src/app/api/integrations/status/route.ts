@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getAuthContext, isStaff } from '@/lib/auth'
 
 export const runtime = 'edge'
 
@@ -17,6 +18,9 @@ async function sbFetch(path: string) {
 }
 
 export async function GET() {
+  const auth = await getAuthContext()
+  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isStaff(auth.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const googleClientId = process.env.GOOGLE_CLIENT_ID
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
   const googleCalendarId = process.env.GOOGLE_CALENDAR_ID || 'primary'
