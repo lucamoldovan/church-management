@@ -29,6 +29,7 @@ export default function LivePage() {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('Toate')
   const [loading, setLoading] = useState(true)
+  const [autoLive, setAutoLive] = useState<{ id: string; title: string; url: string } | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -46,6 +47,16 @@ export default function LivePage() {
     }
 
     load()
+    let timer: ReturnType<typeof setInterval> | null = null
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/youtube/live', { cache: 'no-store' })
+        if (res.ok) { const data = await res.json(); setAutoLive(data.live ? data.video : null) }
+      } catch {}
+    }
+    void poll()
+    timer = setInterval(poll, 30000)
+    return () => { if (timer) clearInterval(timer) }
   }, [])
 
   const categories = ['Toate', ...Array.from(new Set(sermons.map(s => s.category)))]
@@ -67,7 +78,9 @@ export default function LivePage() {
     )
   }
 
-  const youtubeUrl = config?.youtube_url || ''
+  const youtubeUrl = autoLive?.url || config?.youtube_url || ''
+  const embedUrl = autoLive?.id ? `https://www.youtube.com/embed/${autoLive.id}?autoplay=1` : youtubeUrl.replace('watch?v=', 'embed/')
+  const isLive = !!autoLive || !!config?.is_active
   const facebookUrl = config?.facebook_url || ''
 
   return (
@@ -80,7 +93,7 @@ export default function LivePage() {
         </p>
       </div>
 
-      {config?.is_active ? (
+      {isLive ? (
         <div className="mb-14">
           <div className="flex items-center gap-2 mb-4">
             <span className="relative flex h-3 w-3">
@@ -88,11 +101,12 @@ export default function LivePage() {
               <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
             </span>
             <span className="font-semibold text-primary tracking-wide">LIVE ACUM</span>
+            {autoLive?.title && <span className="text-sm text-muted-foreground ml-2">{autoLive.title}</span>}
           </div>
 
           <div className="aspect-video w-full rounded-3xl overflow-hidden bg-black soft-shadow-lg">
             <iframe
-              src={youtubeUrl.replace('watch?v=', 'embed/')}
+              src={embedUrl}
               className="w-full h-full"
               allowFullScreen
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
