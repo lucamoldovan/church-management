@@ -6,6 +6,7 @@ export function getAuth() {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || env.APP_BASE_URL || undefined
   const googleClientId = process.env.GOOGLE_CLIENT_ID
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase()
 
   return betterAuth({
     database: env.CHURCH_DB,
@@ -29,20 +30,11 @@ export function getAuth() {
       },
     },
     socialProviders: googleClientId && googleClientSecret ? {
-      google: {
-        clientId: googleClientId,
-        clientSecret: googleClientSecret,
-      },
+      google: { clientId: googleClientId, clientSecret: googleClientSecret },
     } : undefined,
     user: {
       additionalFields: {
-        role: {
-          type: 'string',
-          required: false,
-          defaultValue: 'member',
-          input: false,
-          returned: true,
-        },
+        role: { type: 'string', required: false, defaultValue: 'member', input: false, returned: true },
       },
     },
     databaseHooks: {
@@ -50,19 +42,15 @@ export function getAuth() {
         create: {
           after: async (user) => {
             const now = new Date().toISOString()
-            await env.CHURCH_DB.prepare(`
-              INSERT OR IGNORE INTO profiles (id, full_name, email, role, created_at)
-              VALUES (?, ?, ?, 'member', ?)
-            `).bind(user.id, user.name, user.email, now).run()
+            const role = bootstrapAdminEmail && user.email.toLowerCase() === bootstrapAdminEmail ? 'super_admin' : 'member'
+            await env.CHURCH_DB.prepare(`INSERT OR IGNORE INTO profiles (id, full_name, email, role, created_at) VALUES (?, ?, ?, ?, ?)`)
+              .bind(user.id, user.name, user.email, role, now).run()
+            if (role === 'super_admin') await env.CHURCH_DB.prepare('UPDATE user SET role = ? WHERE id = ?').bind(role, user.id).run()
           },
         },
       },
     },
-    advanced: {
-      database: {
-        validateSchema: false,
-      },
-    },
+    advanced: { database: { validateSchema: false } },
     telemetry: { enabled: false },
   })
 }
