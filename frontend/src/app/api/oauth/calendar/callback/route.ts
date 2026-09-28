@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext, isStaff } from '@/lib/auth'
-import { dbInsert } from '@/lib/cloudflare/api-db'
+import { dbFindOne, dbInsert, dbUpdate } from '@/lib/cloudflare/api-db'
 
 export const runtime = 'edge'
 const STATE_COOKIE = 'google_oauth_state'
@@ -35,7 +35,9 @@ export async function GET(request: NextRequest) {
     const tok = await tokenRes.json()
     if (tok.error || !tok.access_token) return responseFor('error')
     tok.expiry = new Date(Date.now() + (tok.expires_in || 3600) * 1000).toISOString()
-    await dbInsert('integration_tokens', { provider: 'google_calendar', tokens: tok, updated_at: new Date().toISOString() })
+    const existing = await dbFindOne('integration_tokens', { provider: 'google_calendar' })
+    if (existing) await dbUpdate('integration_tokens', { tokens: tok, updated_at: new Date().toISOString() }, { provider: 'google_calendar' })
+    else await dbInsert('integration_tokens', { provider: 'google_calendar', tokens: tok, updated_at: new Date().toISOString() })
     return responseFor('connected')
   } catch {
     return responseFor('error')
