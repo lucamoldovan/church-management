@@ -9,3 +9,23 @@ binding = "ASSETS"
 
 [observability]
 enabled = true
+
+# Cloudflare resource bindings are intentionally attached to the Worker in the
+# Cloudflare dashboard until the production resource IDs are known.
+# Required runtime bindings:
+#   CHURCH_DB -> D1 database: church-management
+#   MEDIA     -> R2 bucket: church-management-media
+#   EMAIL     -> Email Service send binding
+#
+# Once the D1 database exists, these can also be declared here:
+# [[d1_databases]]
+# binding = "CHURCH_DB"
+# database_name = "church-management"
+# database_id = "YOUR_D1_DATABASE_ID"
+#
+# [[r2_buckets]]
+# binding = "MEDIA"
+# bucket_name = "church-management-media"
+#
+# [[send_email]]
+# name = "EMAIL"
