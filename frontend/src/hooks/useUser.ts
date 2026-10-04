@@ -26,16 +26,18 @@ export function useUser() {
   useEffect(() => {
     let mounted = true
     const load = async () => {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { authClient } = await import('@/lib/cloudflare/auth-client')
+      const { data: sessionData, error: sessionError } = await authClient.getSession()
+      const user = sessionError ? null : sessionData?.user
       if (!mounted) return
       if (!user) {
         setUser(null); setProfile(null); setLoading(false)
         return
       }
       setUser({ id: user.id, email: user.email ?? '' })
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
+      const { data: prof } = await db.from<Profile>('profiles').select('*').eq('id', user.id).single()
       if (!mounted) return
       setProfile(prof as Profile)
       setLoading(false)
