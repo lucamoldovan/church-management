@@ -75,8 +75,8 @@ CREATE INDEX IF NOT EXISTS profiles_role_idx ON profiles(role);
 CREATE TABLE IF NOT EXISTS departments (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, description TEXT, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, event_type TEXT DEFAULT 'service', start_at TEXT, end_at TEXT,
-  date_label TEXT, time_label TEXT, location TEXT, poster_url TEXT, capacity INTEGER DEFAULT 0, registration_deadline TEXT,
-  is_free INTEGER NOT NULL DEFAULT 1, base_price REAL NOT NULL DEFAULT 0, category TEXT, department_id TEXT REFERENCES departments(id) ON DELETE SET NULL,
+  date_label TEXT, time_label TEXT, date TEXT, time TEXT, location TEXT, poster_url TEXT, capacity INTEGER DEFAULT 0, registration_deadline TEXT,
+  is_free INTEGER NOT NULL DEFAULT 1, base_price REAL NOT NULL DEFAULT 0, price REAL NOT NULL DEFAULT 0, category TEXT, department_id TEXT REFERENCES departments(id) ON DELETE SET NULL,
   department TEXT, expected_attendance INTEGER, budget_notes TEXT, resource_notes TEXT, facility_requirements TEXT DEFAULT '[]',
   status TEXT NOT NULL DEFAULT 'published', review_comments TEXT, reviewed_by TEXT REFERENCES profiles(id) ON DELETE SET NULL,
   reviewed_at TEXT, created_by TEXT REFERENCES profiles(id) ON DELETE SET NULL, publish_google INTEGER NOT NULL DEFAULT 0,
