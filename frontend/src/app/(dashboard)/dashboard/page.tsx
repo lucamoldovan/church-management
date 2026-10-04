@@ -32,18 +32,20 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
+      const { authClient } = await import('@/lib/cloudflare/auth-client')
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
 
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: sessionData, error: sessionError } = await authClient.getSession()
+      const user = sessionError ? null : sessionData?.user
       if (!user) {
         window.location.href = '/login'
         return
       }
 
       const [{ data: profileData }, { data: regData }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', user.id).single(),
-        supabase.from('registrations').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+        db.from<Profile>('profiles').select('*').eq('id', user.id).single(),
+        db.from<Registration[]>('registrations').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       ])
 
       setProfile(profileData)
@@ -55,9 +57,8 @@ export default function DashboardPage() {
   }, [])
 
   const handleLogout = async () => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    const { authClient } = await import('@/lib/cloudflare/auth-client')
+    await authClient.signOut()
     window.location.href = '/'
   }
 
