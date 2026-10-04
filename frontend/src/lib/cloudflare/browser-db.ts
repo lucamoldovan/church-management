@@ -164,14 +164,14 @@ export function createClient() {
         const result = await authClient.requestPasswordReset({ email, redirectTo: options?.redirectTo || '/update-password' })
         return { data: result.data, error: result.error ? authError(result.error) : null }
       },
-      async updateUser({ password }: { password?: string }) {
+      async updateUser({ password, currentPassword }: { password?: string; currentPassword?: string }) {
         if (!password) return { data: null, error: { message: 'Password is required', code: 'VALIDATION_ERROR' } }
         const token = new URLSearchParams(window.location.search).get('token')
         if (token) {
           const result = await authClient.resetPassword({ newPassword: password, token })
           return { data: result.data, error: result.error ? authError(result.error) : null }
         }
-        const result = await authClient.changePassword({ newPassword: password, currentPassword: password, revokeOtherSessions: false })
+        if (!currentPassword) return { data: null, error: { message: 'Current password is required', code: 'VALIDATION_ERROR' } }\n        const result = await authClient.changePassword({ newPassword: password, currentPassword, revokeOtherSessions: false })
         return { data: result.data, error: result.error ? authError(result.error) : null }
       },
     },
