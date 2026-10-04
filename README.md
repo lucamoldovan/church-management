@@ -7,7 +7,10 @@ A full-stack church management platform for Casa Pâinii.
 | Layer | Technology |
 |---|---|
 | Frontend + API | Next.js 16 (App Router, TypeScript) |
-| Database & Auth | Supabase (Postgres + RLS + Auth + Storage) |
+| Database | Cloudflare D1 |
+| Authentication | Better Auth |
+| File storage | Cloudflare R2 |
+| Transactional email | Cloudflare Email Service |
 | Payments | Stripe |
 | Deployment | Cloudflare Workers via OpenNext |
 
@@ -31,55 +34,24 @@ The project has **no separate Python backend**. Server-side business logic and A
 church-management/
 ├── frontend/              # Deployable Next.js application
 │   ├── src/app/           # Pages + API Route Handlers
-│   ├── src/lib/           # Supabase/auth helpers
+│   ├── src/lib/           # D1, Better Auth, R2 and integration helpers
 │   ├── open-next.config.ts
 │   ├── wrangler.toml
 │   └── package.json
-├── supabase/
-│   ├── schema.sql
-│   └── migrations/
 └── .env.example
 ```
 
 ## Local Development
 
-### 1. Install
-
 ```bash
 cd frontend
 npm install
-```
-
-Create `frontend/.env.local` from the repository root `.env.example`.
-
-### 2. Database
-
-Run these SQL files in order in the Supabase SQL Editor:
-
-1. `supabase/schema.sql`
-2. `supabase/migrations/phase1_payments.sql`
-3. `supabase/migrations/phase2_bracelets.sql`
-4. `supabase/migrations/phase3_event_planning.sql`
-5. `supabase/migrations/phase5_integrations.sql`
-6. `supabase/migrations/phase6_bracelet_history.sql`
-7. `supabase/migrations/phase7_schema_fixes.sql`
-8. `supabase/migrations/phase8_missing_tables.sql`
-9. `supabase/migrations/phase9_event_packages_and_profile_fields.sql`
-
-The `posters` Supabase Storage bucket must exist and be public if Facebook/event-poster publishing is enabled.
-
-### 3. Run
-
-```bash
-cd frontend
 npm run dev
 ```
 
+Use `.env.example` as the template for local environment variables. Production Cloudflare bindings and secrets are configured on the Worker.
+
 ## Cloudflare Workers Deployment
-
-Cloudflare currently supports Next.js on Workers through multiple paths; this repository intentionally uses the **OpenNext adapter** for the existing Next.js application.
-
-### Option A — Cloudflare Workers Builds
 
 Connect the GitHub repository to Cloudflare Workers Builds.
 
@@ -91,38 +63,43 @@ frontend
 
 Build command:
 
-```bash
+```
 npm install && npm run build:cf
 ```
 
 Deploy command:
 
-```bash
+```
 npx wrangler deploy
 ```
 
-Cloudflare Workers Builds supports a separate build command and deploy command. citeturn0search7
-
-### Option B — Wrangler locally
+For local Workers/OpenNext testing:
 
 ```bash
 cd frontend
-npm install
 npm run preview
 npm run deploy
 ```
 
-`preview` builds and runs the application through the Workers/OpenNext runtime; `deploy` builds and deploys it.
+## Required Cloudflare Bindings
 
-## Required Cloudflare Variables / Secrets
+The Worker expects these bindings:
 
-Configure these in Cloudflare **Build Variables and Secrets** / Worker environment settings:
+| Binding | Cloudflare resource | Purpose |
+|---|---|---|
+| `CHURCH_DB` | D1 database | Application database |
+| `MEDIA` | R2 bucket | Uploaded media/files |
+| `EMAIL` | Email Service send binding | Transactional email |
+
+These are currently documented in `frontend/wrangler.toml`; attach the real production resources before deployment.
+
+## Required Variables / Secrets
 
 | Variable | Required | Type |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Variable |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Variable |
-| `SUPABASE_SERVICE_KEY` | Yes | Secret |
+| `BETTER_AUTH_SECRET` | Yes | Secret |
+| `NEXT_PUBLIC_APP_URL` or `APP_BASE_URL` | Yes | Variable |
+| `AUTH_EMAIL_FROM` | Yes for email | Variable |
 | `STRIPE_SECRET_KEY` | Yes for payments | Secret |
 | `STRIPE_WEBHOOK_SECRET` | Yes for payments | Secret |
 | `GOOGLE_CLIENT_ID` | Optional | Variable |
@@ -130,9 +107,12 @@ Configure these in Cloudflare **Build Variables and Secrets** / Worker environme
 | `GOOGLE_CALENDAR_ID` | Optional | Variable |
 | `FB_PAGE_ID` | Optional | Variable |
 | `FB_PAGE_ACCESS_TOKEN` | Optional | Secret |
-| `EVENT_TIMEZONE` | Optional | Variable |
+| `YOUTUBE_API_KEY` | Optional | Secret/Variable |
+| `YOUTUBE_CHANNEL_ID` | Optional | Variable |
+| `PLANNING_CENTER_TOKEN` | Optional | Secret |
+| `BOOTSTRAP_ADMIN_EMAIL` | Optional | Variable |
 
-**Never commit service-role, Stripe, OAuth, or Facebook secrets.**
+No Supabase URL, key, service-role secret, Auth client, Storage bucket, or Postgres connection is required by this branch.
 
 ## Stripe Webhook
 
@@ -148,32 +128,21 @@ Listen for:
 
 Set its signing secret as `STRIPE_WEBHOOK_SECRET`.
 
-## Google Calendar OAuth
-
-Create a Google OAuth 2.0 Web application and add:
-
-```
-https://YOUR_DOMAIN/api/oauth/calendar/callback
-```
-
-Then configure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
-
-The OAuth flow uses an HTTP-only state cookie to bind the callback to the initiating browser session.
-
 ## Security Model
 
-- Supabase Auth identifies the current user.
-- Sensitive API routes enforce authentication and staff/owner authorization.
-- Server-side Supabase access uses `SUPABASE_SERVICE_KEY`, which must remain secret.
+- Better Auth identifies the current user and manages sessions.
+- D1 stores application/auth data.
+- Sensitive API routes enforce authentication and server-side authorization.
+- R2 is used for application file storage.
 - Stripe webhooks verify the Stripe signature before changing payment state.
-- Google OAuth callbacks require an authenticated staff user and validate OAuth state.
-- Public/client Supabase keys are safe to expose; service-role and third-party secrets are not.
+- OAuth callbacks require authenticated staff access and validate OAuth state.
+- Third-party secrets remain server-side.
 
-## Database Notes
+## Database
 
-The canonical event package table is `event_packages`. The phase 9 migration provides a compatibility view named `ticket_types`.
+The canonical database schema for this migration lives in the Cloudflare D1 schema/migration implementation under `frontend/src/lib/cloudflare/`. Supabase/Postgres schema files are intentionally not part of the target architecture.
 
-Important tables include:
+Important application tables include:
 
 - `profiles`
 - `events`
@@ -193,3 +162,16 @@ Important tables include:
 - `social_media`
 - `contact_messages`
 - `integration_tokens`
+
+## Integrations
+
+- **QR check-in:** browser camera scanning uses the native BarcodeDetector API; manual code entry remains available.
+- **NFC check-in:** Web NFC is used where supported. NFC tags need readable NDEF data; browser NFC cannot read arbitrary hardware UID values.
+- **YouTube Live:** set `YOUTUBE_API_KEY` and `YOUTUBE_CHANNEL_ID`.
+- **Google Calendar:** staff can synchronize upcoming events through the Google OAuth integration.
+- **Planning Center Services:** set `PLANNING_CENTER_TOKEN` to expose service plans.
+- **ProPresenter:** production control is designed around a local Church Connector because a Cloudflare Worker cannot directly reach a private church LAN.
+
+## Migration Status
+
+This branch is the Cloudflare-native migration branch. Supabase has been removed from the application dependency/runtime architecture. Remaining migration work is tracked separately in the staged migration plan, including D1 schema validation, authorization, R2, email, API, integrations, check-in, production control, bindings, fresh-database testing, and final production audit.
