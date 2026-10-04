@@ -1,15 +1,15 @@
-import { getD1 } from '@/lib/cloudflare/db'
+import { getD1 } from '@/lib/cloudflare/db'\n\nfunction identifier(value: string) {\n  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) throw new Error(`Invalid identifier: ${value}`)\n  return value\n}\n\nconst CREATED_AT_TABLES = new Set([\n  'profiles', 'departments', 'events', 'event_packages', 'registrations', 'checkins',\n  'bracelets', 'study_groups', 'group_meetings', 'group_announcements', 'sermons',\n  'contact_messages', 'notifications', 'payment_transactions', 'service_plans',\n  'service_items', 'volunteer_assignments', 'connector_devices', 'production_events',\n  'control_center_layouts', 'audit_logs'\n])\n\nconst UPDATED_AT_TABLES = new Set([\n  'payment_transactions', 'integration_tokens', 'service_plans', 'service_items',\n  'connector_devices', 'live_production_state', 'control_center_layouts'\n])
 
 export async function dbFindOne<T = Record<string, unknown>>(table: string, where: Record<string, unknown>): Promise<T | null> {
   const keys = Object.keys(where)
   if (!keys.length) throw new Error('A WHERE clause is required')
-  const sql = `SELECT * FROM ${table} WHERE ${keys.map(k => `"${k.replaceAll('"', '""')}" = ?`).join(' AND ')} LIMIT 1`
+  const safeTable = identifier(table)\n  const safeKeys = keys.map(identifier)\n  const sql = `SELECT * FROM ${safeTable} WHERE ${safeKeys.map(k => `"${k}" = ?`).join(' AND ')} LIMIT 1`
   return await getD1().prepare(sql).bind(...keys.map(k => normalize(where[k]))).first<T>()
 }
 
 export async function dbFindMany<T = Record<string, unknown>>(table: string, where: Record<string, unknown> = {}, columns = '*'): Promise<T[]> {
   const keys = Object.keys(where)
-  const sql = `SELECT ${columns} FROM ${table}${keys.length ? ` WHERE ${keys.map(k => `"${k.replaceAll('"', '""')}" = ?`).join(' AND ')}` : ''}`
+  const safeTable = identifier(table)\n  const safeColumns = columns === '*' ? '*' : columns.split(',').map(identifier).join(', ')\n  const safeKeys = keys.map(identifier)\n  const sql = `SELECT ${safeColumns} FROM ${safeTable}${keys.length ? ` WHERE ${safeKeys.map(k => `"${k}" = ?`).join(' AND ')}` : ''}`
   const result = await getD1().prepare(sql).bind(...keys.map(k => normalize(where[k]))).all<T>()
   return result.results || []
 }
@@ -18,7 +18,7 @@ export async function dbUpdate(table: string, values: Record<string, unknown>, w
   const valueKeys = Object.keys(values)
   const whereKeys = Object.keys(where)
   if (!valueKeys.length || !whereKeys.length) throw new Error('Update requires values and WHERE')
-  const sql = `UPDATE ${table} SET ${valueKeys.map(k => `"${k.replaceAll('"', '""')}" = ?`).join(', ')} WHERE ${whereKeys.map(k => `"${k.replaceAll('"', '""')}" = ?`).join(' AND ')}`
+  const safeTable = identifier(table)\n  const safeValueKeys = valueKeys.map(identifier)\n  const safeWhereKeys = whereKeys.map(identifier)\n  const sql = `UPDATE ${safeTable} SET ${safeValueKeys.map(k => `"${k}" = ?`).join(', ')} WHERE ${safeWhereKeys.map(k => `"${k}" = ?`).join(' AND ')}`
   return getD1().prepare(sql).bind(...valueKeys.map(k => normalize(values[k])), ...whereKeys.map(k => normalize(where[k]))).run()
 }
 
