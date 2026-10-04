@@ -13,9 +13,8 @@ export default function ResetPasswordPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setError('')
     try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/update-password` })
+      const { authClient } = await import('@/lib/cloudflare/auth-client')
+      const { error } = await authClient.requestPasswordReset({ email, redirectTo: `${window.location.origin}/update-password` })
       if (error) throw error
       setSent(true)
     } catch (err: unknown) {
