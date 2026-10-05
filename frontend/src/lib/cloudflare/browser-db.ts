@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createAuthClient } from 'better-auth/client'
 
 export const authClient = createAuthClient({ basePath: '/api/auth' })
