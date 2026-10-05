@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
     const path = safeKey(String(form.get('path') || ''))
     const file = form.get('file')
     if (!(file instanceof File)) return NextResponse.json({ error: 'File is required' }, { status: 400 })
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'])
+    if (!allowedTypes.has(file.type)) return NextResponse.json({ error: 'Only raster image uploads are allowed' }, { status: 415 })
     if (file.size > 15 * 1024 * 1024) return NextResponse.json({ error: 'File too large' }, { status: 413 })
     await bucket().put(path, file.stream(), { httpMetadata: { contentType: file.type || 'application/octet-stream', cacheControl: 'public, max-age=31536000, immutable' } })
     return NextResponse.json({ data: { path }, error: null })
