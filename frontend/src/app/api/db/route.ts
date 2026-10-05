@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Database request failed'
-    const status = message === 'Unauthorized' ? 401 : message === 'Forbidden' ? 403 : /EVENT_FULL|UNIQUE constraint failed/i.test(message) ? 409 : 400
+    const status = message === 'Unauthorized' ? 401 : message === 'Forbidden' ? 403 : /EVENT_FULL|PACKAGE_FULL|UNIQUE constraint failed/i.test(message) ? 409 : 400
     return NextResponse.json({ data: null, error: { message, code: status === 401 ? 'UNAUTHORIZED' : status === 403 ? 'FORBIDDEN' : 'DB_ERROR' } }, { status })
   }
 }
