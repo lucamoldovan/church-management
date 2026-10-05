@@ -23,7 +23,7 @@ export default function AdminCheckin() {
   const [scannerOpen, setScannerOpen] = useState(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const sb = async () => (await import('@/lib/supabase/client')).createClient()
+  const sb = async () => (await import('@/lib/cloudflare/browser-db')).createClient()
   const name = (r: Reg | null) => r?.profiles?.full_name || r?.attendee_id || '—'
   const handleScan = (value: string, source: 'qr' | 'nfc') => {
     setScannerOpen(false)
@@ -37,7 +37,7 @@ export default function AdminCheckin() {
     const c = value.trim()
     if (!c) return
     const supabase = await sb()
-    const { data } = await supabase.from('registrations').select('*, profiles(full_name,email)')
+    const { data } = await db.from('registrations').select('*, profiles(full_name,email)')
       .or(`qr_token.eq.${c},attendee_id.eq.${c},bracelet_code.eq.${c}`).maybeSingle()
     if (data) {
       const r = data as Reg
@@ -45,7 +45,7 @@ export default function AdminCheckin() {
       setStatus({ type: 'info', text: r.bracelet_code ? `Brățară activă: ${r.bracelet_code}` : 'Participant găsit. Caută/scanează pentru a asigna o brățară.' })
       return
     }
-    const { data: band } = await supabase.from('bracelets').select('*').eq('code', c).maybeSingle()
+    const { data: band } = await db.from('bracelets').select('*').eq('code', c).maybeSingle()
     if (band) {
       if (!band.active) { setStatus({ type: 'err', text: 'Brățară dezactivată (pierdută/deteriorată).' }); return }
       setFreeBracelet(c)
@@ -68,7 +68,7 @@ export default function AdminCheckin() {
     searchTimer.current = setTimeout(async () => {
       setSearching(true)
       const supabase = await sb()
-      const { data } = await supabase.from('registrations')
+      const { data } = await db.from('registrations')
         .select('*, profiles!inner(full_name,email)')
         .ilike('profiles.full_name', `%${term.trim()}%`)
         .order('created_at', { ascending: false }).limit(15)
@@ -78,7 +78,7 @@ export default function AdminCheckin() {
   }
 
   const logHistory = async (supabase: Awaited<ReturnType<typeof sb>>, r: Reg, c: string, userId?: string) => {
-    await supabase.from('bracelet_assignments').insert({
+    await db.from('bracelet_assignments').insert({
       bracelet_code: c, registration_id: r.id, event_id: r.event_id, attendee_id: r.attendee_id,
       attendee_name: r.profiles?.full_name || null, assigned_by: userId,
     })
@@ -88,30 +88,30 @@ export default function AdminCheckin() {
     const c = bcode.trim()
     if (!c) { setStatus({ type: 'err', text: 'Introdu/scanează un cod de brățară.' }); return }
     const supabase = await sb()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await db.auth.getUser()
 
-    const { data: band } = await supabase.from('bracelets').select('*').eq('code', c).maybeSingle()
+    const { data: band } = await db.from('bracelets').select('*').eq('code', c).maybeSingle()
     if (!band) { setStatus({ type: 'err', text: 'Brățară inexistentă în inventar.' }); return }
     if (!band.active) { setStatus({ type: 'err', text: 'Brățară dezactivată.' }); return }
 
-    const { data: clash } = await supabase.from('registrations').select('id, attendee_id')
+    const { data: clash } = await db.from('registrations').select('id, attendee_id')
       .eq('event_id', target.event_id).eq('bracelet_code', c).maybeSingle()
     if (clash && clash.id !== target.id) { setStatus({ type: 'err', text: `Brățara este deja asignată (${clash.attendee_id}).` }); return }
 
     // close any open history for this registration's previous bracelet
     if (target.bracelet_code && target.bracelet_code !== c) {
-      await supabase.from('bracelet_assignments').update({ released_at: new Date().toISOString() })
+      await db.from('bracelet_assignments').update({ released_at: new Date().toISOString() })
         .eq('registration_id', target.id).is('released_at', null)
     }
 
     const upd: Record<string, unknown> = { bracelet_code: c, bracelet_assigned_at: new Date().toISOString() }
     if (alsoCheckIn && !target.checked_in) { upd.checked_in = true; upd.checked_in_at = new Date().toISOString() }
-    const { error } = await supabase.from('registrations').update(upd).eq('id', target.id)
+    const { error } = await db.from('registrations').update(upd).eq('id', target.id)
     if (error) { setStatus({ type: 'err', text: error.code === '23505' ? 'Brățara este deja asignată altui participant.' : error.message }); return }
 
     await logHistory(supabase, target, c, user?.id)
     if (alsoCheckIn && !target.checked_in) {
-      await supabase.from('checkins').insert({ registration_id: target.id, event_id: target.event_id, scanned_by: user?.id, type: 'entry', day_date: new Date().toISOString().slice(0, 10) })
+      await db.from('checkins').insert({ registration_id: target.id, event_id: target.event_id, scanned_by: user?.id, type: 'entry', day_date: new Date().toISOString().slice(0, 10) })
     }
 
     setReg({ ...target, bracelet_code: c, checked_in: alsoCheckIn ? true : target.checked_in })
@@ -122,11 +122,11 @@ export default function AdminCheckin() {
   const checkInEntry = async () => {
     if (!reg) return
     const supabase = await sb()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error: ce } = await supabase.from('checkins').insert({ registration_id: reg.id, event_id: reg.event_id, scanned_by: user?.id, type: 'entry', day_date: new Date().toISOString().slice(0, 10) })
+    const { data: { user } } = await db.auth.getUser()
+    const { error: ce } = await db.from('checkins').insert({ registration_id: reg.id, event_id: reg.event_id, scanned_by: user?.id, type: 'entry', day_date: new Date().toISOString().slice(0, 10) })
     if (ce && ce.code === '23505') { setStatus({ type: 'err', text: 'Intrarea a fost deja validată azi.' }); return }
     if (ce) { setStatus({ type: 'err', text: ce.message }); return }
-    await supabase.from('registrations').update({ checked_in: true, checked_in_at: new Date().toISOString() }).eq('id', reg.id)
+    await db.from('registrations').update({ checked_in: true, checked_in_at: new Date().toISOString() }).eq('id', reg.id)
     setReg({ ...reg, checked_in: true })
     setStatus({ type: 'ok', text: 'Check-in intrare reușit ✓' })
   }
@@ -134,8 +134,8 @@ export default function AdminCheckin() {
   const checkMeal = async (meal: string) => {
     if (!reg) return
     const supabase = await sb()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from('checkins').insert({ registration_id: reg.id, event_id: reg.event_id, scanned_by: user?.id, type: 'meal', meal, day_date: new Date().toISOString().slice(0, 10) })
+    const { data: { user } } = await db.auth.getUser()
+    const { error } = await db.from('checkins').insert({ registration_id: reg.id, event_id: reg.event_id, scanned_by: user?.id, type: 'meal', meal, day_date: new Date().toISOString().slice(0, 10) })
     if (error && error.code === '23505') { setStatus({ type: 'err', text: `Masa "${meal}" a fost deja folosită azi.` }); return }
     if (error) { setStatus({ type: 'err', text: error.message }); return }
     setStatus({ type: 'ok', text: `Masă validată: ${meal} ✓` })
@@ -144,8 +144,8 @@ export default function AdminCheckin() {
   const markPaid = async () => {
     if (!reg) return
     const supabase = await sb()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from('registrations').update({
+    const { data: { user } } = await db.auth.getUser()
+    const { error } = await db.from('registrations').update({
       payment_status: 'paid', payment_method: 'cash', amount_paid: reg.package_price,
       paid_at: new Date().toISOString(), paid_by: user?.id,
     }).eq('id', reg.id)
