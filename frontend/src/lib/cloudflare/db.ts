@@ -95,6 +95,9 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
   if (table === 'profiles') {
     const own = (operation.filters || []).some(f => f.column === 'id' && f.op === 'eq' && f.value === user.id)
     if (action === 'select' && (own || isStaff(user.role))) return
+    const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+    const changesRole = values.some(value => value && Object.prototype.hasOwnProperty.call(value, 'role'))
+    if (changesRole && !isAdmin(user.role)) throw new Error('Forbidden')
     if (action === 'update' && own) return
     if (action === 'update' && isAdmin(user.role)) return
     throw new Error('Forbidden')
