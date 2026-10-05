@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getAuthContext, isStaff } from '@/lib/cloudflare/auth-context'
 import { dbFindOne, dbInsert, dbUpdate } from '@/lib/cloudflare/api-db'
+import { consumeRateLimit, rateLimited, writeAuditLog } from '@/lib/cloudflare/security'
 
 export const runtime = 'edge'
 
@@ -9,6 +10,8 @@ const isUuid = (value: unknown): value is string => typeof value === 'string' &&
 
 export async function POST(request: NextRequest) {
   try {
+    const rate = await consumeRateLimit(request, 'payments-checkout', 10, 60)
+    if (!rate.allowed) return rateLimited(rate.retryAfter)
     const auth = await getAuthContext()
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { registration_id } = await request.json()
@@ -23,6 +26,18 @@ export async function POST(request: NextRequest) {
     if (amount <= 0) {
       await dbUpdate('registrations', { payment_status: 'paid', updated_at: new Date().toISOString() }, { id: registration_id })
       return NextResponse.json({ free: true })
+    }
+
+    const existing = await dbFindOne<Record<string, unknown>>('payment_transactions', { registration_id })
+    if (existing && ['initiated', 'pending'].includes(String(existing.payment_status)) && existing.session_id) {
+      const existingStripeKey = process.env.STRIPE_SECRET_KEY
+      if (existingStripeKey) {
+        const existingSession = await new Stripe(existingStripeKey).checkout.sessions.retrieve(String(existing.session_id))
+        if (existingSession.status === 'open' && existingSession.url) {
+          return NextResponse.json({ url: existingSession.url, session_id: existingSession.id, existing: true })
+        }
+      }
+      await dbUpdate('payment_transactions', { payment_status: 'cancelled', status: 'expired', updated_at: new Date().toISOString() }, { session_id: String(existing.session_id) })
     }
 
     const stripeKey = process.env.STRIPE_SECRET_KEY
@@ -42,9 +57,10 @@ export async function POST(request: NextRequest) {
       user_id: reg.user_id, registration_id, session_id: session.id, amount,
       currency: 'ron', status: 'initiated', payment_status: 'pending', metadata: session.metadata || {},
     })
+    await writeAuditLog(auth, 'payment.checkout_created', 'payment_transactions', session.id, { registration_id, amount })
     return NextResponse.json({ url: session.url, session_id: session.id })
   } catch (err) {
     console.error('[payments/checkout]', err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 })
+    return NextResponse.json({ error: 'Unable to create checkout session' }, { status: 500 })
   }
 }
