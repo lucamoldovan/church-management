@@ -131,7 +131,8 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
     if (isStaff(user.role)) return
     const ownFilter = (operation.filters || []).some(f => f.column === 'user_id' && f.op === 'eq' && f.value === user.id)
     const ownInsert = action === 'insert' && (Array.isArray(operation.values) ? operation.values : [operation.values]).every(v => !v || (v as Record<string, unknown>).user_id === user.id)
-    if (ownFilter || ownInsert) return
+    if (action === 'select' && ownFilter) return
+    if (action === 'insert' && ownInsert) return
     throw new Error('Forbidden')
   }
   if (['events', 'study_groups', 'group_announcements'].includes(table) && action === 'select') return
