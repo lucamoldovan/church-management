@@ -102,6 +102,15 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Database request failed'
     const status = message === 'Unauthorized' ? 401 : message === 'Forbidden' ? 403 : /EVENT_FULL|PACKAGE_FULL|UNIQUE constraint failed/i.test(message) ? 409 : 400
-    return NextResponse.json({ data: null, error: { message, code: status === 401 ? 'UNAUTHORIZED' : status === 403 ? 'FORBIDDEN' : 'DB_ERROR' } }, { status })
+    const safeMessage = message === 'EVENT_FULL'
+      ? 'Evenimentul este complet.'
+      : message === 'PACKAGE_FULL'
+        ? 'Pachetul este complet.'
+        : /UNIQUE constraint failed/i.test(message)
+          ? 'Operațiunea intră în conflict cu o înregistrare existentă.'
+          : status === 401 || status === 403
+            ? message
+            : 'Cererea de bază de date nu a putut fi procesată.'
+    return NextResponse.json({ data: null, error: { message: safeMessage, code: status === 401 ? 'UNAUTHORIZED' : status === 403 ? 'FORBIDDEN' : status === 409 ? 'CONFLICT' : 'DB_ERROR' } }, { status })
   }
 }
