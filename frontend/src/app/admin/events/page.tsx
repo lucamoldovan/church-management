@@ -31,9 +31,9 @@ export default function AdminEvents() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data } = await supabase.from('events').select('*').order('created_at', { ascending: false })
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { data } = await db.from('events').select('*').order('created_at', { ascending: false })
     setEvents((data as Ev[]) || [])
   }, [])
 
@@ -75,13 +75,13 @@ export default function AdminEvents() {
 
   const uploadPoster = async (file: File) => {
     setUploading(true); setMsg('')
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
     const ext = file.name.split('.').pop()
     const path = `posters/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-    const { error } = await supabase.storage.from('posters').upload(path, file, { upsert: true })
+    const { error } = await db.storage.from('posters').upload(path, file, { upsert: true })
     if (error) { setMsg(`Eroare poster: ${error.message}`); setUploading(false); return }
-    const { data } = supabase.storage.from('posters').getPublicUrl(path)
+    const { data } = db.storage.from('posters').getPublicUrl(path)
     setEditing(prev => prev ? { ...prev, poster_url: data.publicUrl } : prev)
     setUploading(false)
   }
@@ -94,9 +94,9 @@ export default function AdminEvents() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editing) return; setMsg('')
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { data: { user } } = await db.auth.getUser()
     const payload = {
       title: editing.title, description: editing.description, category: editing.category,
       location: editing.location, date: editing.date || null, time: editing.time || null,
@@ -107,16 +107,16 @@ export default function AdminEvents() {
       facility_requirements: editing.facility_requirements, poster_url: editing.poster_url || null,
     }
     const res = editing.id
-      ? await supabase.from('events').update(payload).eq('id', editing.id)
-      : await supabase.from('events').insert({ ...payload, created_by: user?.id })
+      ? await db.from('events').update(payload).eq('id', editing.id)
+      : await db.from('events').insert({ ...payload, created_by: user?.id })
     if (res.error) { setMsg(`Eroare: ${res.error.message}`); return }
     setEditing(null); load()
   }
 
   const remove = async (id: string) => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    await supabase.from('events').delete().eq('id', id)
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    await db.from('events').delete().eq('id', id)
     load()
   }
 
