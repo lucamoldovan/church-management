@@ -132,6 +132,15 @@ export async function POST(request: NextRequest) {
     }
     await authorizeDbOperation(operation, user)
     const result = await executeDbOperation(getD1(), operation)
+    if (operationTable === 'checkins' && operation.operation === 'insert') {
+      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+      const now = new Date().toISOString()
+      for (const value of values) {
+        if (typeof value.registration_id === 'string') {
+          await getD1().prepare('UPDATE registrations SET checked_in = 1, checked_in_at = ? WHERE id = ?').bind(now, value.registration_id).run()
+        }
+      }
+    }
     if (auth && operation.operation !== 'select' && ['registrations', 'bracelet_assignments', 'checkins', 'payment_transactions', 'events', 'group_members', 'profiles', 'notifications'].includes(operation.table)) {
       const resourceId = operation.filters?.find(f => f.column === 'id' && f.op === 'eq')?.value
       await writeAuditLog(auth, `db.${operation.operation}`, operation.table, typeof resourceId === 'string' ? resourceId : null, { count: result.count ?? null })
