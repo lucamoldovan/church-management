@@ -90,12 +90,12 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
   const { table, operation: action } = operation
   if (!STAFF_TABLES.has(table) && !PUBLIC_READ_TABLES.has(table)) throw new Error('Table is not available through the application API.')
   if (action === 'select' && PUBLIC_READ_TABLES.has(table)) return
+  if (table === 'contact_messages' && action === 'insert') return
   if (!user) throw new Error('Unauthorized')
   if (['integration_tokens', 'audit_logs', 'connector_devices'].includes(table)) {
     if (isAdmin(user.role) && action === 'select') return
     throw new Error('Forbidden')
   }
-  if (action === 'insert' && table === 'contact_messages') return
   if (table === 'profiles') {
     const own = (operation.filters || []).some(f => f.column === 'id' && f.op === 'eq' && f.value === user.id)
     if (action === 'select' && (own || isStaff(user.role))) return
