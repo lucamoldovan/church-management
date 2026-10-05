@@ -24,16 +24,25 @@ export function getAuth() {
   const appleTeamId = process.env.APPLE_TEAM_ID
   const appleKeyId = process.env.APPLE_KEY_ID
   const applePrivateKey = process.env.APPLE_PRIVATE_KEY
-  const socialProviders: Record<string, unknown> = {}
-  if (googleClientId && googleClientSecret) socialProviders.google = { clientId: googleClientId, clientSecret: googleClientSecret }
-  if (appleClientId && appleTeamId && appleKeyId && applePrivateKey) {
-    socialProviders.apple = async () => ({
-      clientId: appleClientId,
-      clientSecret: await generateAppleClientSecret(appleClientId, appleTeamId, appleKeyId, applePrivateKey),
-      appBundleIdentifier: process.env.APPLE_APP_BUNDLE_IDENTIFIER || undefined,
-    })
+  const socialProviders = {
+    ...(googleClientId && googleClientSecret
+      ? { google: { clientId: googleClientId, clientSecret: googleClientSecret } }
+      : {}),
+    ...(appleClientId && appleTeamId && appleKeyId && applePrivateKey
+      ? {
+          apple: async () => ({
+            clientId: appleClientId,
+            clientSecret: await generateAppleClientSecret(
+              appleClientId,
+              appleTeamId,
+              appleKeyId,
+              applePrivateKey,
+            ),
+            appBundleIdentifier: process.env.APPLE_APP_BUNDLE_IDENTIFIER || undefined,
+          }),
+        }
+      : {}),
   }
-  const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase()
 
   return betterAuth({
     database: env.CHURCH_DB,
@@ -73,7 +82,7 @@ export function getAuth() {
         })
       },
     },
-    trustedOrigins: ['https://appleid.apple.com'],
+    trustedOrigins: [appUrl, 'https://appleid.apple.com'].filter((value): value is string => Boolean(value)),
     socialProviders: Object.keys(socialProviders).length ? socialProviders : undefined,
     user: {
       additionalFields: {
