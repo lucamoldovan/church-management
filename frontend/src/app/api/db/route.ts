@@ -46,23 +46,7 @@ export async function POST(request: NextRequest) {
           if (Number(count?.count || 0) >= capacity) throw new Error('Event is full')
         }
         const method = value.payment_method === 'cash' ? 'cash' : 'online'
-        normalized.push({
-          ...value,
-          id: crypto.randomUUID(),
-          user_id: auth.user.id,
-          event_id: eventId,
-          event_title: String(event.title || ''),
-          package_id: packageId,
-          package_name: packageName,
-          package_price: packagePrice,
-          status: 'confirmed',
-          payment_method: packagePrice <= 0 ? 'online' : method,
-          payment_status: packagePrice <= 0 ? 'paid' : method === 'cash' ? 'pending' : 'unpaid',
-          amount_paid: packagePrice <= 0 ? packagePrice : 0,
-          paid_at: packagePrice <= 0 ? new Date().toISOString() : null,
-          attendee_id: `ATT-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
-          qr_token: crypto.randomUUID(),
-        })
+        normalized.push({ ...value, id: crypto.randomUUID(), user_id: auth.user.id, event_id: eventId, event_title: String(event.title || ''), package_id: packageId, package_name: packageName, package_price: packagePrice, status: 'confirmed', payment_method: packagePrice <= 0 ? 'online' : method, payment_status: packagePrice <= 0 ? 'paid' : method === 'cash' ? 'pending' : 'unpaid', amount_paid: packagePrice <= 0 ? packagePrice : 0, paid_at: packagePrice <= 0 ? new Date().toISOString() : null, attendee_id: `ATT-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`, qr_token: crypto.randomUUID() })
       }
       operation.values = normalized
     }
@@ -86,19 +70,10 @@ export async function POST(request: NextRequest) {
         return { ...value, id: crypto.randomUUID(), event_id: registration.event_id, attendee_id: registration.attendee_id, assigned_by: auth.user.id, assigned_at: new Date().toISOString() }
       })
     }
-      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
-      operation.values = values.map(value => ({ ...value, id: crypto.randomUUID(), assigned_by: auth.user.id, assigned_at: new Date().toISOString() }))
-    }
 
     if (operationTable === 'group_members' && operation.operation === 'insert' && auth && !auth.isStaff) {
       const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
-      operation.values = values.map(value => ({
-        ...value,
-        id: crypto.randomUUID(),
-        user_id: auth.user.id,
-        status: 'pending',
-        joined_at: new Date().toISOString(),
-      }))
+      operation.values = values.map(value => ({ ...value, id: crypto.randomUUID(), user_id: auth.user.id, status: 'pending', joined_at: new Date().toISOString() }))
     }
 
     if (operationTable === 'checkins' && operation.operation === 'insert') {
@@ -127,7 +102,7 @@ export async function POST(request: NextRequest) {
       const email = typeof value.email === 'string' ? value.email.trim().toLowerCase() : ''
       const subject = typeof value.subject === 'string' ? value.subject.trim() : ''
       const message = typeof value.message === 'string' ? value.message.trim() : ''
-      if (!name || name.length > 120 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 320 || subject.length > 200 || !message || message.length > 5000) throw new Error('Invalid contact message')
+      if (!name || name.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 320 || subject.length > 200 || !message || message.length > 5000) throw new Error('Invalid contact message')
       operation.values = { id: crypto.randomUUID(), name, email, subject: subject || null, message, created_at: new Date().toISOString() }
     }
     await authorizeDbOperation(operation, user)
@@ -135,11 +110,7 @@ export async function POST(request: NextRequest) {
     if (operationTable === 'checkins' && operation.operation === 'insert') {
       const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
       const now = new Date().toISOString()
-      for (const value of values) {
-        if (typeof value.registration_id === 'string') {
-          await getD1().prepare('UPDATE registrations SET checked_in = 1, checked_in_at = ? WHERE id = ?').bind(now, value.registration_id).run()
-        }
-      }
+      for (const value of values) if (typeof value.registration_id === 'string') await getD1().prepare('UPDATE registrations SET checked_in = 1, checked_in_at = ? WHERE id = ?').bind(now, value.registration_id).run()
     }
     if (auth && operation.operation !== 'select' && ['registrations', 'bracelet_assignments', 'checkins', 'payment_transactions', 'events', 'group_members', 'profiles', 'notifications'].includes(operation.table)) {
       const resourceId = operation.filters?.find(f => f.column === 'id' && f.op === 'eq')?.value
@@ -149,15 +120,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Database request failed'
     const status = message === 'Unauthorized' ? 401 : message === 'Forbidden' ? 403 : /EVENT_FULL|PACKAGE_FULL|UNIQUE constraint failed/i.test(message) ? 409 : 400
-    const safeMessage = message === 'EVENT_FULL'
-      ? 'Evenimentul este complet.'
-      : message === 'PACKAGE_FULL'
-        ? 'Pachetul este complet.'
-        : /UNIQUE constraint failed/i.test(message)
-          ? 'Operațiunea intră în conflict cu o înregistrare existentă.'
-          : status === 401 || status === 403
-            ? message
-            : 'Cererea de bază de date nu a putut fi procesată.'
+    const safeMessage = message === 'EVENT_FULL' ? 'Evenimentul este complet.' : message === 'PACKAGE_FULL' ? 'Pachetul este complet.' : /UNIQUE constraint failed/i.test(message) ? 'Operațiunea intră în conflict cu o înregistrare existentă.' : status === 401 || status === 403 ? message : 'Cererea de bază de date nu a putut fi procesată.'
     return NextResponse.json({ data: null, error: { message: safeMessage, code: status === 401 ? 'UNAUTHORIZED' : status === 403 ? 'FORBIDDEN' : status === 409 ? 'CONFLICT' : 'DB_ERROR' } }, { status })
   }
 }
