@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { User, Save, Shield } from 'lucide-react'
+import { authClient } from '@/lib/cloudflare/auth-client'
+import { User, Save, Shield, Trash2 } from 'lucide-react'
 
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
@@ -42,6 +43,19 @@ export default function ProfilePage() {
     setSaving(false)
   }
 
+  const deleteAccount = async () => {
+    if (!window.confirm('Sigur vrei să ștergi definitiv contul? Această acțiune nu poate fi anulată.')) return
+    setSaving(true)
+    setMsg('')
+    const { error } = await authClient.deleteUser()
+    if (error) {
+      setMsg(`Eroare: ${error.message}`)
+      setSaving(false)
+      return
+    }
+    window.location.href = '/'
+  }
+
   if (loading) return <div className="min-h-[70vh] flex items-center justify-center text-muted-foreground">Se încarcă...</div>
 
   const field = (label: string, key: keyof typeof form, type = 'text') => (
@@ -79,6 +93,20 @@ export default function ProfilePage() {
           <Save className="h-4 w-4" /> {saving ? 'Se salvează...' : 'Salvează'}
         </button>
       </form>
+
+      <div className="mt-6 border border-destructive/30 bg-destructive/5 rounded-3xl p-6">
+        <div className="flex items-start gap-3">
+          <Trash2 className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <h2 className="font-heading font-semibold">Șterge contul</h2>
+            <p className="text-sm text-muted-foreground mt-1 mb-4">Ștergerea contului elimină datele personale asociate contului. Înregistrările și datele care trebuie păstrate pentru obligații legale sau contabile pot fi păstrate conform politicii de retenție.</p>
+            <button type="button" onClick={deleteAccount} disabled={saving}
+              className="inline-flex items-center gap-2 border border-destructive/40 text-destructive px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-destructive/10 disabled:opacity-50">
+              <Trash2 className="h-4 w-4" /> Șterge definitiv contul
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
