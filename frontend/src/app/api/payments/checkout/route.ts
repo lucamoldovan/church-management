@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { getAuthContext, isStaff } from '@/lib/auth'
+import { getAuthContext, isStaff } from '@/lib/cloudflare/auth-context'
 import { dbFindOne, dbInsert, dbUpdate } from '@/lib/cloudflare/api-db'
 
 export const runtime = 'edge'
