@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/cloudflare/auth-context'
 import { authorizeDbOperation, executeDbOperation, getD1, type DbOperation } from '@/lib/cloudflare/db'
-import { consumeRateLimit, rateLimited } from '@/lib/cloudflare/security'
+import { consumeRateLimit, rateLimited, writeAuditLog } from '@/lib/cloudflare/security'
 
 export const runtime = 'edge'
 
@@ -72,6 +72,10 @@ export async function POST(request: NextRequest) {
     }
     await authorizeDbOperation(operation, user)
     const result = await executeDbOperation(getD1(), operation)
+    if (auth && operation.operation !== 'select' && ['registrations', 'bracelet_assignments', 'checkins', 'payment_transactions', 'events', 'group_members', 'profiles', 'notifications'].includes(operation.table)) {
+      const resourceId = operation.filters?.find(f => f.column === 'id' && f.op === 'eq')?.value
+      await writeAuditLog(auth, `db.${operation.operation}`, operation.table, typeof resourceId === 'string' ? resourceId : null, { count: result.count ?? null })
+    }
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Database request failed'
