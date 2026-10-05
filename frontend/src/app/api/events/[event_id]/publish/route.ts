@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext, isStaff } from '@/lib/cloudflare/auth-context'
 import { dbFindOne, dbUpdate } from '@/lib/cloudflare/api-db'
-import { decryptJson } from '@/lib/cloudflare/security'
+import { decryptJson, encryptJson } from '@/lib/cloudflare/security'
 
 export const runtime = 'edge'
 const TIMEZONE = process.env.EVENT_TIMEZONE || 'Europe/Bucharest'
@@ -34,7 +34,7 @@ async function getGoogleAccessToken() {
   const fresh = await res.json()
   if (!fresh.access_token) return null
   const updated = { ...tok, access_token: fresh.access_token, expiry: new Date(Date.now() + (fresh.expires_in || 3600) * 1000).toISOString() }
-  await dbUpdate('integration_tokens', { tokens: updated, updated_at: new Date().toISOString() }, { provider: 'google_calendar' })
+  await dbUpdate('integration_tokens', { tokens: await encryptJson(updated), updated_at: new Date().toISOString() }, { provider: 'google_calendar' })
   return fresh.access_token
 }
 
