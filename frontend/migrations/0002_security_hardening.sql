@@ -26,3 +26,29 @@ CREATE TABLE IF NOT EXISTS rateLimit (
   lastRequest INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS rateLimit_key_idx ON rateLimit(key);
+
+CREATE UNIQUE INDEX IF NOT EXISTS registrations_active_user_event_idx
+  ON registrations(user_id, event_id)
+  WHERE user_id IS NOT NULL AND event_id IS NOT NULL AND status NOT IN ('cancelled', 'refunded');
+
+CREATE TRIGGER IF NOT EXISTS registrations_capacity_insert
+BEFORE INSERT ON registrations
+WHEN NEW.event_id IS NOT NULL
+  AND NEW.status NOT IN ('cancelled', 'refunded')
+  AND COALESCE((SELECT capacity FROM events WHERE id = NEW.event_id), 0) > 0
+  AND (SELECT COUNT(*) FROM registrations WHERE event_id = NEW.event_id AND status NOT IN ('cancelled', 'refunded'))
+      >= (SELECT capacity FROM events WHERE id = NEW.event_id)
+BEGIN
+  SELECT RAISE(ABORT, 'EVENT_FULL');
+END;
+
+CREATE TRIGGER IF NOT EXISTS registrations_capacity_update
+BEFORE UPDATE OF event_id, status ON registrations
+WHEN NEW.event_id IS NOT NULL
+  AND NEW.status NOT IN ('cancelled', 'refunded')
+  AND COALESCE((SELECT capacity FROM events WHERE id = NEW.event_id), 0) > 0
+  AND (SELECT COUNT(*) FROM registrations WHERE event_id = NEW.event_id AND status NOT IN ('cancelled', 'refunded') AND id != OLD.id)
+      >= (SELECT capacity FROM events WHERE id = NEW.event_id)
+BEGIN
+  SELECT RAISE(ABORT, 'EVENT_FULL');
+END;
