@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext, isStaff } from '@/lib/cloudflare/auth-context'
 import { dbFindOne, dbUpdate } from '@/lib/cloudflare/api-db'
-import { consumeRateLimit, rateLimited, writeAuditLog, decryptJson } from '@/lib/cloudflare/security'
+import { decryptJson } from '@/lib/cloudflare/security'
 
 export const runtime = 'edge'
 const TIMEZONE = process.env.EVENT_TIMEZONE || 'Europe/Bucharest'
