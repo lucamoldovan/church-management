@@ -33,12 +33,12 @@ export default function LivePage() {
 
   useEffect(() => {
     const load = async () => {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
 
       const [{ data: liveData }, { data: sermonData }] = await Promise.all([
-        supabase.from('livestream_config').select('*').single(),
-        supabase.from('sermons').select('*').eq('published', true).order('date', { ascending: false }),
+        db.from('livestream_config').select('*').single(),
+        db.from('sermons').select('*').eq('published', true).order('date', { ascending: false }),
       ])
 
       setConfig(liveData)
