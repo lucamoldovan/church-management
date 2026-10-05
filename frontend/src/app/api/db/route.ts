@@ -7,9 +7,14 @@ export const runtime = 'edge'
 
 export async function POST(request: NextRequest) {
   try {
+    const contentLength = Number(request.headers.get('content-length') || 0)
+    if (contentLength > 256 * 1024) return NextResponse.json({ data: null, error: { message: 'Request too large', code: 'PAYLOAD_TOO_LARGE' } }, { status: 413 })
     const rate = await consumeRateLimit(request, 'db-api', 120, 60)
     if (!rate.allowed) return rateLimited(rate.retryAfter)
     const operation = await request.json() as DbOperation
+    if (!operation || typeof operation !== 'object' || typeof operation.table !== 'string' || !['select', 'insert', 'update', 'delete', 'upsert'].includes(operation.operation)) {
+      return NextResponse.json({ data: null, error: { message: 'Invalid database operation', code: 'INVALID_OPERATION' } }, { status: 400 })
+    }
     const auth = await getAuthContext()
     const user = auth ? { id: auth.user.id, email: auth.user.email, role: auth.role } : null
     const operationTable = typeof operation.table === 'string' ? operation.table : ''
