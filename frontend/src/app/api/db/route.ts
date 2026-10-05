@@ -18,6 +18,53 @@ export async function POST(request: NextRequest) {
     const auth = await getAuthContext()
     const user = auth ? { id: auth.user.id, email: auth.user.email, role: auth.role } : null
     const operationTable = typeof operation.table === 'string' ? operation.table : ''
+
+    if (operationTable === 'registrations' && operation.operation === 'insert' && auth) {
+      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+      const normalized: Record<string, unknown>[] = []
+      for (const value of values) {
+        if (!value || typeof value !== 'object') throw new Error('Invalid registration')
+        const eventId = typeof value.event_id === 'string' ? value.event_id : ''
+        if (!eventId) throw new Error('event_id is required')
+        const event = await getD1().prepare('SELECT id, title, price, capacity, status FROM events WHERE id = ? LIMIT 1').bind(eventId).first<Record<string, unknown>>()
+        if (!event || String(event.status) !== 'published') throw new Error('Event is not available')
+        const packageId = typeof value.package_id === 'string' ? value.package_id : null
+        let packageName = 'Intrare standard'
+        let packagePrice = Number(event.price || 0)
+        if (packageId) {
+          const pkg = await getD1().prepare('SELECT id, name, price, capacity FROM event_packages WHERE id = ? AND event_id = ? LIMIT 1').bind(packageId, eventId).first<Record<string, unknown>>()
+          if (!pkg) throw new Error('Invalid event package')
+          packageName = String(pkg.name || packageName)
+          packagePrice = Number(pkg.price || 0)
+        }
+        const existing = await getD1().prepare("SELECT id FROM registrations WHERE user_id = ? AND event_id = ? AND status NOT IN ('cancelled', 'refunded') LIMIT 1").bind(auth.user.id, eventId).first()
+        if (existing) throw new Error('You are already registered for this event')
+        const capacity = Number(event.capacity || 0)
+        if (capacity > 0) {
+          const count = await getD1().prepare("SELECT COUNT(*) AS count FROM registrations WHERE event_id = ? AND status NOT IN ('cancelled', 'refunded')").bind(eventId).first<{ count: number }>()
+          if (Number(count?.count || 0) >= capacity) throw new Error('Event is full')
+        }
+        const method = value.payment_method === 'cash' ? 'cash' : 'online'
+        normalized.push({
+          ...value,
+          id: crypto.randomUUID(),
+          user_id: auth.user.id,
+          event_id: eventId,
+          event_title: String(event.title || ''),
+          package_id: packageId,
+          package_name: packageName,
+          package_price: packagePrice,
+          status: 'confirmed',
+          payment_method: packagePrice <= 0 ? 'online' : method,
+          payment_status: packagePrice <= 0 ? 'paid' : method === 'cash' ? 'pending' : 'unpaid',
+          amount_paid: packagePrice <= 0 ? packagePrice : 0,
+          paid_at: packagePrice <= 0 ? new Date().toISOString() : null,
+          attendee_id: `ATT-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+        })
+      }
+      operation.values = normalized
+    }
+
     if (operationTable === 'contact_messages') {
       const contactRate = await consumeRateLimit(request, 'contact-messages', 5, 300)
       if (!contactRate.allowed) return rateLimited(contactRate.retryAfter)
