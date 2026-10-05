@@ -44,7 +44,7 @@ export default function SignupPage() {
       <div className="text-center max-w-md bg-card border border-border/60 rounded-3xl p-10 soft-shadow-lg animate-rise">
         <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary mb-5"><MailCheck className="h-8 w-8" /></span>
         <h1 className="font-heading text-2xl font-bold mb-2">Cont creat</h1>
-        <p className="text-muted-foreground">Contul tău a fost creat. Poți intra în cont.</p>
+        <p className="text-muted-foreground">Contul tău a fost creat. Verifică emailul pentru a confirma adresa înainte de autentificare.</p>
         <Link href="/login" className="mt-6 inline-block text-primary hover:underline font-medium">Mergi la login</Link>
       </div>
     </div>
