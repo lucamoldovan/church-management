@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
     await bucket().put(path, file.stream(), { httpMetadata: { contentType: file.type || 'application/octet-stream', cacheControl: 'public, max-age=31536000, immutable' } })
     return NextResponse.json({ data: { path }, error: null })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Upload failed' }, { status: 400 })
+    console.error('[storage/upload]', error)
+    return NextResponse.json({ error: 'Upload failed' }, { status: 400 })
   }
 }
 
@@ -48,7 +49,8 @@ export async function DELETE(request: NextRequest) {
     await Promise.all(paths.map(path => bucket().delete(safeKey(path))))
     return NextResponse.json({ data: paths || [], error: null })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Delete failed' }, { status: 400 })
+    console.error('[storage/delete]', error)
+    return NextResponse.json({ error: 'Delete failed' }, { status: 400 })
   }
 }
 
