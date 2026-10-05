@@ -197,6 +197,7 @@ export async function executeDbOperation(db: D1Database, operation: DbOperation)
   const filters: { sql: string; value?: unknown }[] = []
   for (const filter of operation.filters || []) addFilter(filters, filter.column, filter.op, filter.value)
   filters.push(...parseOr(operation.or || ''))
+  if ((operation.operation === 'update' || operation.operation === 'delete') && !filters.length) throw new Error('Update/delete requires a valid WHERE filter')
   const where = filters.length ? ` WHERE ${filters.map(f => f.sql).join(' AND ')}` : ''
   const filterParams = filters.flatMap(f => f.sql.includes(' IN (') && Array.isArray(f.value) ? f.value.map(normalizeValue) : f.sql.includes(' IS NULL') || f.sql.includes(' IS NOT NULL') ? [] : [normalizeValue(f.value)])
   if (operation.operation === 'delete') { const result = await db.prepare(`DELETE FROM ${table}${where}`).bind(...filterParams).run(); return { data: null, error: null, count: result.meta.changes } }
