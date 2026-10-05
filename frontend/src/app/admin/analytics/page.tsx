@@ -8,13 +8,13 @@ export default function AdminAnalytics() {
 
   useEffect(() => {
     const load = async () => {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
       const [{ data: regs }, { count: checkins }, { count: members }] = await Promise.all([
-        supabase.from('registrations').select('event_title, package_price, payment_status'),
-        supabase.from('checkins').select('id', { count: 'exact', head: true }).eq('type', 'entry'),
+        db.from('registrations').select('event_title, package_price, payment_status'),
+        db.from('checkins').select('id', { count: 'exact', head: true }).eq('type', 'entry'),
         // group_members is the correct table name (schema.sql creates group_members)
-        supabase.from('group_members').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
+        db.from('group_members').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
       ])
       const list = regs || []
       const revenue = list.filter(r => r.payment_status === 'paid').reduce((s, r) => s + Number(r.package_price || 0), 0)

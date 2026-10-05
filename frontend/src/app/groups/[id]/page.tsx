@@ -23,52 +23,52 @@ export default function GroupDetail({ params }: { params: Promise<{ id: string }
   const [annMsg, setAnnMsg] = useState('')
 
   const load = useCallback(async () => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { data: { user } } = await db.auth.getUser()
     setUserId(user?.id ?? null)
-    const { data: g } = await supabase.from('study_groups').select('*').eq('id', id).single()
+    const { data: g } = await db.from('study_groups').select('*').eq('id', id).single()
     setGroup(g as Group)
     let manager = false
     if (user) {
-      const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      const { data: prof } = await db.from('profiles').select('role').eq('id', user.id).single()
       manager = ['super_admin', 'leadership'].includes(prof?.role) || (g as Group)?.leader_id === user.id
       setIsManager(manager)
       // group_members is the correct table name
-      const { data: mine } = await supabase.from('group_members').select('status').eq('group_id', id).eq('user_id', user.id).maybeSingle()
+      const { data: mine } = await db.from('group_members').select('status').eq('group_id', id).eq('user_id', user.id).maybeSingle()
       setMyStatus(mine?.status ?? null)
     }
-    const { data: mem } = await supabase.from('group_members').select('id, user_id, status, profiles(full_name, email)').eq('group_id', id)
+    const { data: mem } = await db.from('group_members').select('id, user_id, status, profiles(full_name, email)').eq('group_id', id)
     setMembers((mem as unknown as Member[]) || [])
-    const { data: anns } = await supabase.from('group_announcements').select('id, message, created_at').eq('group_id', id).order('created_at', { ascending: false })
+    const { data: anns } = await db.from('group_announcements').select('id, message, created_at').eq('group_id', id).order('created_at', { ascending: false })
     setAnnouncements((anns as Announcement[]) || [])
     setLoading(false)
   }, [id])
 
-  useEffect(() => { load() }, [load])
+  // This effect loads external data and intentionally updates local state after the request resolves.\n  // eslint-disable-next-line react-hooks/set-state-in-effect\n  useEffect(() => { load() }, [load])
 
   const join = async () => {
     if (!userId) { window.location.href = '/login'; return }
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
     // group_members table
-    const { error } = await supabase.from('group_members').insert({ group_id: id, user_id: userId, status: 'pending' })
+    const { error } = await db.from('group_members').insert({ group_id: id, user_id: userId, status: 'pending' })
     setMsg(error ? error.message : 'Cerere trimisă! Aşteaptă aprobarea liderului.')
     if (!error) setMyStatus('pending')
   }
 
   const leave = async () => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    await supabase.from('group_members').delete().eq('group_id', id).eq('user_id', userId!)
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    await db.from('group_members').delete().eq('group_id', id).eq('user_id', userId!)
     setMyStatus(null); load()
   }
 
   const setMemberStatus = async (memberId: string, status: string) => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    if (status === 'remove') await supabase.from('group_members').delete().eq('id', memberId)
-    else await supabase.from('group_members').update({ status }).eq('id', memberId)
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    if (status === 'remove') await db.from('group_members').delete().eq('id', memberId)
+    else await db.from('group_members').update({ status }).eq('id', memberId)
     load()
   }
 
@@ -77,10 +77,10 @@ export default function GroupDetail({ params }: { params: Promise<{ id: string }
     const form = e.currentTarget
     const messageVal = (form.elements.namedItem('message') as HTMLTextAreaElement).value.trim()
     if (!messageVal) return
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
     // group_announcements schema: group_id, author_id, message
-    const { error } = await supabase.from('group_announcements').insert({
+    const { error } = await db.from('group_announcements').insert({
       group_id: id,
       author_id: userId,
       message: messageVal,

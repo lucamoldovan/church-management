@@ -9,8 +9,9 @@ export function getD1(): D1Database {
 }
 
 const PUBLIC_READ_TABLES = new Set(['events', 'event_packages', 'sermons', 'social_media', 'social_links', 'livestream_config', 'study_groups', 'departments', 'group_announcements'])
-const STAFF_TABLES = new Set(['profiles', 'registrations', 'bracelets', 'bracelet_assignments', 'checkins', 'contact_messages', 'payment_transactions', 'integration_tokens', 'notifications', 'events', 'event_packages', 'sermons', 'social_media', 'social_links', 'livestream_config', 'study_groups', 'group_members', 'group_announcements', 'service_plans', 'service_items', 'volunteer_assignments', 'connector_devices', 'production_events', 'live_production_state', 'control_center_layouts', 'audit_logs'])
+const STAFF_TABLES = new Set(['profiles', 'registrations', 'bracelets', 'bracelet_assignments', 'checkins', 'contact_messages', 'payment_transactions', 'notifications', 'events', 'event_packages', 'sermons', 'social_media', 'social_links', 'livestream_config', 'study_groups', 'group_members', 'group_announcements', 'service_plans', 'service_items', 'volunteer_assignments', 'connector_devices', 'production_events', 'live_production_state', 'control_center_layouts'])
 function isStaff(role: string | null | undefined) { return ['super_admin', 'leadership', 'event_manager', 'checkin_staff'].includes(role || '') }
+function isAdmin(role: string | null | undefined) { return ['super_admin', 'leadership'].includes(role || '') }
 function identifier(value: string) { if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) throw new Error(`Invalid identifier: ${value}`); return value }
 function parseSelect(columns = '*') {
   const relationMatch = columns.match(/(?:,|^)\s*(profiles)(?:!inner)?\(([^)]+)\)/)
@@ -31,7 +32,13 @@ function addFilter(filters: { sql: string; value?: unknown }[], column: string, 
     case 'lte': filters.push({ sql: `${sqlColumn} <= ?`, value }); break
     case 'like': filters.push({ sql: `${sqlColumn} LIKE ?`, value }); break
     case 'ilike': filters.push({ sql: `LOWER(${sqlColumn}) LIKE LOWER(?)`, value }); break
-    case 'is': {\n      if (value === null) filters.push({ sql: `${sqlColumn} IS NULL` })\n      else if (value === true) filters.push({ sql: `${sqlColumn} IS 1` })\n      else if (value === false) filters.push({ sql: `${sqlColumn} IS 0` })\n      else throw new Error(`Unsupported IS value for ${column}`)\n      break\n    }
+    case 'is': {
+      if (value === null) filters.push({ sql: `${sqlColumn} IS NULL` })
+      else if (value === true) filters.push({ sql: `${sqlColumn} IS 1` })
+      else if (value === false) filters.push({ sql: `${sqlColumn} IS 0` })
+      else throw new Error(`Unsupported IS value for ${column}`)
+      break
+    }
     case 'in': { const values = Array.isArray(value) ? value : []; filters.push(values.length ? { sql: `${sqlColumn} IN (${values.map(() => '?').join(', ')})`, value: values } : { sql: '1 = 0' }); break }
     default: throw new Error(`Unsupported filter: ${op}`)
   }
@@ -83,26 +90,70 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
   const { table, operation: action } = operation
   if (!STAFF_TABLES.has(table) && !PUBLIC_READ_TABLES.has(table)) throw new Error('Table is not available through the application API.')
   if (action === 'select' && PUBLIC_READ_TABLES.has(table)) return
+  if (table === 'contact_messages' && action === 'insert') return
   if (!user) throw new Error('Unauthorized')
-  if (action === 'insert' && table === 'contact_messages') return
+  if (['integration_tokens', 'audit_logs', 'connector_devices'].includes(table)) {
+    if (isAdmin(user.role) && action === 'select') return
+    throw new Error('Forbidden')
+  }
   if (table === 'profiles') {
     const own = (operation.filters || []).some(f => f.column === 'id' && f.op === 'eq' && f.value === user.id)
-    if ((action === 'select' || action === 'update') && (own || isStaff(user.role))) return
+    if (action === 'select' && (own || isStaff(user.role))) return
+    const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+    const changesRole = values.some(value => value && Object.prototype.hasOwnProperty.call(value, 'role'))
+    if (changesRole && !isAdmin(user.role)) throw new Error('Forbidden')
+    if (action === 'update' && own) {
+      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+      const forbidden = ['id', 'email', 'role']
+      if (values.some(value => value && forbidden.some(field => Object.prototype.hasOwnProperty.call(value, field)))) throw new Error('Forbidden')
+      return
+    }
+    if (action === 'update' && isAdmin(user.role)) return
     throw new Error('Forbidden')
   }
   if (['registrations', 'payment_transactions', 'notifications'].includes(table)) {
     if (isStaff(user.role)) return
-    const own = (operation.filters || []).some(f => f.column === 'user_id' && f.op === 'eq' && f.value === user.id)
-    const insertOwn = action === 'insert' && (Array.isArray(operation.values) ? operation.values : [operation.values]).every(v => !v || (v as Record<string, unknown>).user_id === user.id)
-    if (own || insertOwn) return
+
+    const own = (operation.filters || []).some(
+      f => f.column === 'user_id' && f.op === 'eq' && f.value === user.id,
+    )
+    const values = Array.isArray(operation.values) ? operation.values : [operation.values]
+    const insertOwn = action === 'insert' && values.every(
+      v => !v || (v as Record<string, unknown>).user_id === user.id,
+    )
+
+    if (table === 'registrations') {
+      if (action === 'select' && own) return
+      if (action === 'insert' && insertOwn) return
+      throw new Error('Forbidden')
+    }
+
+    if (table === 'payment_transactions') {
+      if (action === 'select' && own) return
+      throw new Error('Forbidden')
+    }
+
+    if (table === 'notifications') {
+      if (action === 'select' && own) return
+      if (action === 'update' && own) {
+        if (table === 'notifications') {
+          const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+          if (values.some(value => value && Object.keys(value).some(field => field !== 'read'))) throw new Error('Forbidden')
+        }
+        return
+      }
+      throw new Error('Forbidden')
+    }
+
     throw new Error('Forbidden')
   }
   if (table === 'contact_messages') { if (action === 'insert' || isStaff(user.role)) return; throw new Error('Forbidden') }
   if (table === 'group_members') {
-    if (isStaff(user.role) || action === 'select') return
+    if (isStaff(user.role)) return
     const ownFilter = (operation.filters || []).some(f => f.column === 'user_id' && f.op === 'eq' && f.value === user.id)
     const ownInsert = action === 'insert' && (Array.isArray(operation.values) ? operation.values : [operation.values]).every(v => !v || (v as Record<string, unknown>).user_id === user.id)
-    if (ownFilter || ownInsert) return
+    if (action === 'select' && ownFilter) return
+    if (action === 'insert' && ownInsert) return
     throw new Error('Forbidden')
   }
   if (['events', 'study_groups', 'group_announcements'].includes(table) && action === 'select') return
@@ -112,6 +163,8 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
 
 export async function executeDbOperation(db: D1Database, operation: DbOperation) {
   const table = identifier(operation.table)
+  if ((operation.operation === 'update' || operation.operation === 'delete') && !(operation.filters?.length || operation.or)) throw new Error('Update/delete requires a WHERE filter')
+  if (typeof operation.limit === 'number' && operation.limit > 1000) throw new Error('Query limit too large')
   if (operation.operation === 'select') {
     const { mainColumns, relation } = parseSelect(operation.columns || '*')
     const filters: { sql: string; value?: unknown }[] = []
@@ -124,7 +177,10 @@ export async function executeDbOperation(db: D1Database, operation: DbOperation)
     if (filters.length) sql += ` WHERE ${filters.map(f => f.sql).join(' AND ')}`
     if (operation.orders?.length) sql += ` ORDER BY ${operation.orders.map(o => `t.${identifier(o.column)} ${o.ascending ? 'ASC' : 'DESC'}`).join(', ')}`
     if (typeof operation.limit === 'number') sql += ` LIMIT ${Math.max(0, Math.floor(operation.limit))}`
-    if (typeof operation.offset === 'number') {\n      if (typeof operation.limit !== 'number') sql += ' LIMIT -1'\n      sql += ` OFFSET ${Math.max(0, Math.floor(operation.offset))}`\n    }
+    if (typeof operation.offset === 'number') {
+      if (typeof operation.limit !== 'number') sql += ' LIMIT -1'
+      sql += ` OFFSET ${Math.max(0, Math.floor(operation.offset))}`
+    }
     const params = filters.flatMap(f => f.sql.includes(' IN (') && Array.isArray(f.value) ? f.value.map(normalizeValue) : f.sql.includes(' IS NULL') || f.sql.includes(' IS NOT NULL') ? [] : [normalizeValue(f.value)])
     const result = await db.prepare(sql).bind(...params).all<Record<string, unknown>>()
     const rows = (result.results || []).map(row => {
@@ -141,6 +197,7 @@ export async function executeDbOperation(db: D1Database, operation: DbOperation)
   const filters: { sql: string; value?: unknown }[] = []
   for (const filter of operation.filters || []) addFilter(filters, filter.column, filter.op, filter.value)
   filters.push(...parseOr(operation.or || ''))
+  if ((operation.operation === 'update' || operation.operation === 'delete') && !filters.length) throw new Error('Update/delete requires a valid WHERE filter')
   const where = filters.length ? ` WHERE ${filters.map(f => f.sql).join(' AND ')}` : ''
   const filterParams = filters.flatMap(f => f.sql.includes(' IN (') && Array.isArray(f.value) ? f.value.map(normalizeValue) : f.sql.includes(' IS NULL') || f.sql.includes(' IS NOT NULL') ? [] : [normalizeValue(f.value)])
   if (operation.operation === 'delete') { const result = await db.prepare(`DELETE FROM ${table}${where}`).bind(...filterParams).run(); return { data: null, error: null, count: result.meta.changes } }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getAuthContext, isStaff } from '@/lib/auth'
+import { getAuthContext, isStaff } from '@/lib/cloudflare/auth-context'
 import { dbFindOne } from '@/lib/cloudflare/api-db'
+import { decryptJson } from '@/lib/cloudflare/security'
 
 export const runtime = 'edge'
 
@@ -19,7 +20,7 @@ export async function GET() {
   if (googleClientId && googleClientSecret) {
     try {
       const row = await dbFindOne<Record<string, unknown>>('integration_tokens', { provider: 'google_calendar' })
-      const tokens = typeof row?.tokens === 'string' ? JSON.parse(row.tokens) : row?.tokens
+      const tokens = await decryptJson<Record<string, unknown>>(row?.tokens)
       googleConnected = !!tokens?.refresh_token
     } catch {}
   }

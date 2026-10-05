@@ -19,9 +19,9 @@ export default function EventsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { data } = await supabase.from('events').select('*').eq('status', 'published').order('created_at', { ascending: false })
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
+      const { data } = await db.from('events').select('*').eq('status', 'published').order('created_at', { ascending: false })
       setEvents((data as Ev[]) || [])
       setLoading(false)
     }

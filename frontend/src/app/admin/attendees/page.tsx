@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
@@ -29,9 +30,9 @@ export default function AdminAttendees() {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data } = await supabase.from('registrations').select('*').order('created_at', { ascending: false })
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { data } = await db.from('registrations').select('*').order('created_at', { ascending: false })
     setRegs((data as Reg[]) || [])
     setLoading(false)
   }, [])
@@ -39,10 +40,10 @@ export default function AdminAttendees() {
   useEffect(() => { load() }, [load])
 
   const markPaid = async (r: Reg) => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from('registrations').update({
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { data: { user } } = await db.auth.getUser()
+    const { error } = await db.from('registrations').update({
       payment_status: 'paid', payment_method: 'cash', amount_paid: r.package_price,
       paid_at: new Date().toISOString(), paid_by: user?.id,
     }).eq('id', r.id)

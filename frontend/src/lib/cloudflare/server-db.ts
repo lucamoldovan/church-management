@@ -1,4 +1,5 @@
-import { getAuthContext } from '@/lib/auth'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { getAuthContext } from '@/lib/cloudflare/auth-context'
 import { executeDbOperation, getD1, type DbOperation } from '@/lib/cloudflare/db'
 
 type Filter = { op: string; column: string; value?: unknown }

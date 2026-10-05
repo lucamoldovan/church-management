@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client'
 
 import { useEffect, useState, useCallback, Fragment } from 'react'
@@ -28,11 +29,11 @@ export default function AdminBracelets() {
   const [msg, setMsg] = useState('')
 
   const load = useCallback(async () => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
     const [{ data: bands }, { data: regs }] = await Promise.all([
-      supabase.from('bracelets').select('*').order('created_at', { ascending: false }),
-      supabase.from('registrations').select('id, bracelet_code, attendee_id, event_title, checked_in').not('bracelet_code', 'is', null),
+      db.from('bracelets').select('*').order('created_at', { ascending: false }),
+      db.from('registrations').select('id, bracelet_code, attendee_id, event_title, checked_in').not('bracelet_code', 'is', null),
     ])
     setBracelets((bands as Bracelet[]) || [])
     const map: Record<string, Assignment> = {}
@@ -55,10 +56,10 @@ export default function AdminBracelets() {
   const addBracelets = async () => {
     const codes = bulk.split(/[\n,]/).map(s => s.trim()).filter(Boolean)
     if (!codes.length) return
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
     const rows = Array.from(new Set(codes)).map(code => ({ code, label: label.trim() || null }))
-    const { error } = await supabase.from('bracelets').upsert(rows, { onConflict: 'code', ignoreDuplicates: true })
+    const { error } = await db.from('bracelets').upsert(rows, { onConflict: 'code', ignoreDuplicates: true })
     if (error) { setMsg(error.message); return }
     setBulk(''); setLabel(''); setMsg(`${rows.length} brățări procesate ✓`)
     load()
@@ -67,17 +68,17 @@ export default function AdminBracelets() {
   const release = async (b: Bracelet) => {
     const a = assigns[b.code]
     if (!a) return
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    await supabase.from('registrations').update({ bracelet_code: null, bracelet_assigned_at: null }).eq('id', a.id)
-    await supabase.from('bracelet_assignments').update({ released_at: new Date().toISOString() }).eq('registration_id', a.id).is('released_at', null)
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    await db.from('registrations').update({ bracelet_code: null, bracelet_assigned_at: null }).eq('id', a.id)
+    await db.from('bracelet_assignments').update({ released_at: new Date().toISOString() }).eq('registration_id', a.id).is('released_at', null)
     load()
   }
 
   const toggleActive = async (b: Bracelet) => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    await supabase.from('bracelets').update({ active: !b.active }).eq('id', b.id)
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    await db.from('bracelets').update({ active: !b.active }).eq('id', b.id)
     setBracelets(prev => prev.map(x => x.id === b.id ? { ...x, active: !x.active } : x))
   }
 
@@ -85,9 +86,9 @@ export default function AdminBracelets() {
     if (openHist === b.code) { setOpenHist(null); return }
     setOpenHist(b.code)
     if (!history[b.code]) {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { data } = await supabase.from('bracelet_assignments').select('*').eq('bracelet_code', b.code).order('assigned_at', { ascending: false })
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
+      const { data } = await db.from('bracelet_assignments').select('*').eq('bracelet_code', b.code).order('assigned_at', { ascending: false })
       setHistory(prev => ({ ...prev, [b.code]: (data as Hist[]) || [] }))
     }
   }

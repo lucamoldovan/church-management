@@ -116,6 +116,14 @@ CREATE TABLE IF NOT EXISTS bracelet_assignments (
 );
 CREATE INDEX IF NOT EXISTS bracelet_assignments_code_idx ON bracelet_assignments(bracelet_code);
 CREATE INDEX IF NOT EXISTS bracelet_assignments_event_idx ON bracelet_assignments(event_id);
+CREATE INDEX IF NOT EXISTS bracelet_assignments_registration_idx ON bracelet_assignments(registration_id);
+CREATE UNIQUE INDEX IF NOT EXISTS bracelet_assignments_active_code_idx
+  ON bracelet_assignments(bracelet_code)
+  WHERE released_at IS NULL;
+CREATE INDEX IF NOT EXISTS checkins_registration_idx ON checkins(registration_id);
+CREATE INDEX IF NOT EXISTS registrations_bracelet_idx ON registrations(bracelet_code);
+CREATE INDEX IF NOT EXISTS registrations_qr_token_idx ON registrations(qr_token);
+
 
 CREATE TABLE IF NOT EXISTS study_groups (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, leader_id TEXT REFERENCES profiles(id) ON DELETE SET NULL,
@@ -156,6 +164,23 @@ CREATE INDEX IF NOT EXISTS production_events_service_idx ON production_events(se
 CREATE TABLE IF NOT EXISTS live_production_state (id INTEGER PRIMARY KEY CHECK (id = 1), service_plan_id TEXT REFERENCES service_plans(id) ON DELETE SET NULL, current_item_id TEXT REFERENCES service_items(id) ON DELETE SET NULL, presentation_name TEXT, content_type TEXT, current_slide INTEGER, slide_count INTEGER, song_title TEXT, song_section TEXT, current_lyrics TEXT, timer_name TEXT, timer_seconds_remaining INTEGER, timer_running INTEGER NOT NULL DEFAULT 0, service_started_at TEXT, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS control_center_layouts (id TEXT PRIMARY KEY, user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE, name TEXT NOT NULL, layout TEXT NOT NULL DEFAULT '{}', is_default INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, user_id TEXT REFERENCES profiles(id) ON DELETE SET NULL, action TEXT NOT NULL, resource TEXT, resource_id TEXT, metadata TEXT DEFAULT '{}', created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS audit_logs_user_idx ON audit_logs(user_id, created_at);
+CREATE INDEX IF NOT EXISTS audit_logs_resource_idx ON audit_logs(resource, resource_id, created_at);
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT PRIMARY KEY,
+  window_start INTEGER NOT NULL,
+  request_count INTEGER NOT NULL DEFAULT 0,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS rate_limits_expiry_idx ON rate_limits(expires_at);
+
+CREATE TABLE IF NOT EXISTS stripe_events (
+  event_id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  processed_at TEXT NOT NULL,
+  payload_hash TEXT
+);
 
 INSERT OR IGNORE INTO departments (id, name, description, created_at) VALUES
   ('dept-youth', 'Tineret', 'Departamentul de tineret', datetime('now')),
@@ -168,3 +193,63 @@ INSERT OR IGNORE INTO social_media (id, platform, url, is_active, display_order)
   ('social-instagram', 'instagram', '', 0, 3),
   ('social-tiktok', 'tiktok', '', 0, 4),
   ('social-whatsapp', 'whatsapp', '', 0, 5);
+
+CREATE TABLE IF NOT EXISTS rateLimit (
+  id TEXT PRIMARY KEY,
+  key TEXT NOT NULL UNIQUE,
+  count INTEGER NOT NULL DEFAULT 0,
+  lastRequest INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS rateLimit_key_idx ON rateLimit(key);
+
+CREATE UNIQUE INDEX IF NOT EXISTS registrations_active_user_event_idx
+  ON registrations(user_id, event_id)
+  WHERE user_id IS NOT NULL AND event_id IS NOT NULL AND status NOT IN ('cancelled', 'refunded');
+
+CREATE TRIGGER IF NOT EXISTS registrations_capacity_insert
+BEFORE INSERT ON registrations
+WHEN NEW.event_id IS NOT NULL
+  AND NEW.status NOT IN ('cancelled', 'refunded')
+  AND COALESCE((SELECT capacity FROM events WHERE id = NEW.event_id), 0) > 0
+  AND (SELECT COUNT(*) FROM registrations WHERE event_id = NEW.event_id AND status NOT IN ('cancelled', 'refunded'))
+      >= (SELECT capacity FROM events WHERE id = NEW.event_id)
+BEGIN
+  SELECT RAISE(ABORT, 'EVENT_FULL');
+END;
+
+CREATE TRIGGER IF NOT EXISTS registrations_capacity_update
+BEFORE UPDATE OF event_id, status ON registrations
+WHEN NEW.event_id IS NOT NULL
+  AND NEW.status NOT IN ('cancelled', 'refunded')
+  AND COALESCE((SELECT capacity FROM events WHERE id = NEW.event_id), 0) > 0
+  AND (SELECT COUNT(*) FROM registrations WHERE event_id = NEW.event_id AND status NOT IN ('cancelled', 'refunded') AND id != OLD.id)
+      >= (SELECT capacity FROM events WHERE id = NEW.event_id)
+BEGIN
+  SELECT RAISE(ABORT, 'EVENT_FULL');
+END;
+
+CREATE TRIGGER IF NOT EXISTS registrations_package_capacity_insert
+BEFORE INSERT ON registrations
+WHEN NEW.package_id IS NOT NULL
+  AND NEW.status NOT IN ('cancelled', 'refunded')
+  AND COALESCE((SELECT capacity FROM event_packages WHERE id = NEW.package_id), 0) > 0
+  AND (SELECT COUNT(*) FROM registrations WHERE package_id = NEW.package_id AND status NOT IN ('cancelled', 'refunded'))
+      >= (SELECT capacity FROM event_packages WHERE id = NEW.package_id)
+BEGIN
+  SELECT RAISE(ABORT, 'PACKAGE_FULL');
+END;
+
+CREATE TRIGGER IF NOT EXISTS registrations_package_capacity_update
+BEFORE UPDATE OF package_id, status ON registrations
+WHEN NEW.package_id IS NOT NULL
+  AND NEW.status NOT IN ('cancelled', 'refunded')
+  AND COALESCE((SELECT capacity FROM event_packages WHERE id = NEW.package_id), 0) > 0
+  AND (SELECT COUNT(*) FROM registrations WHERE package_id = NEW.package_id AND status NOT IN ('cancelled', 'refunded') AND id != OLD.id)
+      >= (SELECT capacity FROM event_packages WHERE id = NEW.package_id)
+BEGIN
+  SELECT RAISE(ABORT, 'PACKAGE_FULL');
+END;
+
+CREATE UNIQUE INDEX IF NOT EXISTS bracelet_assignments_active_registration_idx ON bracelet_assignments(registration_id) WHERE registration_id IS NOT NULL AND released_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS payment_transactions_active_registration_idx ON payment_transactions(registration_id) WHERE registration_id IS NOT NULL AND payment_status IN ('initiated', 'pending');

@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthContext, isStaff } from '@/lib/auth'
+import { getAuthContext, isStaff } from '@/lib/cloudflare/auth-context'
 import { dbFindOne, dbUpdate } from '@/lib/cloudflare/api-db'
+import { decryptJson, encryptJson } from '@/lib/cloudflare/security'
 
 export const runtime = 'edge'
 const TIMEZONE = process.env.EVENT_TIMEZONE || 'Europe/Bucharest'
@@ -22,7 +24,7 @@ async function getGoogleAccessToken() {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   if (!clientId || !clientSecret) return null
   const row = await dbFindOne<Record<string, unknown>>('integration_tokens', { provider: 'google_calendar' })
-  const tok = typeof row?.tokens === 'string' ? JSON.parse(row.tokens) : (row?.tokens || {}) as Record<string, any>
+  const tok = await decryptJson<Record<string, any>>(row?.tokens)
   if (!tok.refresh_token) return null
   if (tok.expiry && new Date(tok.expiry).getTime() > Date.now() + 60000) return tok.access_token || null
   const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -32,7 +34,7 @@ async function getGoogleAccessToken() {
   const fresh = await res.json()
   if (!fresh.access_token) return null
   const updated = { ...tok, access_token: fresh.access_token, expiry: new Date(Date.now() + (fresh.expires_in || 3600) * 1000).toISOString() }
-  await dbUpdate('integration_tokens', { tokens: updated, updated_at: new Date().toISOString() }, { provider: 'google_calendar' })
+  await dbUpdate('integration_tokens', { tokens: await encryptJson(updated), updated_at: new Date().toISOString() }, { provider: 'google_calendar' })
   return fresh.access_token
 }
 

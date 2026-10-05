@@ -10,14 +10,26 @@ binding = "ASSETS"
 [observability]
 enabled = true
 
+# Required secrets are declared here so a deployment cannot silently proceed
+# without the credentials required by the production readiness check.
+[secrets]
+required = [
+  "BETTER_AUTH_SECRET",
+  "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
+]
+
 # Cloudflare resource bindings are intentionally attached to the Worker in the
-# Cloudflare dashboard until the production resource IDs are known.
+# Cloudflare dashboard until the deployment-specific resource IDs are known.
+#
 # Required runtime bindings:
-#   CHURCH_DB -> D1 database: church-management
-#   MEDIA     -> R2 bucket: church-management-media
+#   CHURCH_DB -> D1 database
+#   MEDIA     -> R2 bucket
 #   EMAIL     -> Email Service send binding
 #
-# Once the D1 database exists, these can also be declared here:
+# Do not commit account-specific database/bucket IDs here. Once the resources
+# are created, bind them to this Worker from Cloudflare:
+#
 # [[d1_databases]]
 # binding = "CHURCH_DB"
 # database_name = "church-management"

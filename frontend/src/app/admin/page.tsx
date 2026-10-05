@@ -8,9 +8,9 @@ export default function AdminOverview() {
 
   useEffect(() => {
     const load = async () => {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const count = async (t: string) => (await supabase.from(t).select('id', { count: 'exact', head: true })).count || 0
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
+      const count = async (t: string) => (await db.from(t).select('id', { count: 'exact', head: true })).count || 0
       const [events, registrations, users, sermons] = await Promise.all([
         count('events'), count('registrations'), count('profiles'), count('sermons'),
       ])

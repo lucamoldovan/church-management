@@ -1,12 +1,49 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { betterAuth } from 'better-auth'
+import { importPKCS8, SignJWT } from 'jose'
+
+async function generateAppleClientSecret(clientId: string, teamId: string, keyId: string, privateKey: string) {
+  const key = await importPKCS8(privateKey.replace(/\\n/g, '\n'), 'ES256')
+  const now = Math.floor(Date.now() / 1000)
+  return new SignJWT({})
+    .setProtectedHeader({ alg: 'ES256', kid: keyId })
+    .setIssuer(teamId)
+    .setSubject(clientId)
+    .setAudience('https://appleid.apple.com')
+    .setIssuedAt(now)
+    .setExpirationTime(now + 180 * 24 * 60 * 60)
+    .sign(key)
+}
 
 export function getAuth() {
   const { env } = getCloudflareContext()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || env.APP_BASE_URL || undefined
   const googleClientId = process.env.GOOGLE_CLIENT_ID
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const appleClientId = process.env.APPLE_CLIENT_ID
+  const appleTeamId = process.env.APPLE_TEAM_ID
+  const appleKeyId = process.env.APPLE_KEY_ID
+  const applePrivateKey = process.env.APPLE_PRIVATE_KEY
   const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase()
+  const socialProviders = {
+    ...(googleClientId && googleClientSecret
+      ? { google: { clientId: googleClientId, clientSecret: googleClientSecret } }
+      : {}),
+    ...(appleClientId && appleTeamId && appleKeyId && applePrivateKey
+      ? {
+          apple: async () => ({
+            clientId: appleClientId,
+            clientSecret: await generateAppleClientSecret(
+              appleClientId,
+              appleTeamId,
+              appleKeyId,
+              applePrivateKey,
+            ),
+            appBundleIdentifier: process.env.APPLE_APP_BUNDLE_IDENTIFIER || undefined,
+          }),
+        }
+      : {}),
+  }
 
   return betterAuth({
     database: env.CHURCH_DB,
@@ -14,7 +51,8 @@ export function getAuth() {
     secret: process.env.BETTER_AUTH_SECRET,
     emailAndPassword: {
       enabled: true,
-      autoSignIn: true,
+      autoSignIn: false,
+      requireEmailVerification: true,
       sendResetPassword: async ({ user, url }) => {
         if (!env.EMAIL) {
           console.error('[auth] Cloudflare Email Service binding EMAIL is not configured.')
@@ -29,14 +67,63 @@ export function getAuth() {
         })
       },
     },
-    socialProviders: googleClientId && googleClientSecret ? {
-      google: { clientId: googleClientId, clientSecret: googleClientSecret },
-    } : undefined,
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 100,
+      storage: 'database',
+      modelName: 'rateLimit',
+      customRules: {
+        '/sign-in/email': { window: 60, max: 5 },
+        '/sign-up/email': { window: 60, max: 5 },
+        '/forget-password': { window: 60, max: 5 },
+        '/reset-password': { window: 60, max: 5 },
+      },
+    },
+    advanced: {
+      database: { validateSchema: false },
+      ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
+    },
     user: {
       additionalFields: {
         role: { type: 'string', required: false, defaultValue: 'member', input: false, returned: true },
       },
+      deleteUser: {
+        enabled: true,
+        sendDeleteAccountVerification: async ({ user, url }) => {
+          if (!env.EMAIL) {
+            console.error('[auth] Cloudflare Email Service binding EMAIL is not configured.')
+            return
+          }
+          await env.EMAIL.send({
+            to: user.email,
+            from: process.env.AUTH_EMAIL_FROM || 'noreply@casapainii.ro',
+            subject: 'Confirmă ștergerea contului — Casa Pâinii',
+            text: `Salut ${user.name},\n\nDacă vrei să ștergi definitiv contul, confirmă aici:\n${url}\n\nDacă nu ai cerut ștergerea contului, ignoră acest email.`,
+            html: `<p>Salut ${user.name},</p><p>Confirmă ștergerea definitivă a contului folosind butonul de mai jos:</p><p><a href="${url}">Șterge contul</a></p><p>Dacă nu ai cerut ștergerea contului, ignoră acest email.</p>`,
+          })
+        },
+      },
     },
+    emailVerification: {
+      sendOnSignUp: true,
+      autoSignInAfterVerification: true,
+      sendVerificationEmail: async ({ user, url }) => {
+        if (!env.EMAIL) {
+          console.error('[auth] Cloudflare Email Service binding EMAIL is not configured.')
+          return
+        }
+        await env.EMAIL.send({
+          to: user.email,
+          from: process.env.AUTH_EMAIL_FROM || 'noreply@casapainii.ro',
+          subject: 'Verifică adresa de email — Casa Pâinii',
+          text: `Salut ${user.name},\n\nVerifică adresa de email folosind acest link:\n${url}\n\nLinkul este valabil timp de 1 oră.`,
+          html: `<p>Salut ${user.name},</p><p>Verifică adresa de email folosind butonul de mai jos:</p><p><a href="${url}">Verifică emailul</a></p><p>Linkul este valabil timp de 1 oră.</p>`,
+        })
+      },
+    },
+    trustedOrigins: [appUrl, 'https://appleid.apple.com'].filter((value): value is string => Boolean(value)),
+    socialProviders: Object.keys(socialProviders).length ? socialProviders : undefined,
     databaseHooks: {
       user: {
         create: {
@@ -50,7 +137,6 @@ export function getAuth() {
         },
       },
     },
-    advanced: { database: { validateSchema: false } },
     telemetry: { enabled: false },
   })
 }

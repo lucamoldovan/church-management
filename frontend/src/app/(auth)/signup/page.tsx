@@ -25,6 +25,14 @@ export default function SignupPage() {
     } finally { setLoading(false) }
   }
 
+  const appleEnabled = process.env.NEXT_PUBLIC_APPLE_SIGN_IN_ENABLED === 'true'
+
+  const appleSignup = async () => {
+    setError('')
+    const { error } = await authClient.signIn.social({ provider: 'apple', callbackURL: '/dashboard' })
+    if (error) setError(error.message)
+  }
+
   const googleSignup = async () => {
     setError('')
     const { error } = await authClient.signIn.social({ provider: 'google', callbackURL: '/dashboard' })
@@ -36,7 +44,7 @@ export default function SignupPage() {
       <div className="text-center max-w-md bg-card border border-border/60 rounded-3xl p-10 soft-shadow-lg animate-rise">
         <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary mb-5"><MailCheck className="h-8 w-8" /></span>
         <h1 className="font-heading text-2xl font-bold mb-2">Cont creat</h1>
-        <p className="text-muted-foreground">Contul tău a fost creat. Poți intra în cont.</p>
+        <p className="text-muted-foreground">Contul tău a fost creat. Verifică emailul pentru a confirma adresa înainte de autentificare.</p>
         <Link href="/login" className="mt-6 inline-block text-primary hover:underline font-medium">Mergi la login</Link>
       </div>
     </div>
@@ -58,6 +66,7 @@ export default function SignupPage() {
           </form>
           <div className="relative my-6"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div><div className="relative flex justify-center text-xs text-muted-foreground"><span className="bg-card px-3">sau</span></div></div>
           <button data-testid="signup-google-button" onClick={googleSignup} className="w-full border border-border bg-background py-3 rounded-full text-sm font-medium hover:bg-secondary/60 transition-colors flex items-center justify-center gap-2"><span className="text-sm font-semibold">G</span> Continuă cu Google</button>
+          {appleEnabled && <button data-testid="signup-apple-button" onClick={appleSignup} className="w-full border border-border bg-background py-3 rounded-full text-sm font-medium hover:bg-secondary/60 transition-colors flex items-center justify-center gap-2 mt-2">Continuă cu Apple</button>}
         </div>
         <p className="text-center text-sm text-muted-foreground mt-5">Ai deja cont? <Link href="/login" data-testid="signup-login-link" className="text-primary hover:underline font-medium">Intră în cont</Link></p>
       </div>

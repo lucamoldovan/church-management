@@ -1,12 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthContext, isStaff } from '@/lib/auth'
+import { getAuthContext, isStaff } from '@/lib/cloudflare/auth-context'
 import { dbFindMany, dbFindOne, dbInsert, dbUpdate } from '@/lib/cloudflare/api-db'
+import { decryptJson, encryptJson } from '@/lib/cloudflare/security'
 
 export const runtime = 'edge'
 
 async function getToken() {
   const row = await dbFindOne<Record<string, unknown>>('integration_tokens', { provider: 'google_calendar' })
-  const tokens = typeof row?.tokens === 'string' ? JSON.parse(row.tokens) : (row?.tokens || {}) as Record<string, any>
+  const tokens = await decryptJson<Record<string, any>>(row?.tokens)
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   if (tokens.refresh_token && clientId && clientSecret && (!tokens.access_token || !tokens.expiry || Date.parse(tokens.expiry) < Date.now() + 60000)) {
@@ -17,7 +19,7 @@ async function getToken() {
     const fresh = await tokenRes.json()
     if (fresh.access_token) {
       const merged = { ...tokens, ...fresh, expiry: new Date(Date.now() + (fresh.expires_in || 3600) * 1000).toISOString() }
-      await dbUpdate('integration_tokens', { tokens: merged, updated_at: new Date().toISOString() }, { provider: 'google_calendar' })
+      await dbUpdate('integration_tokens', { tokens: await encryptJson(merged), updated_at: new Date().toISOString() }, { provider: 'google_calendar' })
       return merged.access_token
     }
   }

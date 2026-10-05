@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createAuthClient } from 'better-auth/client'
 
 export const authClient = createAuthClient({ basePath: '/api/auth' })
@@ -171,7 +172,8 @@ export function createClient() {
           const result = await authClient.resetPassword({ newPassword: password, token })
           return { data: result.data, error: result.error ? authError(result.error) : null }
         }
-        if (!currentPassword) return { data: null, error: { message: 'Current password is required', code: 'VALIDATION_ERROR' } }\n        const result = await authClient.changePassword({ newPassword: password, currentPassword, revokeOtherSessions: false })
+        if (!currentPassword) return { data: null, error: { message: 'Current password is required', code: 'VALIDATION_ERROR' } }
+        const result = await authClient.changePassword({ newPassword: password, currentPassword, revokeOtherSessions: false })
         return { data: result.data, error: result.error ? authError(result.error) : null }
       },
     },

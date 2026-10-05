@@ -1,14 +1,14 @@
 import Link from 'next/link'
 import { Calendar, MapPin, Users, ArrowLeft, Clock } from 'lucide-react'
 import { imageForEvent, formatPrice } from '@/lib/eventImages'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/cloudflare/server-db'
 
 export const dynamic = 'force-dynamic'
 
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: event } = await supabase.from('events').select('*').eq('id', id).single()
+  const db = await createClient()
+  const { data: event } = await db.from('events').select('*').eq('id', id).single()
 
   if (!event) {
     return (
@@ -19,7 +19,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     )
   }
 
-  const { data: packages } = await supabase.from('event_packages').select('*').eq('event_id', id).order('price', { ascending: true })
+  const { data: packages } = await db.from('event_packages').select('*').eq('event_id', id).order('price', { ascending: true })
   const dateLabel = event.date_label || (event.date ? new Date(event.date).toLocaleDateString('ro-RO') : 'TBA')
 
   return (

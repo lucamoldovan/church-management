@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
@@ -18,7 +19,7 @@ export default function AdminPlanning() {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    const { createClient } = await import('@/lib/supabase/client')
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
     const { data } = await createClient().from('events').select('id, title, status, date, time, location, department, facility_requirements').order('date', { ascending: true })
     setEvents((data as Ev[]) || [])
     setLoading(false)

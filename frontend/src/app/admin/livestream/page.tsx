@@ -10,7 +10,7 @@ export default function AdminLivestream() {
 
   useEffect(() => {
     const load = async () => {
-      const { createClient } = await import('@/lib/supabase/client')
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
       const { data } = await createClient().from('livestream_config').select('*').limit(1).maybeSingle()
       if (data) setForm({
         id: data.id, youtube_url: data.youtube_url || '', facebook_url: data.facebook_url || '',
@@ -24,13 +24,13 @@ export default function AdminLivestream() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setMsg('')
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
     const payload = {
       youtube_url: form.youtube_url, facebook_url: form.facebook_url, is_active: form.is_active,
       next_stream_title: form.next_stream_title, next_stream_date: form.next_stream_date || null, updated_at: new Date().toISOString(),
     }
-    const res = form.id ? await supabase.from('livestream_config').update(payload).eq('id', form.id) : await supabase.from('livestream_config').insert(payload)
+    const res = form.id ? await db.from('livestream_config').update(payload).eq('id', form.id) : await db.from('livestream_config').insert(payload)
     setMsg(res.error ? `Eroare: ${res.error.message}` : 'Salvat!')
   }
 

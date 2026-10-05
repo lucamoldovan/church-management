@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/cloudflare/auth-context'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { consumeRateLimit, rateLimited } from '@/lib/cloudflare/security'
 
 export const runtime = 'edge'
 
 function safeKey(value: string) {
   const key = value.replace(/^\/+/, '')
-  if (!key || key.includes('..') || key.includes('\\')) throw new Error('Invalid storage path')
+  if (!key || key.length > 500 || key.includes('..') || key.includes('\\')) throw new Error('Invalid storage path')
   return key
 }
 
@@ -18,28 +19,38 @@ function bucket() {
 
 export async function POST(request: NextRequest) {
   try {
+    const rate = await consumeRateLimit(request, 'storage-write', 30, 60)
+    if (!rate.allowed) return rateLimited(rate.retryAfter)
     const auth = await getAuthContext()
     if (!auth || !auth.isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const form = await request.formData()
     const path = safeKey(String(form.get('path') || ''))
     const file = form.get('file')
     if (!(file instanceof File)) return NextResponse.json({ error: 'File is required' }, { status: 400 })
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'])
+    if (!allowedTypes.has(file.type)) return NextResponse.json({ error: 'Only raster image uploads are allowed' }, { status: 415 })
+    if (file.size > 15 * 1024 * 1024) return NextResponse.json({ error: 'File too large' }, { status: 413 })
     await bucket().put(path, file.stream(), { httpMetadata: { contentType: file.type || 'application/octet-stream', cacheControl: 'public, max-age=31536000, immutable' } })
     return NextResponse.json({ data: { path }, error: null })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Upload failed' }, { status: 400 })
+    console.error('[storage/upload]', error)
+    return NextResponse.json({ error: 'Upload failed' }, { status: 400 })
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
+    const rate = await consumeRateLimit(request, 'storage-delete', 30, 60)
+    if (!rate.allowed) return rateLimited(rate.retryAfter)
     const auth = await getAuthContext()
     if (!auth || !auth.isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { paths } = await request.json() as { paths?: string[] }
-    await Promise.all((paths || []).map(path => bucket().delete(safeKey(path))))
+    if (!Array.isArray(paths) || paths.length > 50) return NextResponse.json({ error: 'Invalid paths' }, { status: 400 })
+    await Promise.all(paths.map(path => bucket().delete(safeKey(path))))
     return NextResponse.json({ data: paths || [], error: null })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Delete failed' }, { status: 400 })
+    console.error('[storage/delete]', error)
+    return NextResponse.json({ error: 'Delete failed' }, { status: 400 })
   }
 }
 
