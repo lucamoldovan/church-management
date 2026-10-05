@@ -142,6 +142,8 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
 
 export async function executeDbOperation(db: D1Database, operation: DbOperation) {
   const table = identifier(operation.table)
+  if ((operation.operation === 'update' || operation.operation === 'delete') && !(operation.filters?.length || operation.or)) throw new Error('Update/delete requires a WHERE filter')
+  if (typeof operation.limit === 'number' && operation.limit > 1000) throw new Error('Query limit too large')
   if (operation.operation === 'select') {
     const { mainColumns, relation } = parseSelect(operation.columns || '*')
     const filters: { sql: string; value?: unknown }[] = []
