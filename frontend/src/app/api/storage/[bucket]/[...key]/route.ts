@@ -5,7 +5,7 @@ export const runtime = 'edge'
 
 function safeKey(value: string) {
   const key = value.replace(/^\/+/, '')
-  if (!key || key.includes('..') || key.includes('\\')) throw new Error('Invalid storage path')
+  if (!key || key.length > 500 || key.includes('..') || key.includes('\\')) throw new Error('Invalid storage path')
   return key
 }
 
