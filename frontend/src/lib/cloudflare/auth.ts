@@ -71,6 +71,8 @@ export function getAuth() {
       enabled: true,
       window: 60,
       max: 100,
+      storage: 'database',
+      modelName: 'rateLimit',
       customRules: {
         '/sign-in/email': { window: 60, max: 5 },
         '/sign-up/email': { window: 60, max: 5 },
