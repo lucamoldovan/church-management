@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext, isStaff } from '@/lib/cloudflare/auth-context'
 import { dbFindOne, dbUpdate } from '@/lib/cloudflare/api-db'
+import { consumeRateLimit, rateLimited, writeAuditLog, decryptJson } from '@/lib/cloudflare/security'
 
 export const runtime = 'edge'
 const TIMEZONE = process.env.EVENT_TIMEZONE || 'Europe/Bucharest'
@@ -22,7 +23,7 @@ async function getGoogleAccessToken() {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   if (!clientId || !clientSecret) return null
   const row = await dbFindOne<Record<string, unknown>>('integration_tokens', { provider: 'google_calendar' })
-  const tok = typeof row?.tokens === 'string' ? JSON.parse(row.tokens) : (row?.tokens || {}) as Record<string, any>
+  const tok = await decryptJson<Record<string, any>>(row?.tokens)
   if (!tok.refresh_token) return null
   if (tok.expiry && new Date(tok.expiry).getTime() > Date.now() + 60000) return tok.access_token || null
   const res = await fetch('https://oauth2.googleapis.com/token', {
