@@ -1,11 +1,38 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { betterAuth } from 'better-auth'
+import { importPKCS8, SignJWT } from 'jose'
+
+async function generateAppleClientSecret(clientId: string, teamId: string, keyId: string, privateKey: string) {
+  const key = await importPKCS8(privateKey.replace(/\\n/g, '\n'), 'ES256')
+  const now = Math.floor(Date.now() / 1000)
+  return new SignJWT({})
+    .setProtectedHeader({ alg: 'ES256', kid: keyId })
+    .setIssuer(teamId)
+    .setSubject(clientId)
+    .setAudience('https://appleid.apple.com')
+    .setIssuedAt(now)
+    .setExpirationTime(now + 180 * 24 * 60 * 60)
+    .sign(key)
+}
 
 export function getAuth() {
   const { env } = getCloudflareContext()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || env.APP_BASE_URL || undefined
   const googleClientId = process.env.GOOGLE_CLIENT_ID
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const appleClientId = process.env.APPLE_CLIENT_ID
+  const appleTeamId = process.env.APPLE_TEAM_ID
+  const appleKeyId = process.env.APPLE_KEY_ID
+  const applePrivateKey = process.env.APPLE_PRIVATE_KEY
+  const socialProviders: Record<string, unknown> = {}
+  if (googleClientId && googleClientSecret) socialProviders.google = { clientId: googleClientId, clientSecret: googleClientSecret }
+  if (appleClientId && appleTeamId && appleKeyId && applePrivateKey) {
+    socialProviders.apple = async () => ({
+      clientId: appleClientId,
+      clientSecret: await generateAppleClientSecret(appleClientId, appleTeamId, appleKeyId, applePrivateKey),
+      appBundleIdentifier: process.env.APPLE_APP_BUNDLE_IDENTIFIER || undefined,
+    })
+  }
   const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase()
 
   return betterAuth({
@@ -46,9 +73,8 @@ export function getAuth() {
         })
       },
     },
-    socialProviders: googleClientId && googleClientSecret ? {
-      google: { clientId: googleClientId, clientSecret: googleClientSecret },
-    } : undefined,
+    trustedOrigins: ['https://appleid.apple.com'],
+    socialProviders: Object.keys(socialProviders).length ? socialProviders : undefined,
     user: {
       additionalFields: {
         role: { type: 'string', required: false, defaultValue: 'member', input: false, returned: true },
