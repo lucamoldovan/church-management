@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAuthContext, isStaff } from '@/lib/auth'
+import { getAuthContext, isStaff } from '@/lib/cloudflare/auth-context'
 
 export const runtime = 'edge'
 
