@@ -164,6 +164,23 @@ CREATE INDEX IF NOT EXISTS production_events_service_idx ON production_events(se
 CREATE TABLE IF NOT EXISTS live_production_state (id INTEGER PRIMARY KEY CHECK (id = 1), service_plan_id TEXT REFERENCES service_plans(id) ON DELETE SET NULL, current_item_id TEXT REFERENCES service_items(id) ON DELETE SET NULL, presentation_name TEXT, content_type TEXT, current_slide INTEGER, slide_count INTEGER, song_title TEXT, song_section TEXT, current_lyrics TEXT, timer_name TEXT, timer_seconds_remaining INTEGER, timer_running INTEGER NOT NULL DEFAULT 0, service_started_at TEXT, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS control_center_layouts (id TEXT PRIMARY KEY, user_id TEXT REFERENCES profiles(id) ON DELETE CASCADE, name TEXT NOT NULL, layout TEXT NOT NULL DEFAULT '{}', is_default INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, user_id TEXT REFERENCES profiles(id) ON DELETE SET NULL, action TEXT NOT NULL, resource TEXT, resource_id TEXT, metadata TEXT DEFAULT '{}', created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS audit_logs_user_idx ON audit_logs(user_id, created_at);
+CREATE INDEX IF NOT EXISTS audit_logs_resource_idx ON audit_logs(resource, resource_id, created_at);
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT PRIMARY KEY,
+  window_start INTEGER NOT NULL,
+  request_count INTEGER NOT NULL DEFAULT 0,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS rate_limits_expiry_idx ON rate_limits(expires_at);
+
+CREATE TABLE IF NOT EXISTS stripe_events (
+  event_id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  processed_at TEXT NOT NULL,
+  payload_hash TEXT
+);
 
 INSERT OR IGNORE INTO departments (id, name, description, created_at) VALUES
   ('dept-youth', 'Tineret', 'Departamentul de tineret', datetime('now')),
