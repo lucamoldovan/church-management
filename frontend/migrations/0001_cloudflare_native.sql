@@ -193,3 +193,11 @@ INSERT OR IGNORE INTO social_media (id, platform, url, is_active, display_order)
   ('social-instagram', 'instagram', '', 0, 3),
   ('social-tiktok', 'tiktok', '', 0, 4),
   ('social-whatsapp', 'whatsapp', '', 0, 5);
+
+CREATE TABLE IF NOT EXISTS rateLimit (
+  id TEXT PRIMARY KEY,
+  key TEXT NOT NULL UNIQUE,
+  count INTEGER NOT NULL DEFAULT 0,
+  lastRequest INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS rateLimit_key_idx ON rateLimit(key);
