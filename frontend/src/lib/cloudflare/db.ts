@@ -31,7 +31,13 @@ function addFilter(filters: { sql: string; value?: unknown }[], column: string, 
     case 'lte': filters.push({ sql: `${sqlColumn} <= ?`, value }); break
     case 'like': filters.push({ sql: `${sqlColumn} LIKE ?`, value }); break
     case 'ilike': filters.push({ sql: `LOWER(${sqlColumn}) LIKE LOWER(?)`, value }); break
-    case 'is': {\n      if (value === null) filters.push({ sql: `${sqlColumn} IS NULL` })\n      else if (value === true) filters.push({ sql: `${sqlColumn} IS 1` })\n      else if (value === false) filters.push({ sql: `${sqlColumn} IS 0` })\n      else throw new Error(`Unsupported IS value for ${column}`)\n      break\n    }
+    case 'is': {
+      if (value === null) filters.push({ sql: `${sqlColumn} IS NULL` })
+      else if (value === true) filters.push({ sql: `${sqlColumn} IS 1` })
+      else if (value === false) filters.push({ sql: `${sqlColumn} IS 0` })
+      else throw new Error(`Unsupported IS value for ${column}`)
+      break
+    }
     case 'in': { const values = Array.isArray(value) ? value : []; filters.push(values.length ? { sql: `${sqlColumn} IN (${values.map(() => '?').join(', ')})`, value: values } : { sql: '1 = 0' }); break }
     default: throw new Error(`Unsupported filter: ${op}`)
   }
@@ -147,7 +153,10 @@ export async function executeDbOperation(db: D1Database, operation: DbOperation)
     if (filters.length) sql += ` WHERE ${filters.map(f => f.sql).join(' AND ')}`
     if (operation.orders?.length) sql += ` ORDER BY ${operation.orders.map(o => `t.${identifier(o.column)} ${o.ascending ? 'ASC' : 'DESC'}`).join(', ')}`
     if (typeof operation.limit === 'number') sql += ` LIMIT ${Math.max(0, Math.floor(operation.limit))}`
-    if (typeof operation.offset === 'number') {\n      if (typeof operation.limit !== 'number') sql += ' LIMIT -1'\n      sql += ` OFFSET ${Math.max(0, Math.floor(operation.offset))}`\n    }
+    if (typeof operation.offset === 'number') {
+      if (typeof operation.limit !== 'number') sql += ' LIMIT -1'
+      sql += ` OFFSET ${Math.max(0, Math.floor(operation.offset))}`
+    }
     const params = filters.flatMap(f => f.sql.includes(' IN (') && Array.isArray(f.value) ? f.value.map(normalizeValue) : f.sql.includes(' IS NULL') || f.sql.includes(' IS NOT NULL') ? [] : [normalizeValue(f.value)])
     const result = await db.prepare(sql).bind(...params).all<Record<string, unknown>>()
     const rows = (result.results || []).map(row => {
