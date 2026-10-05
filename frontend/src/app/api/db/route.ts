@@ -88,9 +88,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (operationTable === 'contact_messages') {
+    if (operationTable === 'contact_messages' && operation.operation === 'insert') {
       const contactRate = await consumeRateLimit(request, 'contact-messages', 5, 300)
       if (!contactRate.allowed) return rateLimited(contactRate.retryAfter)
+      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+      if (!values.length || values.length > 1) throw new Error('Invalid contact message')
+      const value = values[0] || {}
+      const name = typeof value.name === 'string' ? value.name.trim() : ''
+      const email = typeof value.email === 'string' ? value.email.trim().toLowerCase() : ''
+      const subject = typeof value.subject === 'string' ? value.subject.trim() : ''
+      const message = typeof value.message === 'string' ? value.message.trim() : ''
+      if (!name || name.length > 120 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 320 || subject.length > 200 || !message || message.length > 5000) throw new Error('Invalid contact message')
+      operation.values = { id: crypto.randomUUID(), name, email, subject: subject || null, message, created_at: new Date().toISOString() }
     }
     await authorizeDbOperation(operation, user)
     const result = await executeDbOperation(getD1(), operation)
