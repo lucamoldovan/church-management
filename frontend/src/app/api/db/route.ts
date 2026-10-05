@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthContext } from '@/lib/auth'
+import { getAuthContext } from '@/lib/cloudflare/auth-context'
 import { authorizeDbOperation, executeDbOperation, getD1, type DbOperation } from '@/lib/cloudflare/db'
 
 export const runtime = 'edge'
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const operation = await request.json() as DbOperation
     const auth = await getAuthContext()
-    const user = auth ? { id: auth.userId, email: auth.email, role: auth.role } : null
+    const user = auth ? { id: auth.user.id, email: auth.user.email, role: auth.role } : null
     await authorizeDbOperation(operation, user)
     const result = await executeDbOperation(getD1(), operation)
     return NextResponse.json(result)
