@@ -10,7 +10,7 @@ declare global {
     }
     NDEFReader?: new () => {
       scan(options?: { signal?: AbortSignal }): Promise<void>
-      onreading: ((event: { message: { records: Array<{ recordType: string; data: BufferSource | string }> } }) => void
+      onreading: (event: { message: { records: Array<{ recordType: string; data: BufferSource | string }> } }) => void
       onreadingerror?: (() => void) | null
     }
   }
