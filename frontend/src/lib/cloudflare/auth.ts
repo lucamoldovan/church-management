@@ -14,7 +14,8 @@ export function getAuth() {
     secret: process.env.BETTER_AUTH_SECRET,
     emailAndPassword: {
       enabled: true,
-      autoSignIn: true,
+      autoSignIn: false,
+      requireEmailVerification: true,
       sendResetPassword: async ({ user, url }) => {
         if (!env.EMAIL) {
           console.error('[auth] Cloudflare Email Service binding EMAIL is not configured.')
@@ -26,6 +27,22 @@ export function getAuth() {
           subject: 'Resetează parola — Casa Pâinii',
           text: `Salut ${user.name},\n\nResetează parola folosind acest link:\n${url}\n\nDacă nu ai cerut resetarea parolei, ignoră acest email.`,
           html: `<p>Salut ${user.name},</p><p>Poți reseta parola folosind butonul de mai jos:</p><p><a href="${url}">Resetează parola</a></p><p>Dacă nu ai cerut resetarea parolei, ignoră acest email.</p>`,
+        })
+      },
+    emailVerification: {
+      sendOnSignUp: true,
+      autoSignInAfterVerification: true,
+      sendVerificationEmail: async ({ user, url }) => {
+        if (!env.EMAIL) {
+          console.error('[auth] Cloudflare Email Service binding EMAIL is not configured.')
+          return
+        }
+        await env.EMAIL.send({
+          to: user.email,
+          from: process.env.AUTH_EMAIL_FROM || 'noreply@casapainii.ro',
+          subject: 'Verifică adresa de email — Casa Pâinii',
+          text: `Salut ${user.name},\\n\\nVerifică adresa de email folosind acest link:\\n${url}\\n\\nLinkul este valabil timp de 1 oră.`,
+          html: `<p>Salut ${user.name},</p><p>Verifică adresa de email folosind butonul de mai jos:</p><p><a href="${url}">Verifică emailul</a></p><p>Linkul este valabil timp de 1 oră.</p>`,
         })
       },
     },
