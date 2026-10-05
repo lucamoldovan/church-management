@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext, isStaff } from '@/lib/cloudflare/auth-context'
 import { dbFindMany, dbFindOne, dbInsert, dbUpdate } from '@/lib/cloudflare/api-db'
