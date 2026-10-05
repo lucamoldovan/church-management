@@ -66,6 +66,17 @@ export async function POST(request: NextRequest) {
       operation.values = normalized
     }
 
+    if (operationTable === 'group_members' && operation.operation === 'insert' && auth && !auth.isStaff) {
+      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+      operation.values = values.map(value => ({
+        ...value,
+        id: crypto.randomUUID(),
+        user_id: auth.user.id,
+        status: 'pending',
+        joined_at: new Date().toISOString(),
+      }))
+    }
+
     if (operationTable === 'checkins' && operation.operation === 'insert') {
       const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
       for (const value of values) {
