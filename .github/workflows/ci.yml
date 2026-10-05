@@ -35,6 +35,18 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Validate D1 migrations
+        run: |
+          python3 - <<'PY'
+          import sqlite3
+          from pathlib import Path
+          db = sqlite3.connect(':memory:')
+          db.execute('PRAGMA foreign_keys = ON')
+          for path in (Path('migrations/0001_cloudflare_native.sql'), Path('migrations/0002_security_hardening.sql')):
+              db.executescript(path.read_text())
+          print('D1 migrations validated successfully')
+          PY
+
       - name: Lint
         run: npm run lint
 
