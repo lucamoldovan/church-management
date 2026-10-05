@@ -66,6 +66,17 @@ export async function POST(request: NextRequest) {
       operation.values = normalized
     }
 
+    if (operationTable === 'checkins' && operation.operation === 'insert') {
+      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+      for (const value of values) {
+        const registrationId = typeof value?.registration_id === 'string' ? value.registration_id : ''
+        if (!registrationId) throw new Error('registration_id is required')
+        const registration = await getD1().prepare('SELECT package_price, payment_status FROM registrations WHERE id = ? LIMIT 1').bind(registrationId).first<{ package_price: number; payment_status: string }>()
+        if (!registration) throw new Error('Registration not found')
+        if (Number(registration.package_price || 0) > 0 && String(registration.payment_status) !== 'paid') throw new Error('Payment must be completed before check-in')
+      }
+    }
+
     if (operationTable === 'contact_messages') {
       const contactRate = await consumeRateLimit(request, 'contact-messages', 5, 300)
       if (!contactRate.allowed) return rateLimited(contactRate.retryAfter)
