@@ -77,7 +77,7 @@ export default function AdminCheckin() {
     }, 300)
   }
 
-  const logHistory = async (supabase: Awaited<ReturnType<typeof sb>>, r: Reg, c: string, userId?: string) => {
+  const logHistory = async (db: Awaited<ReturnType<typeof sb>>, r: Reg, c: string, userId?: string) => {
     await db.from('bracelet_assignments').insert({
       bracelet_code: c, registration_id: r.id, event_id: r.event_id, attendee_id: r.attendee_id,
       attendee_name: r.profiles?.full_name || null, assigned_by: userId,
