@@ -26,7 +26,7 @@ Optional social login configuration:
 
 ## Deployment checklist
 
-1. Apply the D1 migration from `frontend/migrations/0001_cloudflare_native.sql`.
+1. Apply `frontend/migrations/0001_cloudflare_native.sql` to a fresh database, or apply both `0001_cloudflare_native.sql` and `0002_security_hardening.sql` to an existing database that already has the first migration.
 2. Configure R2 and Email bindings.
 3. Configure all required secrets with Wrangler/Cloudflare.
 4. Configure Stripe webhook delivery to `/api/payments/webhook`.
