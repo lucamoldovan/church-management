@@ -142,6 +142,7 @@ export default function AdminEvents() {
           className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors">
           <Plus className="h-4 w-4" /> Propune eveniment
         </button>
+        </div>
       </div>
 
       {msg && <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-2xl text-sm mb-4">{msg}</div>}
