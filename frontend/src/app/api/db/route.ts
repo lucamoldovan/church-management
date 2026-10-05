@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
           amount_paid: packagePrice <= 0 ? packagePrice : 0,
           paid_at: packagePrice <= 0 ? new Date().toISOString() : null,
           attendee_id: `ATT-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+          qr_token: crypto.randomUUID(),
         })
       }
       operation.values = normalized
