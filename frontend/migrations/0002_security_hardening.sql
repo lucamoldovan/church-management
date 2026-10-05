@@ -18,3 +18,11 @@ CREATE TABLE IF NOT EXISTS stripe_events (
   processed_at TEXT NOT NULL,
   payload_hash TEXT
 );
+
+CREATE TABLE IF NOT EXISTS rateLimit (
+  id TEXT PRIMARY KEY,
+  key TEXT NOT NULL UNIQUE,
+  count INTEGER NOT NULL DEFAULT 0,
+  lastRequest INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS rateLimit_key_idx ON rateLimit(key);
