@@ -122,7 +122,7 @@ export function getAuth() {
         })
       },
     },
-    trustedOrigins: [appUrl].filter((value): value is string => Boolean(value)),
+    trustedOrigins: [appUrl, 'https://appleid.apple.com'].filter((value): value is string => Boolean(value)),
     socialProviders: Object.keys(socialProviders).length ? socialProviders : undefined,
     databaseHooks: {
       user: {
