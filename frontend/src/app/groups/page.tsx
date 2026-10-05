@@ -16,9 +16,9 @@ export default function GroupsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { data } = await supabase.from('study_groups').select('*').eq('is_active', true).order('name')
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
+      const { data } = await db.from('study_groups').select('*').eq('is_active', true).order('name')
       setGroups((data as Group[]) || [])
       setLoading(false)
     }
