@@ -8,6 +8,9 @@ export async function GET() {
   try {
     const { env } = getCloudflareContext()
     checks.database = Boolean(env.CHURCH_DB)
+    if (env.CHURCH_DB) {
+      try { await env.CHURCH_DB.prepare('SELECT 1').first(); checks.database = true } catch { checks.database = false }
+    }
     checks.media = Boolean(env.MEDIA)
     checks.email = Boolean(env.EMAIL)
     checks.authSecret = Boolean(process.env.BETTER_AUTH_SECRET)
