@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const rate = await consumeRateLimit(request, 'storage-delete', 30, 60)
+    if (!rate.allowed) return rateLimited(rate.retryAfter)
     const auth = await getAuthContext()
     if (!auth || !auth.isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { paths } = await request.json() as { paths?: string[] }
