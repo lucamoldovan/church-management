@@ -99,7 +99,7 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
   }
   if (table === 'contact_messages') { if (action === 'insert' || isStaff(user.role)) return; throw new Error('Forbidden') }
   if (table === 'group_members') {
-    if (isStaff(user.role) || action === 'select') return
+    if (isStaff(user.role)) return
     const ownFilter = (operation.filters || []).some(f => f.column === 'user_id' && f.op === 'eq' && f.value === user.id)
     const ownInsert = action === 'insert' && (Array.isArray(operation.values) ? operation.values : [operation.values]).every(v => !v || (v as Record<string, unknown>).user_id === user.id)
     if (ownFilter || ownInsert) return
