@@ -16,7 +16,7 @@ async function verifyStripeSignature(body: string, sigHeader: string, secret: st
     const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${timestamp}.${body}`))
     const computed = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')
     const ts = Number(timestamp)
-    return Math.abs(Math.floor(Date.now() / 1000) - ts) <= 300 && v1Parts.some(p => p.slice(3) === computed)
+    return Math.abs(Math.floor(Date.now() / 1000) - ts) <= 300 && v1Parts.some(p => p.slice(3).length === computed.length && p.slice(3).split('').every((char, i) => char.toLowerCase() === computed[i]))
   } catch { return false }
 }
 
@@ -43,8 +43,8 @@ export async function POST(request: NextRequest) {
     const metadata = session.metadata as Record<string, string> | undefined
     const registrationId = metadata?.registration_id
     const sessionId = String(session.id || '')
-    if (registrationId) {
-      await dbUpdate('registrations', { payment_status: 'paid' }, { id: registrationId })
+    if (registrationId && String(session.payment_status || '') === 'paid') {
+      await dbUpdate('registrations', { payment_status: 'paid', amount_paid: Number(session.amount_total || 0) / 100, paid_at: new Date().toISOString() }, { id: registrationId })
       if (sessionId) await dbUpdate('payment_transactions', { payment_status: 'paid', status: 'complete', updated_at: new Date().toISOString() }, { session_id: sessionId })
     }
   }
