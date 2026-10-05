@@ -66,6 +66,11 @@ export async function POST(request: NextRequest) {
       operation.values = normalized
     }
 
+    if (operationTable === 'bracelet_assignments' && operation.operation === 'insert' && auth?.isStaff) {
+      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+      operation.values = values.map(value => ({ ...value, id: crypto.randomUUID(), assigned_by: auth.user.id, assigned_at: new Date().toISOString() }))
+    }
+
     if (operationTable === 'group_members' && operation.operation === 'insert' && auth && !auth.isStaff) {
       const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
       operation.values = values.map(value => ({
@@ -75,6 +80,11 @@ export async function POST(request: NextRequest) {
         status: 'pending',
         joined_at: new Date().toISOString(),
       }))
+    }
+
+    if (operationTable === 'checkins' && operation.operation === 'insert' && auth) {
+      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+      operation.values = values.map(value => ({ ...value, id: crypto.randomUUID(), scanned_by: auth.user.id, created_at: new Date().toISOString() }))
     }
 
     if (operationTable === 'checkins' && operation.operation === 'insert') {
