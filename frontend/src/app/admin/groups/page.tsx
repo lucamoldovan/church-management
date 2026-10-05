@@ -14,11 +14,11 @@ export default function AdminGroups() {
   const [msg, setMsg] = useState('')
 
   const load = useCallback(async () => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
     const [{ data: g }, { data: p }] = await Promise.all([
-      supabase.from('study_groups').select('*').order('name'),
-      supabase.from('profiles').select('id, full_name, email'),
+      db.from('study_groups').select('*').order('name'),
+      db.from('profiles').select('id, full_name, email'),
     ])
     setGroups((g as G[]) || [])
     setProfiles((p as P[]) || [])
@@ -27,19 +27,19 @@ export default function AdminGroups() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editing) return; setMsg('')
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
     const payload = {
       name: editing.name, description: editing.description, meeting_day: editing.meeting_day,
       meeting_time: editing.meeting_time || null, meeting_location: editing.meeting_location,
       capacity: Number(editing.capacity) || 0, leader_id: editing.leader_id || null, is_active: editing.is_active,
     }
-    const res = editing.id ? await supabase.from('study_groups').update(payload).eq('id', editing.id) : await supabase.from('study_groups').insert(payload)
+    const res = editing.id ? await db.from('study_groups').update(payload).eq('id', editing.id) : await db.from('study_groups').insert(payload)
     if (res.error) { setMsg(`Eroare: ${res.error.message}`); return }
     setEditing(null); load()
   }
   const remove = async (id: string) => {
-    const { createClient } = await import('@/lib/supabase/client')
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
     await createClient().from('study_groups').delete().eq('id', id); load()
   }
 
