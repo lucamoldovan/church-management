@@ -13,10 +13,16 @@ async function verifyStripeSignature(body: string, sigHeader: string, secret: st
     if (!tPart || !v1Parts.length) return false
     const timestamp = tPart.slice(2)
     const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-    const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${timestamp}.${body}`))
-    const computed = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')
+    const payload = new TextEncoder().encode(`${timestamp}.${body}`)
     const ts = Number(timestamp)
-    return Math.abs(Math.floor(Date.now() / 1000) - ts) <= 300 && v1Parts.some(p => p.slice(3).length === computed.length && p.slice(3).split('').every((char, i) => char.toLowerCase() === computed[i]))
+    if (Math.abs(Math.floor(Date.now() / 1000) - ts) > 300) return false
+    for (const part of v1Parts) {
+      const hex = part.slice(3)
+      if (!/^[0-9a-f]{64}$/i.test(hex)) continue
+      const signature = new Uint8Array(hex.match(/.{2}/g)!.map(byte => Number.parseInt(byte, 16)))
+      if (await crypto.subtle.verify('HMAC', key, signature, payload)) return true
+    }
+    return false
   } catch { return false }
 }
 
