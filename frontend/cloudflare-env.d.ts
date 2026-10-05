@@ -9,6 +9,7 @@ declare global {
   namespace NodeJS {
     interface ProcessEnv {
       NEXT_PUBLIC_APP_URL?: string
+      NEXT_PUBLIC_APPLE_SIGN_IN_ENABLED?: string
       BETTER_AUTH_SECRET?: string
       GOOGLE_CLIENT_ID?: string
       GOOGLE_CLIENT_SECRET?: string
