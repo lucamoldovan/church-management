@@ -44,7 +44,8 @@ export async function DELETE(request: NextRequest) {
     const auth = await getAuthContext()
     if (!auth || !auth.isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { paths } = await request.json() as { paths?: string[] }
-    await Promise.all((paths || []).map(path => bucket().delete(safeKey(path))))
+    if (!Array.isArray(paths) || paths.length > 50) return NextResponse.json({ error: 'Invalid paths' }, { status: 400 })
+    await Promise.all(paths.map(path => bucket().delete(safeKey(path))))
     return NextResponse.json({ data: paths || [], error: null })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Delete failed' }, { status: 400 })
