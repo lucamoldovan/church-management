@@ -12,11 +12,11 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const load = async () => {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
+      const { data: { user } } = await db.auth.getUser()
       if (!user) { window.location.href = '/login'; return }
-      const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      const { data: p } = await db.from('profiles').select('*').eq('id', user.id).single()
       if (p) {
         setForm({
           full_name: p.full_name || '', phone: p.phone || '', department: p.department || '',
@@ -31,10 +31,10 @@ export default function ProfilePage() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setMsg('')
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from('profiles').update({
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { data: { user } } = await db.auth.getUser()
+    const { error } = await db.from('profiles').update({
       full_name: form.full_name, phone: form.phone, department: form.department,
       date_of_birth: form.date_of_birth || null, emergency_contact: form.emergency_contact,
     }).eq('id', user!.id)
