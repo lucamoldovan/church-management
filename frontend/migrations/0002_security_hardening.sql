@@ -52,3 +52,25 @@ WHEN NEW.event_id IS NOT NULL
 BEGIN
   SELECT RAISE(ABORT, 'EVENT_FULL');
 END;
+
+CREATE TRIGGER IF NOT EXISTS registrations_package_capacity_insert
+BEFORE INSERT ON registrations
+WHEN NEW.package_id IS NOT NULL
+  AND NEW.status NOT IN ('cancelled', 'refunded')
+  AND COALESCE((SELECT capacity FROM event_packages WHERE id = NEW.package_id), 0) > 0
+  AND (SELECT COUNT(*) FROM registrations WHERE package_id = NEW.package_id AND status NOT IN ('cancelled', 'refunded'))
+      >= (SELECT capacity FROM event_packages WHERE id = NEW.package_id)
+BEGIN
+  SELECT RAISE(ABORT, 'PACKAGE_FULL');
+END;
+
+CREATE TRIGGER IF NOT EXISTS registrations_package_capacity_update
+BEFORE UPDATE OF package_id, status ON registrations
+WHEN NEW.package_id IS NOT NULL
+  AND NEW.status NOT IN ('cancelled', 'refunded')
+  AND COALESCE((SELECT capacity FROM event_packages WHERE id = NEW.package_id), 0) > 0
+  AND (SELECT COUNT(*) FROM registrations WHERE package_id = NEW.package_id AND status NOT IN ('cancelled', 'refunded') AND id != OLD.id)
+      >= (SELECT capacity FROM event_packages WHERE id = NEW.package_id)
+BEGIN
+  SELECT RAISE(ABORT, 'PACKAGE_FULL');
+END;
