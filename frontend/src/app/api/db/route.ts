@@ -26,8 +26,9 @@ export async function POST(request: NextRequest) {
         if (!value || typeof value !== 'object') throw new Error('Invalid registration')
         const eventId = typeof value.event_id === 'string' ? value.event_id : ''
         if (!eventId) throw new Error('event_id is required')
-        const event = await getD1().prepare('SELECT id, title, price, capacity, status FROM events WHERE id = ? LIMIT 1').bind(eventId).first<Record<string, unknown>>()
+        const event = await getD1().prepare('SELECT id, title, price, capacity, status, registration_deadline FROM events WHERE id = ? LIMIT 1').bind(eventId).first<Record<string, unknown>>()
         if (!event || String(event.status) !== 'published') throw new Error('Event is not available')
+        if (event.registration_deadline && new Date(String(event.registration_deadline)).getTime() < Date.now()) throw new Error('Registration deadline has passed')
         const packageId = typeof value.package_id === 'string' ? value.package_id : null
         let packageName = 'Intrare standard'
         let packagePrice = Number(event.price || 0)
