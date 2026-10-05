@@ -79,10 +79,11 @@ export function getAuth() {
           to: user.email,
           from: process.env.AUTH_EMAIL_FROM || 'noreply@casapainii.ro',
           subject: 'Verifică adresa de email — Casa Pâinii',
-          text: `Salut ${user.name},\\n\\nVerifică adresa de email folosind acest link:\\n${url}\\n\\nLinkul este valabil timp de 1 oră.`,
+          text: `Salut ${user.name},\n\nVerifică adresa de email folosind acest link:\n${url}\n\nLinkul este valabil timp de 1 oră.`,
           html: `<p>Salut ${user.name},</p><p>Verifică adresa de email folosind butonul de mai jos:</p><p><a href="${url}">Verifică emailul</a></p><p>Linkul este valabil timp de 1 oră.</p>`,
         })
       },
+    },
     trustedOrigins: [appUrl, 'https://appleid.apple.com'].filter((value): value is string => Boolean(value)),
     socialProviders: Object.keys(socialProviders).length ? socialProviders : undefined,
     user: {
