@@ -24,6 +24,7 @@ export function getAuth() {
   const appleTeamId = process.env.APPLE_TEAM_ID
   const appleKeyId = process.env.APPLE_KEY_ID
   const applePrivateKey = process.env.APPLE_PRIVATE_KEY
+  const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase()
   const socialProviders = {
     ...(googleClientId && googleClientSecret
       ? { google: { clientId: googleClientId, clientSecret: googleClientSecret } }
