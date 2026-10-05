@@ -11,6 +11,7 @@ export function getD1(): D1Database {
 const PUBLIC_READ_TABLES = new Set(['events', 'event_packages', 'sermons', 'social_media', 'social_links', 'livestream_config', 'study_groups', 'departments', 'group_announcements'])
 const STAFF_TABLES = new Set(['profiles', 'registrations', 'bracelets', 'bracelet_assignments', 'checkins', 'contact_messages', 'payment_transactions', 'integration_tokens', 'notifications', 'events', 'event_packages', 'sermons', 'social_media', 'social_links', 'livestream_config', 'study_groups', 'group_members', 'group_announcements', 'service_plans', 'service_items', 'volunteer_assignments', 'connector_devices', 'production_events', 'live_production_state', 'control_center_layouts', 'audit_logs'])
 function isStaff(role: string | null | undefined) { return ['super_admin', 'leadership', 'event_manager', 'checkin_staff'].includes(role || '') }
+function isAdmin(role: string | null | undefined) { return ['super_admin', 'leadership'].includes(role || '') }
 function identifier(value: string) { if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) throw new Error(`Invalid identifier: ${value}`); return value }
 function parseSelect(columns = '*') {
   const relationMatch = columns.match(/(?:,|^)\s*(profiles)(?:!inner)?\(([^)]+)\)/)
@@ -93,7 +94,9 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
   if (action === 'insert' && table === 'contact_messages') return
   if (table === 'profiles') {
     const own = (operation.filters || []).some(f => f.column === 'id' && f.op === 'eq' && f.value === user.id)
-    if ((action === 'select' || action === 'update') && (own || isStaff(user.role))) return
+    if (action === 'select' && (own || isStaff(user.role))) return
+    if (action === 'update' && own) return
+    if (action === 'update' && isAdmin(user.role)) return
     throw new Error('Forbidden')
   }
   if (['registrations', 'payment_transactions', 'notifications'].includes(table)) {
