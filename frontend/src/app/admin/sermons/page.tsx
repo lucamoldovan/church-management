@@ -12,7 +12,7 @@ export default function AdminSermons() {
   const [msg, setMsg] = useState('')
 
   const load = useCallback(async () => {
-    const { createClient } = await import('@/lib/supabase/client')
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
     const { data } = await createClient().from('sermons').select('*').order('date', { ascending: false })
     setItems((data as S[]) || [])
   }, [])
@@ -20,18 +20,18 @@ export default function AdminSermons() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editing) return; setMsg('')
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
     const payload = {
       title: editing.title, speaker: editing.speaker, date: editing.date || null, description: editing.description,
       youtube_url: editing.youtube_url, thumbnail_url: editing.thumbnail_url, category: editing.category,
       tags: editing.tags ? editing.tags.split(',').map(t => t.trim()).filter(Boolean) : [], published: editing.published,
     }
-    const res = editing.id ? await supabase.from('sermons').update(payload).eq('id', editing.id) : await supabase.from('sermons').insert(payload)
+    const res = editing.id ? await db.from('sermons').update(payload).eq('id', editing.id) : await db.from('sermons').insert(payload)
     if (res.error) { setMsg(`Eroare: ${res.error.message}`); return }
     setEditing(null); load()
   }
-  const remove = async (id: string) => { const { createClient } = await import('@/lib/supabase/client'); await createClient().from('sermons').delete().eq('id', id); load() }
+  const remove = async (id: string) => { const { createClient } = await import('@/lib/cloudflare/browser-db'); await createClient().from('sermons').delete().eq('id', id); load() }
 
   return (
     <div data-testid="admin-sermons">
