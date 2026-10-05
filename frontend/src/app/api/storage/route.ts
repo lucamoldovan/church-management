@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthContext, isStaff } from '@/lib/auth'
+import { getAuthContext } from '@/lib/cloudflare/auth-context'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 export const runtime = 'edge'
@@ -19,7 +19,7 @@ function bucket() {
 export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthContext()
-    if (!auth || !isStaff(auth.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!auth || !auth.isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const form = await request.formData()
     const path = safeKey(String(form.get('path') || ''))
     const file = form.get('file')
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const auth = await getAuthContext()
-    if (!auth || !isStaff(auth.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!auth || !auth.isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { paths } = await request.json() as { paths?: string[] }
     await Promise.all((paths || []).map(path => bucket().delete(safeKey(path))))
     return NextResponse.json({ data: paths || [], error: null })
