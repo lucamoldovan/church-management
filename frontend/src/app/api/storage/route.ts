@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/cloudflare/auth-context'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { consumeRateLimit, rateLimited } from '@/lib/cloudflare/security'
 
 export const runtime = 'edge'
 
@@ -18,12 +19,15 @@ function bucket() {
 
 export async function POST(request: NextRequest) {
   try {
+    const rate = await consumeRateLimit(request, 'storage-write', 30, 60)
+    if (!rate.allowed) return rateLimited(rate.retryAfter)
     const auth = await getAuthContext()
     if (!auth || !auth.isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const form = await request.formData()
     const path = safeKey(String(form.get('path') || ''))
     const file = form.get('file')
     if (!(file instanceof File)) return NextResponse.json({ error: 'File is required' }, { status: 400 })
+    if (file.size > 15 * 1024 * 1024) return NextResponse.json({ error: 'File too large' }, { status: 413 })
     await bucket().put(path, file.stream(), { httpMetadata: { contentType: file.type || 'application/octet-stream', cacheControl: 'public, max-age=31536000, immutable' } })
     return NextResponse.json({ data: { path }, error: null })
   } catch (error) {
