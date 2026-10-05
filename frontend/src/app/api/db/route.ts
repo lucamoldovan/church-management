@@ -68,6 +68,19 @@ export async function POST(request: NextRequest) {
 
     if (operationTable === 'bracelet_assignments' && operation.operation === 'insert' && auth?.isStaff) {
       const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+      for (const value of values) {
+        const braceletCode = typeof value?.bracelet_code === 'string' ? value.bracelet_code.trim() : ''
+        const registrationId = typeof value?.registration_id === 'string' ? value.registration_id : ''
+        if (!braceletCode || !registrationId) throw new Error('Bracelet code and registration are required')
+        const bracelet = await getD1().prepare('SELECT code, active FROM bracelets WHERE code = ? LIMIT 1').bind(braceletCode).first<{ code: string; active: number }>()
+        if (!bracelet || Number(bracelet.active) !== 1) throw new Error('Bracelet is not active')
+        const registration = await getD1().prepare('SELECT id, event_id, attendee_id, user_id FROM registrations WHERE id = ? LIMIT 1').bind(registrationId).first<{ id: string; event_id: string | null; attendee_id: string | null; user_id: string | null }>()
+        if (!registration) throw new Error('Registration not found')
+        if (value.event_id && String(value.event_id) !== String(registration.event_id)) throw new Error('Bracelet event does not match registration')
+      }
+      operation.values = values.map(value => ({ ...value, id: crypto.randomUUID(), assigned_by: auth.user.id, assigned_at: new Date().toISOString() }))
+    }
+      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
       operation.values = values.map(value => ({ ...value, id: crypto.randomUUID(), assigned_by: auth.user.id, assigned_at: new Date().toISOString() }))
     }
 
