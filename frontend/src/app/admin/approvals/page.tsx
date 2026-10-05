@@ -20,29 +20,29 @@ export default function AdminApprovals() {
   const [targets, setTargets] = useState<{ g: boolean; f: boolean }>({ g: false, f: false })
 
   const load = useCallback(async () => {
-    const { createClient } = await import('@/lib/supabase/client')
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
     const { data } = await createClient().from('events').select('*').in('status', PENDING).order('created_at', { ascending: false })
     setEvents((data as Ev[]) || [])
   }, [])
   useEffect(() => { load() }, [load])
 
   const review = async (id: string, status: string, withComment = false) => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { data: { user } } = await db.auth.getUser()
     const payload: Record<string, unknown> = { status, reviewed_by: user?.id, reviewed_at: new Date().toISOString() }
     if (withComment) payload.review_comments = comment
-    const { error } = await supabase.from('events').update(payload).eq('id', id)
+    const { error } = await db.from('events').update(payload).eq('id', id)
     setMsg(error ? error.message : `Status setat: ${STATUS_LABELS[status] || status}`)
     setComment('')
     load()
   }
 
   const publishNow = async (id: string) => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from('events').update({
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { data: { user } } = await db.auth.getUser()
+    const { error } = await db.from('events').update({
       status: 'published', publish_google: targets.g, publish_facebook: targets.f,
       reviewed_by: user?.id, reviewed_at: new Date().toISOString(),
     }).eq('id', id)
