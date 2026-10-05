@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
     const canManage = isStaff(auth.role)
     if (String(reg.user_id) !== auth.userId && !canManage) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+    if (['cancelled', 'refunded'].includes(String(reg.status || ''))) return NextResponse.json({ error: 'Registration is no longer active' }, { status: 409 })
     if (String(reg.payment_status || '') === 'paid') return NextResponse.json({ already_paid: true })
 
     const amount = Number(reg.package_price || 0)
