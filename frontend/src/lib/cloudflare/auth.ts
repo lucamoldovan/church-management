@@ -3,7 +3,7 @@ import { betterAuth } from 'better-auth'
 import { importPKCS8, SignJWT } from 'jose'
 
 async function generateAppleClientSecret(clientId: string, teamId: string, keyId: string, privateKey: string) {
-  const key = await importPKCS8(privateKey.replace(/\\n/g, '\n'), 'ES256')
+  const key = await importPKCS8(privateKey.replace(/\n/g, '\n'), 'ES256')
   const now = Math.floor(Date.now() / 1000)
   return new SignJWT({})
     .setProtectedHeader({ alg: 'ES256', kid: keyId })
@@ -99,7 +99,7 @@ export function getAuth() {
             to: user.email,
             from: process.env.AUTH_EMAIL_FROM || 'noreply@casapainii.ro',
             subject: 'Confirmă ștergerea contului — Casa Pâinii',
-            text: `Salut ${user.name},\\n\\nDacă vrei să ștergi definitiv contul, confirmă aici:\\n${url}\\n\\nDacă nu ai cerut ștergerea contului, ignoră acest email.`,
+            text: `Salut ${user.name},\n\nDacă vrei să ștergi definitiv contul, confirmă aici:\n${url}\n\nDacă nu ai cerut ștergerea contului, ignoră acest email.`,
             html: `<p>Salut ${user.name},</p><p>Confirmă ștergerea definitivă a contului folosind butonul de mai jos:</p><p><a href="${url}">Șterge contul</a></p><p>Dacă nu ai cerut ștergerea contului, ignoră acest email.</p>`,
           })
         },
