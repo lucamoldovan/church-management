@@ -11,9 +11,9 @@ export default function AdminUsers() {
   const [msg, setMsg] = useState('')
 
   const load = useCallback(async () => {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data } = await supabase.from('profiles').select('id, full_name, email, role, phone').order('created_at', { ascending: false })
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { data } = await db.from('profiles').select('id, full_name, email, role, phone').order('created_at', { ascending: false })
     setUsers((data as P[]) || [])
   }, [])
 
@@ -21,9 +21,9 @@ export default function AdminUsers() {
 
   const changeRole = async (id: string, role: string) => {
     setMsg('')
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { error } = await supabase.from('profiles').update({ role }).eq('id', id)
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { error } = await db.from('profiles').update({ role }).eq('id', id)
     if (error) setMsg(`Eroare: ${error.message}`)
     else { setMsg('Rol actualizat'); setUsers(u => u.map(x => x.id === id ? { ...x, role } : x)) }
   }
