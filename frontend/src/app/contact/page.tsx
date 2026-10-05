@@ -17,9 +17,9 @@ export default function ContactPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { data } = await supabase.from('social_media').select('platform, url').eq('is_active', true).order('display_order')
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
+      const { data } = await db.from('social_media').select('platform, url').eq('is_active', true).order('display_order')
       setLinks((data || []).filter(l => l.url))
     }
     load()
@@ -27,9 +27,9 @@ export default function ContactPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setError('')
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { error } = await supabase.from('contact_messages').insert(form)
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { error } = await db.from('contact_messages').insert(form)
     if (error) setError(error.message)
     else setSent(true)
     setLoading(false)
