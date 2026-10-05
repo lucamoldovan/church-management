@@ -24,14 +24,14 @@ export default function RegisterPage({ params }: { params: Promise<{ id: string 
     const load = async () => {
       const id = (await params).id
       setEventId(id)
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
+      const { data: { user } } = await db.auth.getUser()
       if (!user) { window.location.href = '/login'; return }
       setUser({ id: user.id, email: user.email ?? '' })
       const [{ data: ev }, { data: pkgs }] = await Promise.all([
-        supabase.from('events').select('*').eq('id', id).single(),
-        supabase.from('event_packages').select('*').eq('event_id', id).order('price', { ascending: true }),
+        db.from('events').select('*').eq('id', id).single(),
+        db.from('event_packages').select('*').eq('event_id', id).order('price', { ascending: true }),
       ])
       setEvent(ev as Ev)
       const list = (pkgs as Pkg[]) || []
@@ -45,14 +45,14 @@ export default function RegisterPage({ params }: { params: Promise<{ id: string 
     if (!user || !event) return
     setLoading(true); setError('')
     try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
+      const { createClient } = await import('@/lib/cloudflare/browser-db')
+      const db = createClient()
       const pkg = packages[selectedPackage]
       const attendeeId = `ATT-${new Date().getFullYear()}-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`
       const isFree = Number(pkg.price) === 0
       const method = isFree ? 'online' : paymentMethod
       const paymentStatus = isFree ? 'paid' : method === 'cash' ? 'pending' : 'unpaid'
-      const { data: inserted, error } = await supabase.from('registrations').insert({
+      const { data: inserted, error } = await db.from('registrations').insert({
         event_title: event.title,
         user_id: user.id,
         event_id: event.id,
