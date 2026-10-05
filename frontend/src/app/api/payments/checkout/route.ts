@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     const amount = Number(reg.package_price || 0)
     if (amount <= 0) {
-      await dbUpdate('registrations', { payment_status: 'paid', updated_at: new Date().toISOString() }, { id: registration_id })
+      await dbUpdate('registrations', { payment_status: 'paid', payment_method: 'online', amount_paid: 0, paid_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { id: registration_id })
       return NextResponse.json({ free: true })
     }
 
