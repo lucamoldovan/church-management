@@ -249,3 +249,5 @@ WHEN NEW.package_id IS NOT NULL
 BEGIN
   SELECT RAISE(ABORT, 'PACKAGE_FULL');
 END;
+
+CREATE UNIQUE INDEX IF NOT EXISTS bracelet_assignments_active_registration_idx ON bracelet_assignments(registration_id) WHERE registration_id IS NOT NULL AND released_at IS NULL;
