@@ -67,6 +67,27 @@ export function getAuth() {
         })
       },
     },
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 100,
+      customRules: {
+        '/sign-in/email': { window: 60, max: 5 },
+        '/sign-up/email': { window: 60, max: 5 },
+        '/forget-password': { window: 60, max: 5 },
+        '/reset-password': { window: 60, max: 5 },
+      },
+    },
+    advanced: {
+      database: { validateSchema: false },
+      ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
+    },
+    user: {
+      additionalFields: {
+        role: { type: 'string', required: false, defaultValue: 'member', input: false, returned: true },
+      },
+      deleteUser: { enabled: true },
+    },
     emailVerification: {
       sendOnSignUp: true,
       autoSignInAfterVerification: true,
@@ -86,11 +107,6 @@ export function getAuth() {
     },
     trustedOrigins: [appUrl, 'https://appleid.apple.com'].filter((value): value is string => Boolean(value)),
     socialProviders: Object.keys(socialProviders).length ? socialProviders : undefined,
-    user: {
-      additionalFields: {
-        role: { type: 'string', required: false, defaultValue: 'member', input: false, returned: true },
-      },
-    },
     databaseHooks: {
       user: {
         create: {
@@ -104,7 +120,6 @@ export function getAuth() {
         },
       },
     },
-    advanced: { database: { validateSchema: false } },
     telemetry: { enabled: false },
   })
 }
