@@ -116,6 +116,14 @@ CREATE TABLE IF NOT EXISTS bracelet_assignments (
 );
 CREATE INDEX IF NOT EXISTS bracelet_assignments_code_idx ON bracelet_assignments(bracelet_code);
 CREATE INDEX IF NOT EXISTS bracelet_assignments_event_idx ON bracelet_assignments(event_id);
+CREATE INDEX IF NOT EXISTS bracelet_assignments_registration_idx ON bracelet_assignments(registration_id);
+CREATE UNIQUE INDEX IF NOT EXISTS bracelet_assignments_active_code_idx
+  ON bracelet_assignments(bracelet_code)
+  WHERE released_at IS NULL;
+CREATE INDEX IF NOT EXISTS checkins_registration_idx ON checkins(registration_id);
+CREATE INDEX IF NOT EXISTS registrations_bracelet_idx ON registrations(bracelet_code);
+CREATE INDEX IF NOT EXISTS registrations_qr_token_idx ON registrations(qr_token);
+
 
 CREATE TABLE IF NOT EXISTS study_groups (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, leader_id TEXT REFERENCES profiles(id) ON DELETE SET NULL,
