@@ -66,6 +66,7 @@ export function getAuth() {
           html: `<p>Salut ${user.name},</p><p>Poți reseta parola folosind butonul de mai jos:</p><p><a href="${url}">Resetează parola</a></p><p>Dacă nu ai cerut resetarea parolei, ignoră acest email.</p>`,
         })
       },
+    },
     emailVerification: {
       sendOnSignUp: true,
       autoSignInAfterVerification: true,
@@ -82,7 +83,6 @@ export function getAuth() {
           html: `<p>Salut ${user.name},</p><p>Verifică adresa de email folosind butonul de mai jos:</p><p><a href="${url}">Verifică emailul</a></p><p>Linkul este valabil timp de 1 oră.</p>`,
         })
       },
-    },
     trustedOrigins: [appUrl, 'https://appleid.apple.com'].filter((value): value is string => Boolean(value)),
     socialProviders: Object.keys(socialProviders).length ? socialProviders : undefined,
     user: {
