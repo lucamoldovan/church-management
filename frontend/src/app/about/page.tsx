@@ -33,7 +33,7 @@ export default function AboutPage() {
           <div>
             <h2 className="font-heading text-3xl font-bold mb-4">Cine suntem</h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              Biserica Creștină Penticostală <strong className="text-foreground">Casa Pâinii</strong> este o comunitate de oameni care Îl iubesc pe Dumnezeu și se iubesc unii pe alții. Ne adunăm pentru închinare, studiul Cuvântului și părtășie, dorind să fim „pâine" pentru orașul nostru.
+              Biserica Creștină Penticostală <strong className="text-foreground">Casa Pâinii</strong> este o comunitate de oameni care Îl iubesc pe Dumnezeu și se iubesc unii pe alții. Ne adunăm pentru închinare, studiul Cuvântului și părtășie, dorind să fim „pâine” pentru orașul nostru.
             </p>
             <p className="text-muted-foreground leading-relaxed">
               Indiferent unde te afli în călătoria ta de credință, ai un loc aici. Te așteptăm cu drag!
