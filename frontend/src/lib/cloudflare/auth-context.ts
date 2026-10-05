@@ -16,6 +16,14 @@ export interface AuthContext {
 const ADMIN_ROLES: AuthRole[] = ['super_admin', 'leadership']
 const STAFF_ROLES: AuthRole[] = ['super_admin', 'leadership', 'event_manager', 'checkin_staff']
 
+export function isAdmin(role: string | null | undefined) {
+  return ADMIN_ROLES.includes((role ?? 'member') as AuthRole)
+}
+
+export function isStaff(role: string | null | undefined) {
+  return STAFF_ROLES.includes((role ?? 'member') as AuthRole)
+}
+
 /**
  * Server-side source of truth for authentication and authorization.
  * Roles are read from D1 profiles rather than trusted from client input.
@@ -38,8 +46,8 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     user: session.user,
     profile: result ?? null,
     role,
-    isAdmin: ADMIN_ROLES.includes(role),
-    isStaff: STAFF_ROLES.includes(role),
+    isAdmin: isAdmin(role),
+    isStaff: isStaff(role),
   }
 }
 
