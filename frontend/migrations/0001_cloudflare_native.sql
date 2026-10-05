@@ -251,3 +251,5 @@ BEGIN
 END;
 
 CREATE UNIQUE INDEX IF NOT EXISTS bracelet_assignments_active_registration_idx ON bracelet_assignments(registration_id) WHERE registration_id IS NOT NULL AND released_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS payment_transactions_active_registration_idx ON payment_transactions(registration_id) WHERE registration_id IS NOT NULL AND payment_status IN ('initiated', 'pending');
