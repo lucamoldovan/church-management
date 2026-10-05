@@ -12,7 +12,7 @@ export default function AdminNotifications() {
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
-    const { createClient } = await import('@/lib/supabase/client')
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
     const { data } = await createClient().from('notifications').select('id, title, body, created_at').order('created_at', { ascending: false }).limit(15)
     setRecent((data as N[]) || [])
   }, [])
@@ -20,12 +20,12 @@ export default function AdminNotifications() {
 
   const broadcast = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setMsg('')
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { data: profiles } = await supabase.from('profiles').select('id')
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
+    const db = createClient()
+    const { data: profiles } = await db.from('profiles').select('id')
     const rows = (profiles || []).map(p => ({ user_id: p.id, title: form.title, body: form.body, type: 'broadcast' }))
     if (rows.length === 0) { setMsg('Niciun utilizator.'); setLoading(false); return }
-    const { error } = await supabase.from('notifications').insert(rows)
+    const { error } = await db.from('notifications').insert(rows)
     setMsg(error ? `Eroare: ${error.message}` : `Trimis către ${rows.length} utilizatori ✓`)
     if (!error) { setForm({ title: '', body: '' }); load() }
     setLoading(false)
