@@ -9,7 +9,7 @@ export function getD1(): D1Database {
 }
 
 const PUBLIC_READ_TABLES = new Set(['events', 'event_packages', 'sermons', 'social_media', 'social_links', 'livestream_config', 'study_groups', 'departments', 'group_announcements'])
-const STAFF_TABLES = new Set(['profiles', 'registrations', 'bracelets', 'bracelet_assignments', 'checkins', 'contact_messages', 'payment_transactions', 'integration_tokens', 'notifications', 'events', 'event_packages', 'sermons', 'social_media', 'social_links', 'livestream_config', 'study_groups', 'group_members', 'group_announcements', 'service_plans', 'service_items', 'volunteer_assignments', 'connector_devices', 'production_events', 'live_production_state', 'control_center_layouts', 'audit_logs'])
+const STAFF_TABLES = new Set(['profiles', 'registrations', 'bracelets', 'bracelet_assignments', 'checkins', 'contact_messages', 'payment_transactions', 'notifications', 'events', 'event_packages', 'sermons', 'social_media', 'social_links', 'livestream_config', 'study_groups', 'group_members', 'group_announcements', 'service_plans', 'service_items', 'volunteer_assignments', 'connector_devices', 'production_events', 'live_production_state', 'control_center_layouts'])
 function isStaff(role: string | null | undefined) { return ['super_admin', 'leadership', 'event_manager', 'checkin_staff'].includes(role || '') }
 function isAdmin(role: string | null | undefined) { return ['super_admin', 'leadership'].includes(role || '') }
 function identifier(value: string) { if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) throw new Error(`Invalid identifier: ${value}`); return value }
@@ -91,6 +91,10 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
   if (!STAFF_TABLES.has(table) && !PUBLIC_READ_TABLES.has(table)) throw new Error('Table is not available through the application API.')
   if (action === 'select' && PUBLIC_READ_TABLES.has(table)) return
   if (!user) throw new Error('Unauthorized')
+  if (['integration_tokens', 'audit_logs', 'connector_devices'].includes(table)) {
+    if (isAdmin(user.role) && action === 'select') return
+    throw new Error('Forbidden')
+  }
   if (action === 'insert' && table === 'contact_messages') return
   if (table === 'profiles') {
     const own = (operation.filters || []).some(f => f.column === 'id' && f.op === 'eq' && f.value === user.id)
