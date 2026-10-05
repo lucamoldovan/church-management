@@ -80,3 +80,41 @@ export async function cleanupExpiredRateLimits() {
     await getD1().prepare('DELETE FROM rate_limits WHERE expires_at < ?').bind(Math.floor(Date.now() / 1000)).run()
   } catch {}
 }
+
+
+async function cryptoKey() {
+  const secret = process.env.BETTER_AUTH_SECRET
+  if (!secret) throw new Error('BETTER_AUTH_SECRET is required')
+  const digestBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret))
+  return crypto.subtle.importKey('raw', digestBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+}
+
+function base64(bytes: Uint8Array) {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+}
+
+function fromBase64(value: string) {
+  const binary = atob(value)
+  return Uint8Array.from(binary, char => char.charCodeAt(0))
+}
+
+export async function encryptJson(value: unknown) {
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const key = await cryptoKey()
+  const plaintext = new TextEncoder().encode(JSON.stringify(value))
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext))
+  return `v1.${base64(iv)}.${base64(ciphertext)}`
+}
+
+export async function decryptJson<T = Record<string, unknown>>(value: unknown): Promise<T> {
+  if (typeof value !== 'string') return (value || {}) as T
+  if (!value.startsWith('v1.')) {
+    try { return JSON.parse(value) as T } catch { return {} as T }
+  }
+  const [, ivValue, cipherValue] = value.split('.')
+  const key = await cryptoKey()
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromBase64(ivValue) }, key, fromBase64(cipherValue))
+  return JSON.parse(new TextDecoder().decode(plaintext)) as T
+}
