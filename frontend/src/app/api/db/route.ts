@@ -101,20 +101,20 @@ export async function POST(request: NextRequest) {
       }))
     }
 
-    if (operationTable === 'checkins' && operation.operation === 'insert' && auth) {
-      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
-      operation.values = values.map(value => ({ ...value, id: crypto.randomUUID(), scanned_by: auth.user.id, created_at: new Date().toISOString() }))
-    }
-
     if (operationTable === 'checkins' && operation.operation === 'insert') {
       const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+      const normalized: Record<string, unknown>[] = []
       for (const value of values) {
         const registrationId = typeof value?.registration_id === 'string' ? value.registration_id : ''
         if (!registrationId) throw new Error('registration_id is required')
-        const registration = await getD1().prepare('SELECT package_price, payment_status FROM registrations WHERE id = ? LIMIT 1').bind(registrationId).first<{ package_price: number; payment_status: string }>()
+        const registration = await getD1().prepare('SELECT package_price, payment_status, event_id, checked_in FROM registrations WHERE id = ? LIMIT 1').bind(registrationId).first<{ package_price: number; payment_status: string; event_id: string | null; checked_in: number }>()
         if (!registration) throw new Error('Registration not found')
         if (Number(registration.package_price || 0) > 0 && String(registration.payment_status) !== 'paid') throw new Error('Payment must be completed before check-in')
+        if (Number(registration.checked_in) === 1) throw new Error('Registration is already checked in')
+        if (value.event_id && String(value.event_id) !== String(registration.event_id)) throw new Error('Check-in event does not match registration')
+        normalized.push({ ...value, id: crypto.randomUUID(), event_id: registration.event_id, scanned_by: auth?.user.id, created_at: new Date().toISOString() })
       }
+      operation.values = normalized
     }
 
     if (operationTable === 'contact_messages' && operation.operation === 'insert') {
