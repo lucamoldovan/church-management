@@ -102,7 +102,12 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
     const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
     const changesRole = values.some(value => value && Object.prototype.hasOwnProperty.call(value, 'role'))
     if (changesRole && !isAdmin(user.role)) throw new Error('Forbidden')
-    if (action === 'update' && own) return
+    if (action === 'update' && own) {
+      const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+      const forbidden = ['id', 'email', 'role']
+      if (values.some(value => value && forbidden.some(field => Object.prototype.hasOwnProperty.call(value, field)))) throw new Error('Forbidden')
+      return
+    }
     if (action === 'update' && isAdmin(user.role)) return
     throw new Error('Forbidden')
   }
@@ -130,7 +135,13 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
 
     if (table === 'notifications') {
       if (action === 'select' && own) return
-      if (action === 'update' && own) return
+      if (action === 'update' && own) {
+        if (table === 'notifications') {
+          const values = (Array.isArray(operation.values) ? operation.values : [operation.values]) as Record<string, unknown>[]
+          if (values.some(value => value && Object.keys(value).some(field => field !== 'read'))) throw new Error('Forbidden')
+        }
+        return
+      }
       throw new Error('Forbidden')
     }
 
