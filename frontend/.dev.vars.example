@@ -1,0 +1,22 @@
+# Local/Cloudflare Worker development values.
+# Never commit real secrets.
+
+APP_BASE_URL="http://localhost:3000"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+BETTER_AUTH_SECRET="replace-with-a-long-random-secret"
+
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+
+APPLE_CLIENT_ID=""
+APPLE_TEAM_ID=""
+APPLE_KEY_ID=""
+APPLE_PRIVATE_KEY=""
+APPLE_APP_BUNDLE_IDENTIFIER=""
+NEXT_PUBLIC_APPLE_SIGN_IN_ENABLED="false"
+
+AUTH_EMAIL_FROM="noreply@casapainii.ro"
+BOOTSTRAP_ADMIN_EMAIL=""
+
+# Runtime bindings are provided by Wrangler:
+# CHURCH_DB, MEDIA, EMAIL
