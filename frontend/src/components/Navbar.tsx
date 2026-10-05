@@ -19,7 +19,7 @@ export default function Navbar() {
   const { user, isStaff, loading } = useUser()
 
   const logout = async () => {
-    const { createClient } = await import('@/lib/supabase/client')
+    const { createClient } = await import('@/lib/cloudflare/browser-db')
     await createClient().auth.signOut()
     window.location.href = '/'
   }
