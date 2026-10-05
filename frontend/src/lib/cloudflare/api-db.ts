@@ -55,7 +55,8 @@ export async function dbInsert(table: string, values: Record<string, unknown>) {
   if (value.created_at === undefined) value.created_at = now
   if (value.updated_at === undefined) value.updated_at = now
   const keys = Object.keys(value)
-  const sql = `INSERT INTO ${table} (${keys.map(k => `"${k.replaceAll('"', '""')}"`).join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`
+  const safeTable = identifier(table)
+  const sql = `INSERT INTO ${safeTable} (${keys.map(k => `"${k.replaceAll('"', '""')}"`).join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`
   await getD1().prepare(sql).bind(...keys.map(k => normalize(value[k]))).run()
   return value
 }
