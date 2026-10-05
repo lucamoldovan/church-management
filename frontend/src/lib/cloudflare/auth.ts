@@ -88,7 +88,22 @@ export function getAuth() {
       additionalFields: {
         role: { type: 'string', required: false, defaultValue: 'member', input: false, returned: true },
       },
-      deleteUser: { enabled: true },
+      deleteUser: {
+        enabled: true,
+        sendDeleteAccountVerification: async ({ user, url }) => {
+          if (!env.EMAIL) {
+            console.error('[auth] Cloudflare Email Service binding EMAIL is not configured.')
+            return
+          }
+          await env.EMAIL.send({
+            to: user.email,
+            from: process.env.AUTH_EMAIL_FROM || 'noreply@casapainii.ro',
+            subject: 'Confirmă ștergerea contului — Casa Pâinii',
+            text: `Salut ${user.name},\\n\\nDacă vrei să ștergi definitiv contul, confirmă aici:\\n${url}\\n\\nDacă nu ai cerut ștergerea contului, ignoră acest email.`,
+            html: `<p>Salut ${user.name},</p><p>Confirmă ștergerea definitivă a contului folosind butonul de mai jos:</p><p><a href="${url}">Șterge contul</a></p><p>Dacă nu ai cerut ștergerea contului, ignoră acest email.</p>`,
+          })
+        },
+      },
     },
     emailVerification: {
       sendOnSignUp: true,
