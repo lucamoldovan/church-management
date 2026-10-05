@@ -45,7 +45,7 @@ export default function GroupDetail({ params }: { params: Promise<{ id: string }
     setLoading(false)
   }, [id])
 
-  useEffect(() => { load() }, [load])
+  // This effect loads external data and intentionally updates local state after the request resolves.\n  // eslint-disable-next-line react-hooks/set-state-in-effect\n  useEffect(() => { load() }, [load])
 
   const join = async () => {
     if (!userId) { window.location.href = '/login'; return }
