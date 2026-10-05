@@ -92,9 +92,32 @@ export async function authorizeDbOperation(operation: DbOperation, user: DbUser 
   }
   if (['registrations', 'payment_transactions', 'notifications'].includes(table)) {
     if (isStaff(user.role)) return
-    const own = (operation.filters || []).some(f => f.column === 'user_id' && f.op === 'eq' && f.value === user.id)
-    const insertOwn = action === 'insert' && (Array.isArray(operation.values) ? operation.values : [operation.values]).every(v => !v || (v as Record<string, unknown>).user_id === user.id)
-    if (own || insertOwn) return
+
+    const own = (operation.filters || []).some(
+      f => f.column === 'user_id' && f.op === 'eq' && f.value === user.id,
+    )
+    const values = Array.isArray(operation.values) ? operation.values : [operation.values]
+    const insertOwn = action === 'insert' && values.every(
+      v => !v || (v as Record<string, unknown>).user_id === user.id,
+    )
+
+    if (table === 'registrations') {
+      if (action === 'select' && own) return
+      if (action === 'insert' && insertOwn) return
+      throw new Error('Forbidden')
+    }
+
+    if (table === 'payment_transactions') {
+      if (action === 'select' && own) return
+      throw new Error('Forbidden')
+    }
+
+    if (table === 'notifications') {
+      if (action === 'select' && own) return
+      if (action === 'update' && own) return
+      throw new Error('Forbidden')
+    }
+
     throw new Error('Forbidden')
   }
   if (table === 'contact_messages') { if (action === 'insert' || isStaff(user.role)) return; throw new Error('Forbidden') }
