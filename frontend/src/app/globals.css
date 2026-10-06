@@ -34,56 +34,56 @@
 }
 
 :root {
-  --background: oklch(0.985 0.005 85);
-  --foreground: oklch(0.20 0.01 85);
-  --card: oklch(0.995 0.002 85);
-  --card-foreground: oklch(0.20 0.01 85);
-  --popover: oklch(0.995 0.002 85);
-  --popover-foreground: oklch(0.20 0.01 85);
-  --primary: oklch(0.60 0.12 40);
-  --primary-foreground: oklch(0.985 0.005 85);
-  --secondary: oklch(0.94 0.02 60);
-  --secondary-foreground: oklch(0.30 0.04 40);
-  --muted: oklch(0.95 0.01 85);
-  --muted-foreground: oklch(0.55 0.02 85);
-  --accent: oklch(0.90 0.04 45);
-  --accent-foreground: oklch(0.30 0.04 40);
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.12 0.01 250);
+  --card: oklch(0.985 0 0);
+  --card-foreground: oklch(0.12 0.01 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.12 0.01 250);
+  --primary: oklch(0.27 0.075 255);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.94 0.012 250);
+  --secondary-foreground: oklch(0.20 0.03 255);
+  --muted: oklch(0.94 0.01 250);
+  --muted-foreground: oklch(0.48 0.025 250);
+  --accent: oklch(0.90 0.025 250);
+  --accent-foreground: oklch(0.20 0.03 255);
   --destructive: oklch(0.60 0.15 25);
-  --destructive-foreground: oklch(0.985 0.005 85);
-  --border: oklch(0.90 0.01 85);
-  --input: oklch(0.90 0.01 85);
-  --ring: oklch(0.60 0.12 40);
-  --radius: 1.5rem;
-  --sidebar: oklch(0.99 0.004 85);
-  --sidebar-foreground: oklch(0.20 0.01 85);
-  --sidebar-primary: oklch(0.60 0.12 40);
-  --sidebar-primary-foreground: oklch(0.985 0.005 85);
-  --sidebar-accent: oklch(0.90 0.04 45);
-  --sidebar-accent-foreground: oklch(0.30 0.04 40);
-  --sidebar-border: oklch(0.90 0.01 85);
-  --sidebar-ring: oklch(0.60 0.12 40);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.86 0.01 250);
+  --input: oklch(0.86 0.01 250);
+  --ring: oklch(0.27 0.075 255);
+  --radius: 0.35rem;
+  --sidebar: oklch(0.98 0 0);
+  --sidebar-foreground: oklch(0.12 0.01 250);
+  --sidebar-primary: oklch(0.27 0.075 255);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.90 0.025 250);
+  --sidebar-accent-foreground: oklch(0.20 0.03 255);
+  --sidebar-border: oklch(0.86 0.01 250);
+  --sidebar-ring: oklch(0.27 0.075 255);
 }
 
 .dark {
-  --background: oklch(0.18 0.015 45);
-  --foreground: oklch(0.96 0.008 85);
-  --card: oklch(0.23 0.02 45);
-  --card-foreground: oklch(0.96 0.008 85);
-  --popover: oklch(0.23 0.02 45);
-  --popover-foreground: oklch(0.96 0.008 85);
-  --primary: oklch(0.70 0.12 40);
-  --primary-foreground: oklch(0.18 0.015 45);
-  --secondary: oklch(0.30 0.025 45);
-  --secondary-foreground: oklch(0.96 0.008 85);
-  --muted: oklch(0.29 0.02 45);
-  --muted-foreground: oklch(0.72 0.02 85);
-  --accent: oklch(0.38 0.05 45);
-  --accent-foreground: oklch(0.96 0.008 85);
+  --background: oklch(0.075 0.012 250);
+  --foreground: oklch(0.97 0 0);
+  --card: oklch(0.10 0.018 250);
+  --card-foreground: oklch(0.97 0 0);
+  --popover: oklch(0.10 0.018 250);
+  --popover-foreground: oklch(0.97 0 0);
+  --primary: oklch(0.80 0.055 250);
+  --primary-foreground: oklch(0.08 0.012 250);
+  --secondary: oklch(0.15 0.025 250);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.15 0.02 250);
+  --muted-foreground: oklch(0.70 0.02 250);
+  --accent: oklch(0.20 0.035 250);
+  --accent-foreground: oklch(0.97 0 0);
   --destructive: oklch(0.70 0.17 25);
-  --destructive-foreground: oklch(0.98 0.01 80);
+  --destructive-foreground: oklch(0.98 0 0);
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.70 0.12 40);
+  --ring: oklch(0.80 0.055 250);
 }
 
 @layer base {
@@ -94,17 +94,12 @@
   }
   html { scroll-behavior: smooth; }
   h1,h2,h3,h4,h5 { font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif; }
-  ::selection { background: oklch(0.60 0.12 40 / 0.18); }
+  ::selection { background: oklch(0.27 0.075 255 / 0.18); }
 }
 
 @layer utilities {
   .font-heading { font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif; }
-  .soft-shadow { box-shadow: 0 8px 30px rgb(0 0 0 / 0.045); }
-  .soft-shadow-lg { box-shadow: 0 20px 55px rgb(0 0 0 / 0.10); }
-  .grain {
-    background-image: radial-gradient(oklch(0.60 0.12 40 / 0.035) 1px, transparent 1px);
-    background-size: 20px 20px;
-  }
+  .soft-shadow { box-shadow: none; }
   @keyframes rise {
     from { opacity: 0; transform: translateY(16px); }
     to { opacity: 1; transform: translateY(0); }
