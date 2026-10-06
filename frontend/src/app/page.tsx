@@ -1,14 +1,8 @@
 import Link from 'next/link'
-import { Calendar, MapPin, ArrowRight, Heart, Users, BookOpen, Play } from 'lucide-react'
+import { ArrowRight, CalendarDays, MapPin, Play, Users } from 'lucide-react'
 import HeroCarousel from '@/components/HeroCarousel'
 import { imageForEvent, formatPrice } from '@/lib/eventImages'
 import { createClient } from '@/lib/supabase/server'
-
-const values = [
-  { icon: Heart, title: 'Comunitate', text: 'Un loc unde fiecare persoană este primită și prețuită.' },
-  { icon: BookOpen, title: 'Cuvântul', text: 'Credință ancorată în Scriptură, speranță și adevăr.' },
-  { icon: Users, title: 'Părtășie', text: 'Creștem împreună prin grupuri, întâlniri și evenimente.' },
-]
 
 export const dynamic = 'force-dynamic'
 
@@ -33,87 +27,122 @@ export default async function HomePage() {
   }))
 
   return (
-    <div data-testid="home-page" className="grain">
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-8">
-        <div className="mb-6 flex items-end justify-between gap-6 animate-rise">
-          <div>
-            <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.18em] text-primary mb-3">Casa Pâinii · Ocna Mureș</p>
-            <h1 className="font-heading text-3xl sm:text-5xl font-semibold tracking-tight">O familie. O credință. O casă.</h1>
-          </div>
-          <Link href="/live" data-testid="home-live-link" className="hidden sm:inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-semibold hover:border-primary/40 hover:text-primary transition-colors">
-            <Play className="h-4 w-4 fill-current" /> Urmărește live
-          </Link>
-        </div>
-
-        <div className="animate-rise">
-          {slides.length > 0 ? (
-            <HeroCarousel slides={slides} />
-          ) : (
-            <div className="rounded-3xl min-h-80 bg-secondary/60 flex flex-col items-center justify-center text-center p-8 soft-shadow">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary mb-2">Casa Pâinii</p>
-              <h2 className="font-heading text-2xl font-semibold">Niciun eveniment publicat încă.</h2>
-              <p className="text-sm text-muted-foreground mt-2 max-w-md">Revino curând pentru următoarele întâlniri și evenimente.</p>
+    <div data-testid="home-page" className="overflow-hidden">
+      <section className="relative min-h-[calc(100svh-4.5rem)] flex items-end bg-black text-white">
+        {slides.length > 0 ? (
+          <HeroCarousel slides={slides} />
+        ) : (
+          <div className="min-h-[75svh] w-full flex items-center justify-center px-6">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-white/60 mb-5">Casa Pâinii · Ocna Mureș</p>
+              <h1 className="font-heading text-5xl sm:text-7xl lg:text-8xl font-semibold tracking-[-0.05em] max-w-5xl">
+                O familie.<br />O credință.<br /><span className="text-white/45">O casă.</span>
+              </h1>
             </div>
+          </div>
+        )}
+        <div className="absolute top-8 left-6 sm:left-10 lg:left-16 z-10 pointer-events-none">
+          <p className="text-[10px] sm:text-xs uppercase tracking-[0.32em] text-white/70">Casa Pâinii / Ocna Mureș</p>
+        </div>
+      </section>
+
+      <section className="bg-white text-black px-6 sm:px-10 lg:px-16 py-20 sm:py-28">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-[1.2fr_.8fr] gap-12 lg:gap-24 items-end">
+            <h2 className="font-heading text-5xl sm:text-7xl lg:text-8xl font-semibold tracking-[-0.055em] leading-[0.9]">
+              Biserica nu este<br />
+              <span className="text-[#102b52]">un loc.</span>
+            </h2>
+            <div className="max-w-md pb-2">
+              <p className="text-lg sm:text-xl leading-relaxed text-black/65">
+                Este o familie care crește împreună. Un loc pentru credință, întrebări, prietenie și o viață trăită cu Dumnezeu.
+              </p>
+              <Link href="/about" className="mt-8 inline-flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.16em] group">
+                Descoperă-ne <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-20 border-t border-black/15">
+            <div className="grid sm:grid-cols-3">
+              {[
+                ['01', 'Comunitate', 'Un loc unde fiecare persoană este primită și prețuită.'],
+                ['02', 'Cuvântul', 'Credință ancorată în Scriptură, speranță și adevăr.'],
+                ['03', 'Părtășie', 'Creștem împreună prin grupuri, întâlniri și evenimente.'],
+              ].map(([number, title, text]) => (
+                <div key={number} className="py-7 sm:py-9 sm:pr-10 border-b sm:border-b-0 sm:border-r last:border-r-0 border-black/15">
+                  <span className="text-xs font-semibold tracking-[0.2em] text-[#102b52]">{number}</span>
+                  <h3 className="font-heading text-2xl sm:text-3xl font-semibold mt-8">{title}</h3>
+                  <p className="text-sm leading-relaxed text-black/55 mt-3 max-w-xs">{text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-[#0b1d35] text-white px-6 sm:px-10 lg:px-16 py-20 sm:py-28">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-8 border-b border-white/15 pb-8">
+            <div>
+              <p className="text-xs uppercase tracking-[0.25em] text-white/45 mb-4">În comunitate</p>
+              <h2 className="font-heading text-5xl sm:text-7xl font-semibold tracking-[-0.05em] leading-none">Ce urmează.</h2>
+            </div>
+            <Link href="/events" className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.15em] group">
+              Toate evenimentele <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
+
+          <div className="divide-y divide-white/15">
+            {list.slice(0, 4).map((event, idx) => (
+              <Link key={event.id} href={`/events/${event.id}`} className="group grid md:grid-cols-[100px_1fr_220px_40px] gap-5 md:gap-8 items-center py-7 sm:py-9">
+                <span className="text-sm text-white/40 font-medium">{String(idx + 1).padStart(2, '0')}</span>
+                <div>
+                  <span className="text-[10px] uppercase tracking-[0.22em] text-white/45">{event.category || 'Eveniment'}</span>
+                  <h3 className="font-heading text-2xl sm:text-3xl font-semibold mt-1 group-hover:text-white/65 transition-colors">{event.title}</h3>
+                </div>
+                <div className="text-sm text-white/55 md:text-right">
+                  <p className="flex md:justify-end items-center gap-2"><CalendarDays className="h-4 w-4" />{event.date_label || (event.date ? new Date(event.date).toLocaleDateString('ro-RO') : 'TBA')}</p>
+                  <p className="flex md:justify-end items-center gap-2 mt-2"><MapPin className="h-4 w-4" />{event.location || 'Casa Pâinii'}</p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-white/40 transition-transform group-hover:translate-x-1" />
+              </Link>
+            ))}
+          </div>
+
+          {list.length === 0 && (
+            <p className="py-12 text-white/55">Nu există încă evenimente publicate.</p>
           )}
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-14">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
-          {values.map(v => {
-            const Icon = v.icon
-            return (
-              <div key={v.title} data-testid={`value-card-${v.title}`} className="group bg-card rounded-3xl p-6 sm:p-7 border border-border/60 soft-shadow hover:-translate-y-1 transition-transform">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-primary mb-5">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <h3 className="font-heading font-semibold text-xl mb-2">{v.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{v.text}</p>
-              </div>
-            )
-          })}
+      <section className="bg-white text-black px-6 sm:px-10 lg:px-16 py-20 sm:py-28">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-[.8fr_1.2fr] gap-12 lg:gap-24 items-center">
+          <div>
+            <p className="text-xs uppercase tracking-[0.25em] text-[#102b52] mb-5">Live & împreună</p>
+            <h2 className="font-heading text-5xl sm:text-7xl font-semibold tracking-[-0.05em] leading-[0.9]">Fii cu noi.<br /><span className="text-black/35">Oriunde ai fi.</span></h2>
+          </div>
+          <div className="border-t border-black/15 pt-8">
+            <p className="text-lg sm:text-2xl leading-relaxed max-w-2xl text-black/65">
+              Urmărește serviciile noastre, descoperă mesajele și rămâi conectat cu ceea ce se întâmplă la Casa Pâinii.
+            </p>
+            <Link href="/live" className="mt-8 inline-flex items-center gap-3 bg-[#102b52] text-white px-6 py-3.5 text-sm font-semibold uppercase tracking-[0.12em] group">
+              <Play className="h-4 w-4 fill-current" /> Urmărește live <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24">
-        <div className="flex items-end justify-between mb-7">
+      <section className="bg-black text-white px-6 sm:px-10 lg:px-16 py-16 sm:py-24">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-10">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary mb-2">În comunitate</p>
-            <h2 className="font-heading text-3xl sm:text-4xl font-semibold tracking-tight">Ce urmează</h2>
-            <p className="text-muted-foreground mt-2">Descoperă următoarele evenimente de la Casa Pâinii.</p>
+            <p className="text-xs uppercase tracking-[0.25em] text-white/40 mb-5">Casa Pâinii</p>
+            <h2 className="font-heading text-5xl sm:text-7xl lg:text-8xl font-semibold tracking-[-0.06em] leading-[0.85]">Vino așa<br />cum ești.</h2>
           </div>
-          <Link href="/events" data-testid="home-view-all-events" className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-2.5 transition-all">
-            Vezi toate <ArrowRight className="h-4 w-4" />
+          <Link href="/contact" className="inline-flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.16em] border-b border-white/35 pb-3 group">
+            Hai să ne cunoaștem <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </Link>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {list.slice(0, 3).map((event, idx) => (
-            <Link key={event.id} href={`/events/${event.id}`} data-testid={`home-event-card-${event.id}`}
-              className="group rounded-3xl overflow-hidden bg-card border border-border/60 soft-shadow hover:shadow-[0_18px_45px_rgb(0,0,0,0.09)] hover:-translate-y-1 transition-all">
-              <div className="relative h-52 overflow-hidden">
-                <img src={imageForEvent(event, idx)} alt={event.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
-                <span className="absolute top-4 left-4 rounded-full bg-white/90 backdrop-blur text-foreground text-xs font-semibold px-3 py-1.5">{event.category || 'Eveniment'}</span>
-                <span className="absolute bottom-4 left-4 text-white text-sm font-medium">{event.date_label || (event.date ? new Date(event.date).toLocaleDateString('ro-RO') : 'TBA')}</span>
-              </div>
-              <div className="p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="font-heading font-semibold text-xl group-hover:text-primary transition-colors">{event.title}</h3>
-                  <span className="shrink-0 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground">{formatPrice(event.price)}</span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2 mb-4 leading-relaxed line-clamp-2">{event.description}</p>
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{event.location || 'Casa Pâinii'}</span>
-                  <ArrowRight className="h-4 w-4 ml-auto text-primary transition-transform group-hover:translate-x-1" />
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-        <Link href="/events" data-testid="home-mobile-view-all-events" className="sm:hidden mt-6 w-full inline-flex items-center justify-center gap-2 rounded-full bg-primary text-primary-foreground py-3.5 font-semibold">
-          Vezi toate evenimentele <ArrowRight className="h-4 w-4" />
-        </Link>
       </section>
     </div>
   )
