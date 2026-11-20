@@ -53,7 +53,7 @@ Set these values in the local server environment (never in browser code):
 - `PLANNING_CENTER_SECRET`
 - `PROPRESENTER_URL` (for example, the ProPresenter machine's LAN address and configured API port)
 
-Planning Center uses a Personal Access Token for this single-church server integration. Credentials are kept server-side. The current sync imports future Services plans; it does not yet replace Planning Center's people, groups or volunteer scheduling modules.
+Planning Center uses a Personal Access Token for this single-church server integration. Credentials are kept server-side. The current sync imports up to 25 future Services plans per run, including their ordered service items; it does not yet replace Planning Center's people, groups or volunteer scheduling modules.
 
 ## NDI receivers
 
