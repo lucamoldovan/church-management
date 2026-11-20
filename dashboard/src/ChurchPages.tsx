@@ -110,7 +110,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     setBusy(true); setError(""); setSuccess("");
     try {
       const result = await syncPlanningCenter();
-      setSuccess(`Imported ${result.imported} service plans and ${result.itemsImported} order items from Planning Center.`);
+      setSuccess(`Synced ${result.imported} service plans and ${result.itemsImported} order items from Planning Center.`);
       setServiceItems({}); setExpandedServiceId(null);
       await refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Planning Center sync failed."); }
@@ -134,7 +134,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     <Notice error={error} success={success}/>
     {loading ? <Loading/> : <div className="church-list">{services.map(s => <div key={s.id}>
       <article className="panel church-row"><div className="church-row-icon"><CalendarDays/></div><div className="church-row-main"><strong>{s.title}</strong><span>{dateLabel(s.startsAt)}{s.location ? ` · ${s.location}` : ""}</span></div><span className="source-pill">{s.itemCount ?? 0} items</span><span className={`source-pill ${s.source === "planning_center" ? "source-external" : ""}`}>{s.source === "planning_center" ? "Planning Center" : "Local"}</span>{(s.itemCount ?? 0) > 0 && <button className="button button-secondary" onClick={() => void toggleServiceItems(s.id)} disabled={busy}>{expandedServiceId === s.id ? "Hide order" : "View order"}</button>}</article>
-      {expandedServiceId === s.id && <div className="panel service-order">{(serviceItems[s.id] ?? []).map((item, index) => <div className="service-order-item" key={item.id}><span className="service-order-number">{index + 1}</span><div><strong>{item.title}</strong><small>{item.itemType}{item.notes ? ` · ${item.notes}` : ""}</small></div></div>)}{!serviceItems[s.id]?.length && <Empty text="No order items found for this service."/>}</div>}
+      {expandedServiceId === s.id && <div className="panel service-order">{(serviceItems[s.id] ?? []).map((item, index) => <div className="service-order-item" key={item.id}><span className="service-order-number">{item.position > 0 ? item.position : index + 1}</span><div><strong>{item.title}</strong><small>{item.itemType}{item.notes ? ` · ${item.notes}` : ""}</small></div></div>)}{!serviceItems[s.id]?.length && <Empty text="No order items found for this service."/>}</div>}
     </div>)}{!services.length && <Empty text="No services yet. Create one or sync Planning Center."/>}</div>}
   </div>;
 
