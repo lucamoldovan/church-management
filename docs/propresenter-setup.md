@@ -39,7 +39,7 @@ Open **ProPresenter** in the Church Operations dashboard. The current integratio
 - `GET /v1/status/slide` — current/next slide text and image UUIDs.
 - `GET /v1/presentation/slide_index` — current slide index.
 
-The dashboard currently provides read-only live monitoring. It polls the local API every five seconds. It does not yet send presentation-control commands. Do not assume that seeing a connected status means remote control is enabled.
+The dashboard polls live status every five seconds and now exposes an allowlisted control panel for administrators and production staff: Previous cue, Next cue, and Clear slide. The server calls the documented ProPresenter HTTP API endpoints from the LAN. Clear slide affects only the slide layer. These commands are intentionally narrow; arbitrary URL or shell commands are not accepted.
 
 ## Planning Center Services: single-church authentication
 
