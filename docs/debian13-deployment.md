@@ -24,12 +24,16 @@ sudo apt install -y git curl ca-certificates openssl   build-essential python3 m
 sudo systemctl enable --now ssh avahi-daemon
 ```
 
-The application requires Node.js 22 or newer. Install a supported Node.js LTS release (Node 22 or newer), then verify:
+The application and CI target Node.js 22 or newer. Install Node.js 22 from NodeSource (the Debian 13 archive may provide an older major version):
 
 ```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
 node --version
 npm --version
 ```
+
+The Node version must report 22.x or newer.
 
 Do not use Debian's Node package if it reports a version below 22.
 
@@ -74,7 +78,10 @@ sudo openssl req -x509 -new -nodes \
   -key /root/church-local-ca/ca.key \
   -sha256 -days 3650 \
   -out /etc/church-operations/tls/ca.crt \
-  -subj "/CN=Church Operations Local CA"
+  -subj "/CN=Church Operations Local CA" \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign" \
+  -addext "subjectKeyIdentifier=hash"
 
 sudo openssl req -new -newkey rsa:3072 -nodes \
   -keyout /etc/church-operations/tls/server.key \
@@ -95,7 +102,7 @@ sudo openssl x509 -req -in /root/church-local-ca/server.csr \
   -CA /etc/church-operations/tls/ca.crt \
   -CAkey /root/church-local-ca/ca.key \
   -CAcreateserial -out /etc/church-operations/tls/server.crt \
-  -days 825 -sha256 -extfile /root/church-local-ca/server.ext
+  -days 825 -sha256 -extfile /root/church-local-ca/server.ext -extensions v3_server
 
 sudo chown root:churchops /etc/church-operations/tls/server.key
 sudo chmod 0640 /etc/church-operations/tls/server.key
@@ -301,8 +308,9 @@ Create a dedicated desktop user (the graphical autologin account) and group befo
 
 ```bash
 sudo adduser veyra
+getent group render >/dev/null || sudo groupadd --system render
 sudo usermod -aG video,render veyra
-sudo apt install -y xfce4 lightdm
+sudo apt install -y xfce4 lightdm libgl1-mesa-dri x11-xserver-utils
 sudo install -d -m 0755 /etc/lightdm/lightdm.conf.d
 sudo tee /etc/lightdm/lightdm.conf.d/50-veyra-autologin.conf >/dev/null <<'EOF'
 [Seat:*]
