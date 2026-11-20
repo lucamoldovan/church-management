@@ -49,7 +49,7 @@ NDI audio remains disabled. Receiver fallback behavior and device configuration 
 
 Planning Center is initially used as a read/sync source for future Services plans and their ordered service items. A single-church Personal Access Token is configured on the server, never in browser code. Imported records are stored locally. The long-term direction is to replace Planning Center with native service, people, group and volunteer modules.
 
-ProPresenter is queried by the local server for version, active presentation, current slide text and slide index using its documented HTTP endpoints. This connector is read-only and does not assume a bearer token. The ProPresenter API can expose powerful control endpoints, so restrict its listener to trusted production-network hosts. The browser only talks to the Church Operations API and never directly accesses the production computer.
+ProPresenter is queried by the local server for version, active presentation, current slide text and slide index using its documented HTTP endpoints. The connector reads live status and exposes a narrow, authenticated allowlist for previous cue, next cue, and clearing the slide layer. It does not accept arbitrary API paths or shell commands and does not assume a bearer token. The ProPresenter API can expose powerful control endpoints, so restrict its listener to trusted production-network hosts. The browser only talks to the Church Operations API and never directly accesses the production computer.
 
 ## Data ownership
 
