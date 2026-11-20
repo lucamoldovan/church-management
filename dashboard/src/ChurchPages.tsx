@@ -3,8 +3,8 @@ import { Activity, CalendarDays, CircleAlert, LoaderCircle, Plus, RefreshCw, Use
 import {
   createChurchEvent, createChurchGroup, createChurchService, createChurchStaff,
   getChurchEvents, getChurchGroups, getChurchServices, getChurchStaff,
-  getPlanningCenterStatus, getProPresenterLive, syncPlanningCenter,
-  type ChurchEvent, type ChurchGroup, type ChurchService, type ChurchStaff,
+  getPlanningCenterStatus, getProPresenterLive, getChurchServiceItems, syncPlanningCenter,
+  type ChurchEvent, type ChurchGroup, type ChurchService, type ChurchServiceItem, type ChurchStaff,
   type ProPresenterLive,
 } from "./api";
 
@@ -26,6 +26,8 @@ function Notice({ error, success }: { error: string; success: string }) {
 
 export function ChurchPage({ page, role }: { page: ChurchPageId; role: string }) {
   const [services, setServices] = useState<ChurchService[]>([]);
+  const [expandedServiceId, setExpandedServiceId] = useState<string | null>(null);
+  const [serviceItems, setServiceItems] = useState<Record<string, ChurchServiceItem[]>>({});
   const [staff, setStaff] = useState<ChurchStaff[]>([]);
   const [events, setEvents] = useState<ChurchEvent[]>([]);
   const [groups, setGroups] = useState<ChurchGroup[]>([]);
@@ -92,11 +94,24 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     finally { setBusy(false); }
   };
 
+  const toggleServiceItems = async (serviceId: string) => {
+    if (expandedServiceId === serviceId) { setExpandedServiceId(null); return; }
+    setExpandedServiceId(serviceId);
+    if (serviceItems[serviceId]) return;
+    setBusy(true); setError("");
+    try {
+      const result = await getChurchServiceItems(serviceId);
+      setServiceItems(current => ({ ...current, [serviceId]: result.items }));
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not load the service order."); }
+    finally { setBusy(false); }
+  };
+
   const sync = async () => {
     setBusy(true); setError(""); setSuccess("");
     try {
       const result = await syncPlanningCenter();
-      setSuccess(`Imported ${result.imported} service plans from Planning Center.`);
+      setSuccess(`Imported ${result.imported} service plans and ${result.itemsImported} order items from Planning Center.`);
+      setServiceItems({}); setExpandedServiceId(null);
       await refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Planning Center sync failed."); }
     finally { setBusy(false); }
@@ -117,7 +132,10 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     </div>
     {showForm && <form className="panel church-form" onSubmit={submit}><h2>Create service</h2><label>Title<input name="title" required maxLength={160}/></label><label>Starts<input name="startsAt" type="datetime-local"/></label><label>Ends<input name="endsAt" type="datetime-local"/></label><label>Location<input name="location"/></label><button className="button button-dark" disabled={busy}>Save service</button></form>}
     <Notice error={error} success={success}/>
-    {loading ? <Loading/> : <div className="church-list">{services.map(s => <article className="panel church-row" key={s.id}><div className="church-row-icon"><CalendarDays/></div><div className="church-row-main"><strong>{s.title}</strong><span>{dateLabel(s.startsAt)}{s.location ? ` · ${s.location}` : ""}</span></div><span className={`source-pill ${s.source === "planning_center" ? "source-external" : ""}`}>{s.source === "planning_center" ? "Planning Center" : "Local"}</span></article>)}{!services.length && <Empty text="No services yet. Create one or sync Planning Center."/>}</div>}
+    {loading ? <Loading/> : <div className="church-list">{services.map(s => <div key={s.id}>
+      <article className="panel church-row"><div className="church-row-icon"><CalendarDays/></div><div className="church-row-main"><strong>{s.title}</strong><span>{dateLabel(s.startsAt)}{s.location ? ` · ${s.location}` : ""}</span></div><span className="source-pill">{s.itemCount ?? 0} items</span><span className={`source-pill ${s.source === "planning_center" ? "source-external" : ""}`}>{s.source === "planning_center" ? "Planning Center" : "Local"}</span>{(s.itemCount ?? 0) > 0 && <button className="button button-secondary" onClick={() => void toggleServiceItems(s.id)} disabled={busy}>{expandedServiceId === s.id ? "Hide order" : "View order"}</button>}</article>
+      {expandedServiceId === s.id && <div className="panel service-order">{(serviceItems[s.id] ?? []).map((item, index) => <div className="service-order-item" key={item.id}><span className="service-order-number">{index + 1}</span><div><strong>{item.title}</strong><small>{item.itemType}{item.notes ? ` · ${item.notes}` : ""}</small></div></div>)}{!serviceItems[s.id]?.length && <Empty text="No order items found for this service."/>}</div>}
+    </div>)}{!services.length && <Empty text="No services yet. Create one or sync Planning Center."/>}</div>}
   </div>;
 
   if (page === "staff") return <div>
