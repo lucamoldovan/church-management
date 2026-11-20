@@ -342,3 +342,11 @@ export interface ProPresenterLive {
 export function getProPresenterLive(): Promise<ProPresenterLive> {
   return request("/api/v1/integrations/propresenter/live");
 }
+
+export type ProPresenterAction = "next" | "previous" | "clear_slide";
+export function sendProPresenterCommand(action: ProPresenterAction): Promise<{ success: true; action: ProPresenterAction; message: string }> {
+  return request("/api/v1/integrations/propresenter/command", {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
+}
