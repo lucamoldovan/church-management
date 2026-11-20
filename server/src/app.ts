@@ -163,13 +163,13 @@ function getSessionOperator(database: VeyraDatabase, token: string | undefined):
   if (!token) return null;
 
   const row = database.prepare(`
-    SELECT operators.id, operators.username, sessions.expires_at
+    SELECT operators.id, operators.username, operators.active, sessions.expires_at
     FROM sessions
     INNER JOIN operators ON operators.id = sessions.operator_id
     WHERE sessions.token_hash = ?
-  `).get(hashSessionToken(token)) as { id: string; username: string; expires_at: string } | undefined;
+  `).get(hashSessionToken(token)) as { id: string; username: string; active: number; expires_at: string } | undefined;
 
-  if (!row) return null;
+  if (!row || row.active !== 1) return null;
   if (Date.parse(row.expires_at) <= Date.now()) {
     database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashSessionToken(token));
     return null;
@@ -243,9 +243,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     app.register(fastifyStatic, { root: dashboardDirectory, prefix: "/", wildcard: false });
     app.get("/", async (_request, reply) => reply.sendFile("index.html"));
     app.setNotFoundHandler(async (request, reply) => {
-      if (request.method === "GET" && !request.url.startsWith("/api/")) {
-        return reply.sendFile("index.html");
-      }
+      if (request.method === "GET" && !request.url.startsWith("/api/")) return reply.sendFile("index.html");
       return reply.code(404).send({ error: "Not found" });
     });
   }
@@ -1120,6 +1118,244 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       return { accepted: true, serverTime: now };
     },
   );
+
+
+  // Church operations API. All routes remain inside the authenticated local control plane.
+  const requireOperator = (request: FastifyRequest, reply: FastifyReply) =>
+    getAuthenticatedOperator(database, request, reply);
+
+  const requireAdmin = (request: FastifyRequest, reply: FastifyReply) => {
+    const operator = requireOperator(request, reply);
+    if (!operator) return null;
+    const row = database.prepare("SELECT role, active FROM operators WHERE id = ?").get(operator.id) as
+      { role: string; active: number } | undefined;
+    if (!row || row.active !== 1) {
+      reply.code(403).send({ error: "This staff account is disabled" });
+      return null;
+    }
+    if (row.role !== "admin") {
+      reply.code(403).send({ error: "Administrator permission required" });
+      return null;
+    }
+    return operator;
+  };
+
+  app.get("/api/v1/church/overview", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const staff = database.prepare("SELECT COUNT(*) AS count FROM operators WHERE active = 1").get() as { count: number };
+    const services = database.prepare("SELECT COUNT(*) AS count FROM church_services WHERE starts_at >= ?").get(new Date().toISOString()) as { count: number };
+    const events = database.prepare("SELECT COUNT(*) AS count FROM church_events WHERE status != 'cancelled' AND (ends_at IS NULL OR ends_at >= ?)").get(new Date().toISOString()) as { count: number };
+    const groups = database.prepare("SELECT COUNT(*) AS count FROM church_groups WHERE active = 1").get() as { count: number };
+    const devices = database.prepare("SELECT COUNT(*) AS count, SUM(CASE WHEN last_seen_at >= ? THEN 1 ELSE 0 END) AS online FROM devices WHERE credential_revoked_at IS NULL").get(new Date(Date.now() - 60_000).toISOString()) as { count: number; online: number | null };
+    const propresenter = database.prepare("SELECT connected, version, presentation_name, slide_index, slide_count, slide_text, last_checked_at, error FROM propresenter_state WHERE id = 1").get() ?? null;
+    return {
+      staffCount: staff.count,
+      upcomingServices: services.count,
+      activeEvents: events.count,
+      activeGroups: groups.count,
+      receiverCount: devices.count,
+      onlineReceivers: devices.online ?? 0,
+      propresenter,
+    };
+  });
+
+  app.get("/api/v1/church/staff", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const rows = database.prepare(`
+      SELECT id, username, display_name AS displayName, role, department, active, created_at AS createdAt
+      FROM operators ORDER BY display_name COLLATE NOCASE, username COLLATE NOCASE
+    `).all();
+    return { staff: rows };
+  });
+
+  app.post<{ Body: Record<string, unknown> }>("/api/v1/church/staff", async (request, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    const body = request.body ?? {};
+    const username = typeof body.username === "string" ? body.username.trim() : "";
+    const displayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    const role = typeof body.role === "string" ? body.role : "staff";
+    const department = typeof body.department === "string" ? body.department.trim() : null;
+    if (!/^[a-zA-Z0-9_-]{3,32}$/.test(username)) return reply.code(400).send({ error: "Username must be 3–32 characters and use letters, numbers, _ or -" });
+    if (password.length < 12 || password.length > 256) return reply.code(400).send({ error: "Password must be at least 12 characters" });
+    if (!displayName || displayName.length > 100) return reply.code(400).send({ error: "A display name is required" });
+    if (!["admin", "staff", "production", "leader"].includes(role)) return reply.code(400).send({ error: "Invalid staff role" });
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    try {
+      database.prepare("INSERT INTO operators (id, username, password_hash, display_name, role, department, active, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)")
+        .run(id, username, await hashPassword(password), displayName, role, department, now);
+    } catch {
+      return reply.code(409).send({ error: "That username is already in use" });
+    }
+    return reply.code(201).send({ id, username, displayName, role, department, active: true, createdAt: now });
+  });
+
+  app.patch<{ Params: { staffId: string }; Body: Record<string, unknown> }>("/api/v1/church/staff/:staffId", async (request, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    const body = request.body ?? {};
+    const current = database.prepare("SELECT id FROM operators WHERE id = ?").get(request.params.staffId);
+    if (!current) return reply.code(404).send({ error: "Staff account not found" });
+    const role = typeof body.role === "string" ? body.role : null;
+    const active = typeof body.active === "boolean" ? (body.active ? 1 : 0) : null;
+    const department = typeof body.department === "string" ? body.department.trim() : undefined;
+    if (role && !["admin", "staff", "production", "leader"].includes(role)) return reply.code(400).send({ error: "Invalid staff role" });
+    database.prepare("UPDATE operators SET role = COALESCE(?, role), active = COALESCE(?, active), department = COALESCE(?, department) WHERE id = ?")
+      .run(role, active, department === undefined ? null : department, request.params.staffId);
+    return { updated: true };
+  });
+
+  app.get("/api/v1/church/services", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const services = database.prepare(`
+      SELECT id, title, starts_at AS startsAt, ends_at AS endsAt, status, location, notes, source, external_id AS externalId
+      FROM church_services ORDER BY starts_at IS NULL, starts_at ASC LIMIT 100
+    `).all();
+    return { services };
+  });
+
+  app.post<{ Body: Record<string, unknown> }>("/api/v1/church/services", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const body = request.body ?? {};
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    if (!title || title.length > 160) return reply.code(400).send({ error: "Service title is required (maximum 160 characters)" });
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    database.prepare("INSERT INTO church_services (id, title, starts_at, ends_at, status, location, notes, source, created_at, updated_at) VALUES (?, ?, ?, ?, 'planned', ?, ?, 'local', ?, ?)")
+      .run(id, title, typeof body.startsAt === "string" ? body.startsAt : null, typeof body.endsAt === "string" ? body.endsAt : null, typeof body.location === "string" ? body.location : null, typeof body.notes === "string" ? body.notes : null, now, now);
+    return reply.code(201).send({ id, title, startsAt: body.startsAt ?? null, endsAt: body.endsAt ?? null, status: "planned", source: "local" });
+  });
+
+  app.get("/api/v1/church/events", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const events = database.prepare("SELECT id, title, description, starts_at AS startsAt, ends_at AS endsAt, location, capacity, status, source FROM church_events ORDER BY starts_at IS NULL, starts_at ASC LIMIT 100").all();
+    return { events };
+  });
+
+  app.post<{ Body: Record<string, unknown> }>("/api/v1/church/events", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const body = request.body ?? {};
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    if (!title || title.length > 160) return reply.code(400).send({ error: "Event title is required (maximum 160 characters)" });
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    database.prepare("INSERT INTO church_events (id, title, description, starts_at, ends_at, location, capacity, status, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'planned', 'local', ?, ?)")
+      .run(id, title, typeof body.description === "string" ? body.description : null, typeof body.startsAt === "string" ? body.startsAt : null, typeof body.endsAt === "string" ? body.endsAt : null, typeof body.location === "string" ? body.location : null, typeof body.capacity === "number" && Number.isInteger(body.capacity) ? body.capacity : null, now, now);
+    return reply.code(201).send({ id, title, status: "planned", source: "local" });
+  });
+
+  app.get("/api/v1/church/groups", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const groups = database.prepare(`
+      SELECT g.id, g.name, g.description, g.leader, g.meeting_day AS meetingDay,
+             g.meeting_time AS meetingTime, g.location, g.active,
+             COUNT(m.operator_id) AS memberCount
+      FROM church_groups g LEFT JOIN church_group_members m ON m.group_id = g.id
+      GROUP BY g.id ORDER BY g.name COLLATE NOCASE
+    `).all();
+    return { groups };
+  });
+
+  app.post<{ Body: Record<string, unknown> }>("/api/v1/church/groups", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const body = request.body ?? {};
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    if (!name || name.length > 120) return reply.code(400).send({ error: "Group name is required (maximum 120 characters)" });
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    database.prepare("INSERT INTO church_groups (id, name, description, leader, meeting_day, meeting_time, location, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)")
+      .run(id, name, typeof body.description === "string" ? body.description : null, typeof body.leader === "string" ? body.leader : null, typeof body.meetingDay === "string" ? body.meetingDay : null, typeof body.meetingTime === "string" ? body.meetingTime : null, typeof body.location === "string" ? body.location : null, now, now);
+    return reply.code(201).send({ id, name, active: true, memberCount: 0 });
+  });
+
+  app.get("/api/v1/integrations/planning-center/status", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const appId = process.env.PLANNING_CENTER_APP_ID?.trim();
+    const secret = process.env.PLANNING_CENTER_SECRET?.trim();
+    if (!appId || !secret) return { configured: false, connected: false, message: "Set PLANNING_CENTER_APP_ID and PLANNING_CENTER_SECRET on the local server." };
+    try {
+      const response = await fetch("https://api.planningcenteronline.com/services/v2/service_types?per_page=1", {
+        headers: { Authorization: "Basic " + Buffer.from(`${appId}:${secret}`).toString("base64"), Accept: "application/json", "User-Agent": "ChurchOperations/1.0" },
+        signal: AbortSignal.timeout(5000),
+      });
+      return { configured: true, connected: response.ok, statusCode: response.status, message: response.ok ? "Planning Center Services API reachable." : "Planning Center rejected the credentials or request." };
+    } catch {
+      return { configured: true, connected: false, message: "Planning Center could not be reached from the local server." };
+    }
+  });
+
+  app.post("/api/v1/integrations/planning-center/sync", async (request, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    const appId = process.env.PLANNING_CENTER_APP_ID?.trim();
+    const secret = process.env.PLANNING_CENTER_SECRET?.trim();
+    if (!appId || !secret) return reply.code(409).send({ error: "Configure Planning Center credentials on the local server first" });
+    const headers = { Authorization: "Basic " + Buffer.from(`${appId}:${secret}`).toString("base64"), Accept: "application/json", "User-Agent": "ChurchOperations/1.0" };
+    const fetchJson = async (url: string) => {
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+      if (!response.ok) throw new Error(`Planning Center returned HTTP ${response.status}`);
+      return response.json() as Promise<{ data?: Array<{ id: string; attributes?: Record<string, unknown> }> }>;
+    };
+    try {
+      const types = await fetchJson("https://api.planningcenteronline.com/services/v2/service_types?per_page=100");
+      let imported = 0;
+      for (const type of (types.data ?? []).slice(0, 20)) {
+        const plans = await fetchJson(`https://api.planningcenteronline.com/services/v2/service_types/${encodeURIComponent(type.id)}/plans?filter=future&per_page=20`);
+        for (const plan of plans.data ?? []) {
+          const attrs = plan.attributes ?? {};
+          const title = String(attrs.series_title || attrs.title || attrs.plan_title || type.attributes?.name || "Service plan").slice(0, 160);
+          const startsAt = typeof attrs.sort_date === "string" ? attrs.sort_date : typeof attrs.dates === "string" ? attrs.dates : null;
+          const now = new Date().toISOString();
+          database.prepare(`INSERT INTO church_services (id, title, starts_at, status, source, external_id, raw_json, created_at, updated_at)
+            VALUES (?, ?, ?, 'planned', 'planning_center', ?, ?, ?, ?)
+            ON CONFLICT(external_id) DO UPDATE SET title=excluded.title, starts_at=excluded.starts_at, raw_json=excluded.raw_json, updated_at=excluded.updated_at`)
+            .run(randomUUID(), title, startsAt, plan.id, JSON.stringify(plan), now, now);
+          imported++;
+        }
+      }
+      return { imported, serviceTypes: (types.data ?? []).length, syncedAt: new Date().toISOString() };
+    } catch (error) {
+      return reply.code(502).send({ error: error instanceof Error ? error.message : "Planning Center sync failed" });
+    }
+  });
+
+  app.get("/api/v1/integrations/propresenter/live", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const baseUrl = process.env.PROPRESENTER_URL?.trim().replace(/\/$/, "");
+    if (!baseUrl) return { configured: false, connected: false, message: "Set PROPRESENTER_URL on the local server." };
+    const headers: Record<string, string> = { Accept: "application/json" };
+    const apiToken = process.env.PROPRESENTER_API_TOKEN?.trim();
+    if (apiToken) headers.Authorization = `Bearer ${apiToken}`;
+    try {
+      const [versionResponse, presentationResponse, slideResponse] = await Promise.all([
+        fetch(`${baseUrl}/version`, { headers, signal: AbortSignal.timeout(4000) }),
+        fetch(`${baseUrl}/v1/presentation/active`, { headers, signal: AbortSignal.timeout(4000) }),
+        fetch(`${baseUrl}/v1/status/slide`, { headers, signal: AbortSignal.timeout(4000) }),
+      ]);
+      if (!versionResponse.ok) throw new Error(`ProPresenter returned HTTP ${versionResponse.status}`);
+      const version = await versionResponse.json();
+      const presentation = presentationResponse.ok ? await presentationResponse.json() : null;
+      const slide = slideResponse.ok ? await slideResponse.json() : null;
+      const state = { connected: true, version, presentation, slide, checkedAt: new Date().toISOString() };
+      database.prepare(`INSERT INTO propresenter_state (id, connected, version, presentation_name, slide_index, slide_count, slide_text, last_checked_at, error)
+        VALUES (1, 1, ?, ?, ?, ?, ?, ?, NULL)
+        ON CONFLICT(id) DO UPDATE SET connected=1, version=excluded.version, presentation_name=excluded.presentation_name,
+          slide_index=excluded.slide_index, slide_count=excluded.slide_count, slide_text=excluded.slide_text,
+          last_checked_at=excluded.last_checked_at, error=NULL`)
+        .run(typeof version === "object" && version && "version" in version ? String(version.version) : JSON.stringify(version).slice(0, 160),
+          typeof presentation === "object" && presentation && "name" in presentation ? String(presentation.name).slice(0, 160) : null,
+          typeof slide === "object" && slide && "index" in slide ? Number(slide.index) : null,
+          typeof slide === "object" && slide && "count" in slide ? Number(slide.count) : null,
+          typeof slide === "object" && slide && "text" in slide ? String(slide.text).slice(0, 2000) : null,
+          state.checkedAt);
+      return state;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "ProPresenter connection failed";
+      database.prepare(`INSERT INTO propresenter_state (id, connected, last_checked_at, error) VALUES (1, 0, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET connected=0, last_checked_at=excluded.last_checked_at, error=excluded.error`)
+        .run(new Date().toISOString(), message);
+      return { configured: true, connected: false, message };
+    }
+  });
 
   return app;
 }
