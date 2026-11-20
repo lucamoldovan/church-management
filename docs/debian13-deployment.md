@@ -89,6 +89,7 @@ sudo openssl req -new -newkey rsa:3072 -nodes \
   -subj "/CN=church-server.local"
 
 sudo tee /root/church-local-ca/server.ext >/dev/null <<'EOF'
+[v3_server]
 basicConstraints=critical,CA:FALSE
 keyUsage=critical,digitalSignature,keyEncipherment
 extendedKeyUsage=serverAuth
