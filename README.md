@@ -8,7 +8,7 @@ A staff-only church operations and media platform. The dashboard, API, database 
 - **Local API:** Node.js 22+ + Fastify.
 - **Database:** SQLite via better-sqlite3. Stored locally with restrictive filesystem permissions.
 - **NDI screens:** Native Linux receiver based on the existing Veyra NDI receiver engine and control-plane protocol.
-- **ProPresenter:** Server-side integration with the ProPresenter HTTP API.
+- **ProPresenter:** Server-side live status plus allowlisted Previous cue, Next cue and Clear slide controls for administrator/production staff.
 - **Planning Center:** Initial read/sync source for service plans. The local database is the future source of truth.
 
 There are no Cloudflare Workers, D1, R2, OpenNext, Supabase or hosted application dependencies in this branch. The only external network connections are optional integrations configured by the church (currently Planning Center and the ProPresenter machine on the LAN).
@@ -59,4 +59,6 @@ Planning Center uses a Personal Access Token for this single-church server integ
 
 Build and install the receiver from `receiver/` on a supported Linux display machine. The receiver remains a separate native process because NDI decoding and fullscreen display output cannot run inside a browser tab. It pairs with the local server and is managed from the **NDI screens** section of the staff dashboard.
 
-See [docs/architecture.md](docs/architecture.md) and [docs/control-plane-contract.md](docs/control-plane-contract.md) for the receiver/server contract.
+See [docs/architecture.md](docs/architecture.md) and [docs/control-plane-contract.md](docs/control-plane-contract.md) for the receiver/server contract. For installation, use the [Debian 13 deployment runbook](docs/debian13-deployment.md), the [NDI hardware validation checklist](docs/ndi-validation.md), and the [ProPresenter / Planning Center setup guide](docs/propresenter-setup.md).
+
+The public CI compiles and tests the receiver's renderer and control-plane components without the proprietary NDI SDK. The complete NDI player still requires a build against the installed official SDK and a real sender/display test on the target hardware.
