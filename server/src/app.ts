@@ -1288,7 +1288,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     if (!appId || !secret) return { configured: false, connected: false, message: "Set PLANNING_CENTER_APP_ID and PLANNING_CENTER_SECRET on the local server." };
     try {
       const response = await fetch("https://api.planningcenteronline.com/services/v2/service_types?per_page=1", {
-        headers: { Authorization: "Basic " + Buffer.from(`${appId}:${secret}`).toString("base64"), Accept: "application/json", "User-Agent": "ChurchOperations/1.0" },
+        headers: { Authorization: "Basic " + Buffer.from(`${appId}:${secret}`).toString("base64"), Accept: "application/json", "User-Agent": "Church Operations (https://github.com/lucamoldovan/church-management)" },
         signal: AbortSignal.timeout(5000),
       });
       return { configured: true, connected: response.ok, statusCode: response.status, message: response.ok ? "Planning Center Services API reachable." : "Planning Center rejected the credentials or request." };
@@ -1302,7 +1302,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const appId = process.env.PLANNING_CENTER_APP_ID?.trim();
     const secret = process.env.PLANNING_CENTER_SECRET?.trim();
     if (!appId || !secret) return reply.code(409).send({ error: "Configure Planning Center credentials on the local server first" });
-    const headers = { Authorization: "Basic " + Buffer.from(`${appId}:${secret}`).toString("base64"), Accept: "application/json", "User-Agent": "ChurchOperations/1.0" };
+    const headers = { Authorization: "Basic " + Buffer.from(`${appId}:${secret}`).toString("base64"), Accept: "application/json", "User-Agent": "Church Operations (https://github.com/lucamoldovan/church-management)" };
     const fetchJson = async (url: string) => {
       const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
       if (!response.ok) throw new Error(`Planning Center returned HTTP ${response.status}`);
