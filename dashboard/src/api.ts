@@ -7,6 +7,7 @@ export interface ServerHealth {
 export interface Operator {
   id: string;
   username: string;
+  role: string;
 }
 
 export interface AuthSession {
