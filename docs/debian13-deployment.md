@@ -299,7 +299,6 @@ Create the config:
 ```bash
 sudo install -d -m 0755 /etc/veyra
 sudo install -m 0640 receiver/config/receiver.example.json /etc/veyra/config.json
-sudo chown root:veyra /etc/veyra/config.json
 sudo nano /etc/veyra/config.json
 ```
 
@@ -321,6 +320,7 @@ user-session=xfce
 EOF
 sudo systemctl enable lightdm
 sudo install -d -o root -g veyra -m 0755 /etc/veyra
+sudo chown root:veyra /etc/veyra/config.json
 sudo install -o root -g veyra -m 0644 /path/to/church-ca.crt /etc/veyra/church-ca.crt
 ```
 
@@ -328,7 +328,7 @@ Pair only one receiver at a time. Enter the 12-digit code in its config, start V
 
 ## 10. XFCE automatic startup and fullscreen
 
-Install the user service and autostart entry from this repository:
+Log into the receiver's XFCE desktop as the dedicated `veyra` user, then install the user service and autostart entry from this repository:
 
 ```bash
 mkdir -p ~/.config/systemd/user ~/.config/autostart
@@ -337,7 +337,7 @@ cp receiver/autostart/veyra.desktop ~/.config/autostart/veyra.desktop
 systemctl --user daemon-reload
 ```
 
-Enable XFCE autologin for the dedicated receiver user on the display computer. The desktop autostart entry imports the actual X11 session's `DISPLAY` and `XAUTHORITY`, disables screen blanking/DPMS, and starts the receiver only after the graphical session exists. Do not enable the user service against `default.target` separately; the XDG autostart entry is the session-aware trigger.
+Enable XFCE autologin for the dedicated receiver user on the display computer. The desktop autostart entry imports the actual X11 session's `DISPLAY` (and `XAUTHORITY` when set), disables screen blanking/DPMS, and starts the receiver only after the graphical session exists. If `XAUTHORITY` is not set, X11 uses the dedicated user's default `~/.Xauthority` file. Do not enable the user service against `default.target` separately; the XDG autostart entry is the session-aware trigger.
 
 After login:
 
