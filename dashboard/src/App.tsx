@@ -31,7 +31,7 @@ import {
   Wifi,
   X,
 } from "lucide-react";
-import { createDevicePairingCode, createInitialOperator, getAuthSession, getDevices, getPlaylists, getSources, getServerHealth, getSetupStatus, getChurchOverview, login, logout, revokeDeviceCredential, removeRevokedDevice, updateDeviceConfig, type ConnectionState, type Device, type NdiSource, type PlaylistSummary, type Operator, type PairingCode, type ServerHealth } from "./api";
+import { createDevicePairingCode, createInitialOperator, getAuthSession, getDevices, getPlaylists, getSources, getServerHealth, getSetupStatus, getChurchOverview, getMedia, login, logout, revokeDeviceCredential, removeRevokedDevice, updateDeviceConfig, type ConnectionState, type Device, type NdiSource, type PlaylistSummary, type Operator, type PairingCode, type ServerHealth } from "./api";
 import { MediaPage, PlaylistsPage, SourcesPage } from "./MediaPages";
 import { ChurchPage } from "./ChurchPages";
 
@@ -432,6 +432,8 @@ function Overview({
 }) {
   const [deviceCount, setDeviceCount] = useState<number | null>(null);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
+  const [sourceCount, setSourceCount] = useState<number | null>(null);
+  const [mediaCount, setMediaCount] = useState<number | null>(null);
   const [churchStats, setChurchStats] = useState<{ staffCount: number; upcomingServices: number; activeEvents: number; activeGroups: number } | null>(null);
 
   useEffect(() => {
@@ -458,14 +460,18 @@ function Overview({
       const currentController = new AbortController();
       controller = currentController;
       try {
-        const result = await getDevices(currentController.signal);
+        const [result, sources, media] = await Promise.all([getDevices(currentController.signal), getSources(currentController.signal), getMedia(currentController.signal)]);
         if (!active) return;
         setDeviceCount(result.devices.length);
         setOnlineCount(result.devices.filter((device) => device.status === "online").length);
+        setSourceCount(sources.sources.length);
+        setMediaCount(media.media.length);
       } catch {
         if (!active || currentController.signal.aborted) return;
         setDeviceCount(null);
         setOnlineCount(null);
+        setSourceCount(null);
+        setMediaCount(null);
       }
     };
 
@@ -482,7 +488,7 @@ function Overview({
     <>
       <section className="page-heading">
         <div>
-          <div className="eyebrow">YOUR NETWORK AT A GLANCE</div>
+          <div className="eyebrow">CHURCH OPERATIONS AT A GLANCE</div>
           <h1>Church operations.</h1>
           <p>Here's what's happening across church operations and production.</p>
         </div>
@@ -501,8 +507,8 @@ function Overview({
       <section className="stat-grid" aria-label="Network summary">
         <StatCard label="Total devices" value={deviceCount === null ? "—" : String(deviceCount)} detail={deviceCount === null ? "Device status unavailable" : deviceCount === 0 ? "No receivers registered" : "Registered receivers"} icon={Monitor} />
         <StatCard label="Online now" value={onlineCount === null ? "—" : String(onlineCount)} detail={onlineCount === null ? "Device status unavailable" : "Reporting a recent heartbeat"} icon={Wifi} />
-        <StatCard label="NDI sources" value="—" detail="Source discovery not connected" icon={Radio} />
-        <StatCard label="Media assets" value="0" detail="Your library is empty" icon={Image} />
+        <StatCard label="NDI sources" value="—" value={sourceCount === null ? "—" : String(sourceCount)} detail="Discovered on the local network" icon={Radio} />
+        <StatCard label="Media assets" value={mediaCount === null ? "—" : String(mediaCount)} detail="Media assets stored locally" icon={Image} />
       </section>
 
       <section className="overview-grid">
@@ -510,7 +516,7 @@ function Overview({
           <div className="panel-heading">
             <div>
               <h2>Network status</h2>
-              <p>Live connection to your local Veyra server</p>
+              <p>Live connection to the local church server</p>
             </div>
             <span className={`pill ${connection === "online" ? "pill-success" : connection === "offline" ? "pill-danger" : "pill-neutral"}`}>
               <span className="status-dot" />
@@ -521,13 +527,13 @@ function Overview({
           <div className="network-visual">
             <div className="network-node network-node-server">
               <div className="network-node-icon"><Server size={22} /></div>
-              <div><strong>Veyra server</strong><span>{connection === "online" ? "Responding normally" : connection === "offline" ? "Cannot be reached" : "Checking connection"}</span></div>
+              <div><strong>Church operations server</strong><span>{connection === "online" ? "Responding normally" : connection === "offline" ? "Cannot be reached" : "Checking connection"}</span></div>
               <span className={`node-dot ${connection}`} />
             </div>
             <div className="network-connector"><span /></div>
             <div className="network-node network-node-receivers">
               <div className="network-node-icon receiver-icon"><MonitorPlay size={22} /></div>
-              <div><strong>Receivers</strong><span>{deviceCount === null ? "Device status unavailable" : deviceCount === 0 ? "Waiting for devices to pair" : `${deviceCount} registered receiver${deviceCount === 1 ? "" : "s"}`}</span></div>
+              <div><strong>NDI receivers</strong><span>{deviceCount === null ? "Device status unavailable" : deviceCount === 0 ? "Waiting for devices to pair" : `${deviceCount} registered receiver${deviceCount === 1 ? "" : "s"}`}</span></div>
               <span className="node-count">{deviceCount === null ? "—" : deviceCount}</span>
             </div>
           </div>
