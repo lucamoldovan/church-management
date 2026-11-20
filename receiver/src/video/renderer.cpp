@@ -136,8 +136,15 @@ bool Renderer::pollEvents() {
         }
 
         if (event.type == SDL_WINDOWEVENT &&
-            (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED ||
-             event.window.event == SDL_WINDOWEVENT_RESIZED)) {
+            (event.window.event == SDL_WINDOWEVENT_EXPOSED ||
+             event.window.event == SDL_WINDOWEVENT_SHOWN ||
+             event.window.event == SDL_WINDOWEVENT_RESTORED ||
+             event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED ||
+             event.window.event == SDL_WINDOWEVENT_RESIZED ||
+             event.window.event == SDL_WINDOWEVENT_DISPLAY_CHANGED)) {
+            // Re-present cached fallback images after display sleep, restore,
+            // expose, or a monitor/mode change. Live NDI frames are redrawn
+            // continuously by the main loop.
             imageNeedsPresentation_ = true;
         }
 
