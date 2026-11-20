@@ -1,197 +1,74 @@
-# Veyra architecture
+# Church Operations architecture
 
-## Product vision
+## Product boundary
 
-**Veyra — Network video. Simplified.**
+Church Operations is an internal staff application for one church. It is not a public website or hosted SaaS application. The church runs the application server and database on hardware it controls.
 
-Veyra is a local-network video and display platform. Its first deployment environment is churches, but the product is general-purpose and is not defined by that environment.
+The browser dashboard is the only management interface. NDI receiver software remains a native process on each display endpoint because NDI decoding, hardware video presentation and fullscreen output do not belong in a browser.
 
-The platform combines:
+## Runtime topology
 
-- A browser-based dashboard for operators.
-- A local server that acts as the management authority.
-- Lightweight receiver devices that play NDI video and locally cached fallback content.
+Staff browsers -- HTTPS --> Local Church Operations server
+NDI receivers -- HTTPS/LAN --> Local Church Operations server
+ProPresenter computer -- HTTP/LAN --> Local Church Operations server
+Planning Center API -- HTTPS --> Local Church Operations server
 
-The receiver remains useful on its own: playback must not depend on the dashboard, the server, or an internet connection.
+The server owns authentication, staff permissions, church records, device credentials, media metadata and integration configuration. The React dashboard is served by the same Fastify origin in production. During development, Vite runs separately and proxies API requests to Fastify.
 
-## Confirmed product decisions
+## Components
 
-| Area | Decision |
-|---|---|
-| Server hosting | Local, on the customer's network |
-| Device communication | LAN |
-| Receiver fallback | Per-device |
-| NDI audio | Disabled; video only |
-| Internet dependency | None for normal local operation |
-| Initial receiver target | Debian 13 on x86_64, including the Late-2014 Mac mini |
+### Dashboard
 
-The dashboard and server are part of the product scope. The repository now includes the dashboard foundation and a local server with persistent SQLite storage and operator authentication. The server can now create one-time pairing codes, register devices, accept authenticated heartbeats, expose a protected device inventory, store local image assets, manage ordered playlists with per-image durations, and aggregate NDI source snapshots reported by receivers. The C++ receiver client now implements pairing, TLS-verified heartbeats, retry/backoff, protected credential storage, NDI source snapshots, versioned configuration polling, verified media synchronization, and cached image fallback. The server aggregates source snapshots and the dashboard displays them. Per-device NDI source and fallback-playlist assignments are implemented, along with versioned receiver configuration, assigned-media manifests, and authenticated media download endpoints. The native receiver polls these endpoints, verifies and caches assets, and renders timed fallback image playlists when its selected NDI source is unavailable.
+React + TypeScript + Vite. It contains one staff workspace with these sections:
 
-## System topology
+- Overview: staff, services, events, groups, NDI devices, discovered sources and media counts.
+- Services: local service records and Planning Center Services import.
+- Staff: internal accounts, role labels, department and activation status.
+- Events and Groups: basic local operational records.
+- ProPresenter: live presentation and current-slide information.
+- NDI screens: receiver inventory, pairing, health and assignments.
+- NDI sources: discovered senders reported by receivers.
+- Media and Playlists: local assets and per-device fallback playlists.
+- System: local server health and configuration information.
 
-```text
-                    Local network (LAN)
-  +------------------------------------------------------+
-  |                                                      |
-  |  Operator browser                                    |
-  |       |                                              |
-  |       v                                              |
-  |  +--------------------+      +-------------------+  |
-  |  | Veyra Dashboard    |<---->| Veyra Local Server|  |
-  |  | Devices / Sources  | API  | Auth / Database   |  |
-  |  | Media / Playlists  | WS   | Sync / Commands   |  |
-  |  | System / Logs      |      | Device registry   |  |
-  |  +--------------------+      +---------+---------+  |
-  |                                         |            |
-  |                    +--------------------+---------+  |
-  |                    |                    |         |  |
-  |                    v                    v         v  |
-  |              +-----------+        +-----------+  ... |
-  |              | Receiver  |        | Receiver  |      |
-  |              | NDI video |        | NDI video |      |
-  |              | Local     |        | Local     |      |
-  |              | fallback  |        | fallback  |      |
-  |              +-----------+        +-----------+      |
-  |                                                      |
-  +------------------------------------------------------+
-```
+There is no public member portal in this application.
 
-The dashboard is the operator interface. The local server owns shared configuration, device registration, media catalogues, playlists, and command coordination. Each receiver owns its playback process and local cache.
+### Local server
 
-## Main components
+Node.js 22+, Fastify 5 and SQLite using better-sqlite3. The server serves both the built dashboard and /api/v1 endpoints. SQLite runs in WAL mode; database and media directories use restrictive filesystem permissions.
 
-### 1. Veyra Receiver
+The default bind is loopback-only. Binding to a LAN interface is rejected unless both a TLS certificate and private key are configured. This protects staff sessions and receiver credentials on the local network.
 
-A small native Linux process responsible for reliable display output.
+### NDI receiver
 
-Current implementation:
+The existing Veyra C++20 receiver engine is retained under the receiver directory. It discovers NDI sources, receives video, renders fullscreen through SDL2 and reports device health and discovered sources to the local server. The receiver is a separate native application, not a browser component.
 
-- C++20, CMake, official NDI SDK, SDL2.
-- LAN NDI discovery and source selection.
-- Video-only NDI capture (no audio or metadata capture).
-- Fullscreen rendering with aspect-ratio preservation.
-- A bounded latest-frame slot between capture and rendering.
-- Local JSON configuration.
-- Frame-staleness detection and a black-screen state.
-- Independent libcurl control-plane client for one-time pairing, TLS-verified bearer heartbeats, discovery snapshots, and bounded retry/backoff.
-- Versioned configuration and assigned-media manifest polling on a separate worker thread.
-- SHA-256 and size verification, atomic asset writes, atomic manifest activation, and a bounded 512 MiB local cache.
-- Timed PNG/JPEG/WebP fallback slides that continue during NDI or server outages, then automatically yield to recovered NDI video.
-- Device token and cache persistence with owner-only filesystem permissions.
-- Graceful shutdown and systemd deployment support.
+NDI audio remains disabled. Receiver fallback behavior and device configuration remain controlled by the local server, while the receiver keeps its own cached media so playback can continue during a temporary server outage.
 
-Remaining receiver work:
+### Integrations
 
-- Receive and acknowledge allowlisted remote commands over a persistent channel.
-- Add richer health metrics and playback diagnostics.
-- Add explicit failure-injection tests for interrupted downloads, corrupt caches, and version mismatches.
-- Build the complete player against the official NDI SDK and validate source recovery, fallback, and server outages on target hardware.
+Planning Center is initially used as a read/sync source for future Services plans. A single-church Personal Access Token is configured on the server, never in browser code. Imported records are stored locally. The long-term direction is to replace Planning Center with native service, people, group and volunteer modules.
 
-The receiver must not require the dashboard or server to remain running for normal playback.
+ProPresenter is queried by the local server for version, active presentation and current slide information. The browser only talks to the Church Operations API; it never receives the ProPresenter token or directly accesses the production computer.
 
-### 2. Veyra Local Server
+## Data ownership
 
-A service running on the customer's local network. It is the management authority, not part of the critical video-rendering path.
+SQLite and media files live on the church server. No Cloudflare Workers, D1, R2, OpenNext, Supabase or hosted application database is required. Planning Center is an optional upstream data source during the transition, and ProPresenter is an optional LAN integration.
 
-Responsibilities:
+Backups must include the SQLite database, media directory, receiver pairing secret, TLS private key and local environment configuration. Store backups separately from the server itself.
 
-- Local operator authentication and sessions.
-- Device registration, identity, and last-seen state.
-- Device heartbeats and status aggregation.
-- NDI source inventory and source assignment.
-- Media upload, storage, and library metadata.
-- Playlist and per-device assignment management.
-- Configuration distribution and synchronization.
-- Remote commands, including changing source, selecting a playlist, requesting a resync, and restarting the receiver process.
-- Playback state, health metrics, logs, and diagnostics.
+## Security boundaries
 
-The server exposes a versioned health endpoint, local operator setup/session routes, protected device inventory, one-time receiver pairing, authenticated heartbeats with source snapshots, an aggregated NDI source inventory endpoint, local image upload/storage, playlist CRUD, device credential revocation, per-device source and fallback assignments, versioned receiver configuration, assigned-media manifests, and receiver-authenticated asset downloads. The C++ client verifies TLS, stores its bearer credential locally, synchronizes the assigned state, and caches fallback images. Remote commands and WebSocket events remain planned.
+- All dashboard routes require an authenticated staff session.
+- Staff accounts have a role and active/disabled state.
+- Creating staff accounts and syncing Planning Center require administrator access.
+- Passwords are stored as scrypt hashes; session cookies are HttpOnly and SameSite Strict.
+- Receiver credentials are separate from staff sessions and can be revoked.
+- External integration secrets remain server-side.
+- Non-loopback server binding requires TLS.
 
-The server currently uses a local SQLite database in WAL mode with versioned migrations through schema version 6. The initial operator authentication uses scrypt password hashes, random opaque session tokens stored as hashes, HttpOnly/SameSite=Strict cookies, and rate-limited setup/login routes. The server defaults to loopback binding. It is not a cloud service; do not introduce an internet account, external database, or mandatory third-party runtime dependency.
+## Current implementation boundaries
 
-### 3. Veyra Dashboard
+Implemented in this branch: local server/dashboard foundation, staff accounts, basic service/event/group records, Planning Center future-service import, ProPresenter live status polling, NDI receiver control plane, device pairing, source aggregation, media and playlist management.
 
-A browser-based operator interface that communicates with the local server. The current development build runs through Vite. The NDI Sources page displays receiver-reported source inventory; the Media Library and Playlists pages use the local server for image uploads, content previews, ordered playlist editing, and per-image durations; production static serving is still to be implemented.
-
-Current sections:
-
-- **Devices:** device list, online/stale/offline state, pairing, credential revocation, and removal.
-- **Sources:** receiver-reported NDI source inventory and per-device NDI source assignment.
-- **Media:** local image uploads, previews, metadata, and deletion with playlist-reference protection.
-- **Playlists:** ordered image sequences with editable per-image display durations.
-- **System:** local server health and storage state.
-- **System:** server health, receiver diagnostics, logs, and platform settings.
-
-Per-device actions currently include assigning the NDI source and fallback playlist. Planned actions include restarting the Veyra receiver process, requesting manual resynchronization, and viewing detailed device logs.
-
-The dashboard should make the state of each device understandable at a glance. It must distinguish server reachability from receiver playback state; an offline server does not necessarily mean a receiver is offline.
-
-## Playback, caching, and fallback
-
-There are two distinct failure cases and they must not be conflated.
-
-### NDI source unavailable
-
-1. The receiver detects that fresh NDI video is no longer arriving.
-2. It transitions to the fallback assigned to that specific receiver.
-3. The fallback playlist is played from the receiver's local cache.
-4. The receiver continues checking for its assigned NDI source.
-5. When the source returns, the receiver resumes NDI playback according to the recovery policy.
-
-### Local server unavailable
-
-1. The receiver keeps its last successfully applied configuration.
-2. It continues current playback.
-3. If its NDI source becomes unavailable, it can still use its locally cached fallback playlist.
-4. It queues or retries state synchronization until the server is reachable again.
-
-A receiver must never need to fetch fallback media at the moment a failure occurs. Required fallback assets and configuration must already be local.
-
-### Per-device ownership
-
-Each receiver has its own fallback assignment and local cache. A fallback configured for one display must not silently replace another device's fallback. The server distributes assignments; the receiver stores the last valid version locally.
-
-The initial fallback content scope includes image-based sequences with explicit ordering and display durations. Any additional media types should be added only after their playback and caching requirements are defined.
-
-## Communication and trust boundaries
-
-- Dashboard-to-server traffic stays on the LAN.
-- Receiver-to-server traffic stays on the LAN.
-- NDI discovery and video transport remain separate from the management API.
-- The receiver's playback loop must not block on server requests.
-- Device identity and authentication are implemented for pairing and heartbeats; remote commands still need a narrow, versioned contract.
-- Remote commands need acknowledgements, timeouts, and observable outcomes.
-- Configuration and media updates should be versioned and applied atomically so a partial download cannot corrupt the last working state.
-
-Do not expose an unauthenticated remote shell or arbitrary command execution. A restart action should invoke a narrowly defined receiver operation, not accept arbitrary shell text.
-
-## Proposed implementation boundaries
-
-These are implementation proposals, not immutable product requirements:
-
-- Keep the existing native C++ receiver as its own component.
-- Implement the local server as a separate service.
-- Implement the dashboard as a separate web application.
-- Use a small embedded database for local server state.
-- Use a typed, versioned HTTP API plus WebSockets for live state and commands.
-- Keep receiver configuration and cached fallback data on disk.
-
-The current implementation uses Node.js 22+, TypeScript, Fastify 5, React 19, Vite 6, and SQLite via better-sqlite3. The database and initial framework choices are therefore settled for the current development phase. Remote commands, WebSocket events, long-term media retention policy beyond active-cache pruning, and production deployment still require explicit design and validation.
-
-## Repository status
-
-The repository now contains a native NDI receiver foundation, a Fastify/SQLite local server, and a React/Vite dashboard. Implemented capabilities include operator authentication, device pairing and revocation, TLS-verified C++ heartbeats with NDI source snapshots, an aggregated source inventory, local media uploads, ordered playlists with per-image durations, database/media backups, and a responsive dashboard for devices, sources, media, and playlists. Remaining major work includes the complete NDI SDK build, target hardware validation, remote commands, WebSocket updates, detailed diagnostics, media quotas/retention, and production dashboard packaging.
-
-The full NDI player has not yet been built against an installed official NDI SDK or tested with a real sender on the target Mac mini. The control-plane client is compiled and integration-tested independently, but that does not verify the complete player. Do not describe the platform as production-ready until the receiver, server, dashboard, offline behavior, and target hardware have all been validated.
-
-## Target environment
-
-- Debian 13, 64-bit x86_64, XFCE/X11 during initial development.
-- Apple Mac mini (Late 2014), Intel Core i5-4278U, 8 GB RAM, Intel Iris 5100.
-- Initial display target: 1920×1080 at 30 FPS.
-- Wired LAN preferred.
-- The target machine has a mechanical HDD; development must not assume an SSD.
-
-## Third-party licensing
-
-The official NDI SDK is proprietary. Keep its headers and binaries out of the repository unless the applicable license explicitly permits redistribution. Review all third-party licenses before packaging Veyra for distribution.
+Not yet migrated from the old public-facing project: event registration and payment workflows, QR/NFC attendee check-in, full group attendance, pastoral care, and the old public livestream/sermon pages. Those should only be added if they serve the staff-only operations scope.
