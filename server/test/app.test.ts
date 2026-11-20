@@ -858,3 +858,58 @@ test("church staff, services, events and groups stay behind staff authentication
     await app.close();
   }
 });
+
+test("production operators can send only allowlisted ProPresenter commands", async () => {
+  const app = createTestApp();
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.PROPRESENTER_URL;
+  const requestedUrls: string[] = [];
+  process.env.PROPRESENTER_URL = "http://127.0.0.1:1025";
+  globalThis.fetch = async (input) => {
+    requestedUrls.push(String(input));
+    return new Response(null, { status: 200 });
+  };
+
+  try {
+    await app.inject({ method: "POST", url: "/api/v1/setup", payload: {
+      setupKey: "test-setup-key", username: "admin", password: "a-very-long-test-password",
+    }});
+    const login = await app.inject({ method: "POST", url: "/api/v1/auth/session", payload: {
+      username: "admin", password: "a-very-long-test-password",
+    }});
+    const cookie = String(login.headers["set-cookie"]).split(";")[0];
+
+    const unauthenticated = await app.inject({
+      method: "POST", url: "/api/v1/integrations/propresenter/command",
+      payload: { action: "next" },
+    });
+    assert.equal(unauthenticated.statusCode, 401);
+
+    const invalid = await app.inject({
+      method: "POST", url: "/api/v1/integrations/propresenter/command",
+      headers: { cookie }, payload: { action: "run_shell" },
+    });
+    assert.equal(invalid.statusCode, 400);
+    assert.equal(requestedUrls.length, 0);
+
+    const next = await app.inject({
+      method: "POST", url: "/api/v1/integrations/propresenter/command",
+      headers: { cookie }, payload: { action: "next" },
+    });
+    assert.equal(next.statusCode, 200);
+    assert.equal(next.json().success, true);
+    assert.equal(requestedUrls[0], "http://127.0.0.1:1025/v1/presentation/active/next/trigger");
+
+    const clear = await app.inject({
+      method: "POST", url: "/api/v1/integrations/propresenter/command",
+      headers: { cookie }, payload: { action: "clear_slide" },
+    });
+    assert.equal(clear.statusCode, 200);
+    assert.equal(requestedUrls[1], "http://127.0.0.1:1025/v1/clear/layer/slide");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.PROPRESENTER_URL;
+    else process.env.PROPRESENTER_URL = originalUrl;
+    await app.close();
+  }
+});
