@@ -989,3 +989,47 @@ test("Planning Center sync imports service plans and replaces changed service or
     await app.close();
   }
 });
+
+test("ProPresenter live status reads the documented nested slide index and slide text", async () => {
+  const app = createTestApp();
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.PROPRESENTER_URL;
+  process.env.PROPRESENTER_URL = "http://127.0.0.1:1025";
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    const payload = url.endsWith("/version")
+      ? { version: "17.0.0" }
+      : url.endsWith("/v1/presentation/active")
+        ? { presentation: { name: "Sunday Worship" } }
+        : url.endsWith("/v1/status/slide")
+          ? { current: { text: "Amazing Grace", notes: "Start quietly", uuid: "current-id" }, next: { text: "Build My Life", notes: "", uuid: "next-id" } }
+          : { presentation: { index: 3, presentation_id: { uuid: "presentation-id" } } };
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  try {
+    await app.inject({ method: "POST", url: "/api/v1/setup", payload: {
+      setupKey: "test-setup-key", username: "admin", password: "a-very-long-test-password",
+    }});
+    const login = await app.inject({ method: "POST", url: "/api/v1/auth/session", payload: {
+      username: "admin", password: "a-very-long-test-password",
+    }});
+    const cookie = String(login.headers["set-cookie"]).split(";")[0];
+    const live = await app.inject({
+      method: "GET", url: "/api/v1/integrations/propresenter/live", headers: { cookie },
+    });
+    assert.equal(live.statusCode, 200);
+    assert.equal(live.json().connected, true);
+    assert.equal(live.json().slideIndex, 3);
+    assert.equal(live.json().slide.current.text, "Amazing Grace");
+    assert.equal(live.json().slide.next.text, "Build My Life");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.PROPRESENTER_URL;
+    else process.env.PROPRESENTER_URL = originalUrl;
+    await app.close();
+  }
+});
