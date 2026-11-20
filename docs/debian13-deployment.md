@@ -249,7 +249,25 @@ sudo nano /etc/veyra/config.json
 
 Set `controlPlane.serverUrl` to `https://church-server.local:8787`, `deviceName` to a clear display name, `caCertificatePath` to `/etc/veyra/church-ca.crt`, and keep fullscreen enabled. Leave the source unassigned until the receiver reports discovered sources in the dashboard. Keep the pairing code empty until you create a fresh one in **NDI screens**.
 
-Create the local `veyra` Linux user and group before applying the ownership above. Pair only one receiver at a time. Enter the 12-digit code in its config, start Veyra, wait for successful pairing, then remove the pairing code from the config and restart the receiver. Its device token is stored separately under the receiver user's state directory.
+Create a dedicated desktop user (the graphical autologin account) and group before applying the ownership above:
+
+```bash
+sudo adduser --disabled-password --gecos "" veyra
+sudo usermod -aG video veyra
+sudo apt install -y xfce4 lightdm
+sudo install -d -m 0755 /etc/lightdm/lightdm.conf.d
+sudo tee /etc/lightdm/lightdm.conf.d/50-veyra-autologin.conf >/dev/null <<'EOF'
+[Seat:*]
+autologin-user=veyra
+autologin-user-timeout=0
+user-session=xfce
+EOF
+sudo systemctl enable lightdm
+sudo install -d -o root -g veyra -m 0755 /etc/veyra
+sudo install -o root -g veyra -m 0644 /path/to/church-ca.crt /etc/veyra/church-ca.crt
+```
+
+Pair only one receiver at a time. Enter the 12-digit code in its config, start Veyra, wait for successful pairing, then remove the pairing code from the config and restart the receiver. Its device token is stored separately under the receiver user's state directory.
 
 ## 10. XFCE automatic startup and fullscreen
 
