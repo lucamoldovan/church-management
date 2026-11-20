@@ -1239,6 +1239,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     return reply.code(201).send({ id, title, startsAt: body.startsAt ?? null, endsAt: body.endsAt ?? null, status: "planned", source: "local" });
   });
 
+  app.get<{ Params: { serviceId: string } }>("/api/v1/church/services/:serviceId/items", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const service = database.prepare("SELECT id FROM church_services WHERE id = ?").get(request.params.serviceId);
+    if (!service) return reply.code(404).send({ error: "Service not found" });
+    const items = database.prepare(`
+      SELECT id, position, title, item_type AS itemType, duration_seconds AS durationSeconds,
+             assigned_to AS assignedTo, notes
+      FROM church_service_items WHERE service_id = ? ORDER BY position ASC, title COLLATE NOCASE
+    `).all(request.params.serviceId);
+    return { items };
+  });
+
   app.get("/api/v1/church/events", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
     const events = database.prepare("SELECT id, title, description, starts_at AS startsAt, ends_at AS endsAt, location, capacity, status, source FROM church_events ORDER BY starts_at IS NULL, starts_at ASC LIMIT 100").all();
@@ -1302,30 +1314,57 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const appId = process.env.PLANNING_CENTER_APP_ID?.trim();
     const secret = process.env.PLANNING_CENTER_SECRET?.trim();
     if (!appId || !secret) return reply.code(409).send({ error: "Configure Planning Center credentials on the local server first" });
-    const headers = { Authorization: "Basic " + Buffer.from(`${appId}:${secret}`).toString("base64"), Accept: "application/json", "User-Agent": "Church Operations (https://github.com/lucamoldovan/church-management)" };
+    const headers = {
+      Authorization: "Basic " + Buffer.from(appId + ":" + secret).toString("base64"),
+      Accept: "application/json",
+      "User-Agent": "Church Operations (https://github.com/lucamoldovan/church-management)",
+    };
+    const apiBase = "https://api.planningcenteronline.com/services/v2";
     const fetchJson = async (url: string) => {
       const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
-      if (!response.ok) throw new Error(`Planning Center returned HTTP ${response.status}`);
+      if (!response.ok) throw new Error("Planning Center returned HTTP " + response.status);
       return response.json() as Promise<{ data?: Array<{ id: string; attributes?: Record<string, unknown> }> }>;
     };
     try {
-      const types = await fetchJson("https://api.planningcenteronline.com/services/v2/service_types?per_page=100");
+      const types = await fetchJson(apiBase + "/service_types?per_page=100");
       let imported = 0;
-      for (const type of (types.data ?? []).slice(0, 20)) {
-        const plans = await fetchJson(`https://api.planningcenteronline.com/services/v2/service_types/${encodeURIComponent(type.id)}/plans?filter=future&per_page=20`);
+      let itemsImported = 0;
+      let plansProcessed = 0;
+      for (const type of (types.data ?? []).slice(0, 10)) {
+        if (plansProcessed >= 25) break;
+        const plans = await fetchJson(apiBase + "/service_types/" + encodeURIComponent(type.id) + "/plans?filter=future&per_page=20");
         for (const plan of plans.data ?? []) {
+          if (plansProcessed >= 25) break;
           const attrs = plan.attributes ?? {};
           const title = String(attrs.series_title || attrs.title || attrs.plan_title || type.attributes?.name || "Service plan").slice(0, 160);
-          const startsAt = typeof attrs.sort_date === "string" ? attrs.sort_date : typeof attrs.dates === "string" ? attrs.dates : null;
+          const startsAt = typeof attrs.sort_date === "string" ? attrs.sort_date : null;
           const now = new Date().toISOString();
           database.prepare(`INSERT INTO church_services (id, title, starts_at, status, source, external_id, raw_json, created_at, updated_at)
             VALUES (?, ?, ?, 'planned', 'planning_center', ?, ?, ?, ?)
             ON CONFLICT(external_id) DO UPDATE SET title=excluded.title, starts_at=excluded.starts_at, raw_json=excluded.raw_json, updated_at=excluded.updated_at`)
             .run(randomUUID(), title, startsAt, plan.id, JSON.stringify(plan), now, now);
+          const service = database.prepare("SELECT id FROM church_services WHERE external_id = ?").get(plan.id) as { id: string } | undefined;
+          if (!service) continue;
           imported++;
+          plansProcessed++;
+
+          const items = await fetchJson(apiBase + "/service_types/" + encodeURIComponent(type.id) + "/plans/" + encodeURIComponent(plan.id) + "/items?per_page=100");
+          for (const [itemIndex, item] of (items.data ?? []).entries()) {
+            const itemAttrs = item.attributes ?? {};
+            const itemTitle = String(itemAttrs.title || itemAttrs.service_position || "Untitled item").slice(0, 160);
+            const position = typeof itemAttrs.sequence === "number" ? Math.max(0, Math.floor(itemAttrs.sequence)) : itemIndex;
+            const itemType = typeof itemAttrs.item_type === "string" ? itemAttrs.item_type.slice(0, 60) : "other";
+            const notes = typeof itemAttrs.description === "string" ? itemAttrs.description.slice(0, 4000) : null;
+            database.prepare(`INSERT INTO church_service_items (id, service_id, position, title, item_type, notes, external_id, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(external_id) DO UPDATE SET service_id=excluded.service_id, position=excluded.position,
+                title=excluded.title, item_type=excluded.item_type, notes=excluded.notes, updated_at=excluded.updated_at`)
+              .run(randomUUID(), service.id, position, itemTitle, itemType, notes, plan.id + ":" + item.id, now, now);
+            itemsImported++;
+          }
         }
       }
-      return { imported, serviceTypes: (types.data ?? []).length, syncedAt: new Date().toISOString() };
+      return { imported, itemsImported, serviceTypes: (types.data ?? []).length, plansProcessed, syncedAt: new Date().toISOString() };
     } catch (error) {
       return reply.code(502).send({ error: error instanceof Error ? error.message : "Planning Center sync failed" });
     }
