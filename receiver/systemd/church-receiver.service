@@ -1,17 +1,18 @@
 [Unit]
-Description=Veyra NDI video receiver
+Description=Veyra NDI receiver
+Documentation=https://github.com/lucamoldovan/church-management/tree/local-operations-platform/receiver
 StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+# DISPLAY and XAUTHORITY are imported from the active XFCE session by
+# receiver/autostart/veyra.desktop. Do not hard-code :0 or a home path here.
 Environment=SDL_VIDEODRIVER=x11
-Environment=DISPLAY=:0
-Environment=XAUTHORITY=%h/.Xauthority
 ExecStart=/usr/local/bin/veyra --config /etc/veyra/config.json
 Restart=always
-RestartSec=2
+RestartSec=3
 KillSignal=SIGTERM
 TimeoutStopSec=15
 
 [Install]
-WantedBy=default.target
+# Started by the XFCE XDG autostart entry after the graphical session exists.
