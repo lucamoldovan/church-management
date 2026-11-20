@@ -287,7 +287,8 @@ export interface ChurchService {
   id: string; title: string; startsAt: string | null; endsAt: string | null;
   status: string; location: string | null; notes: string | null; source: string; externalId: string | null; itemCount?: number;
 }
-export interface ChurchServiceItem { id: string; position: number; title: string; itemType: string; durationSeconds: number | null; assignedTo: string | null; notes: string | null; }\nexport interface ChurchStaff {
+export interface ChurchServiceItem { id: string; position: number; title: string; itemType: string; durationSeconds: number | null; assignedTo: string | null; notes: string | null; }
+export interface ChurchStaff {
   id: string; username: string; displayName: string; role: string; department: string | null; active: number; createdAt: string;
 }
 export interface ChurchEvent {
