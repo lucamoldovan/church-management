@@ -821,6 +821,16 @@ test("church staff, services, events and groups stay behind staff authentication
       payload: { title: "Sunday morning service", startsAt: "2026-12-01T10:00:00.000Z" },
     });
     assert.equal(service.statusCode, 201);
+    const serviceId = service.json().id as string;
+    const serviceItems = await app.inject({
+      method: "GET",
+      url: "/api/v1/church/services/" + serviceId + "/items",
+      headers,
+    });
+    assert.equal(serviceItems.statusCode, 200);
+    assert.deepEqual(serviceItems.json().items, []);
+    const serviceList = await app.inject({ method: "GET", url: "/api/v1/church/services", headers });
+    assert.equal(serviceList.json().services[0].itemCount, 0);
 
     const event = await app.inject({
       method: "POST",
