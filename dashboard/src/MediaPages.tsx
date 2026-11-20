@@ -405,7 +405,7 @@ export function PlaylistsPage() {
                   })}
                 </div>
               )}
-              <div className="playlist-editor-foot">Changes stay in this editor until you save them. Playlist assignment to receivers is a later integration step.</div>
+              <div className="playlist-editor-foot">Changes stay in this editor until you save them. Assign this playlist to a receiver from NDI screens.</div>
             </>
           )}
         </section>
