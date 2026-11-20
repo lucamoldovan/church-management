@@ -1192,14 +1192,27 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   });
 
   app.patch<{ Params: { staffId: string }; Body: Record<string, unknown> }>("/api/v1/church/staff/:staffId", async (request, reply) => {
-    if (!requireAdmin(request, reply)) return;
+    const actor = requireAdmin(request, reply);
+    if (!actor) return;
     const body = request.body ?? {};
-    const current = database.prepare("SELECT id FROM operators WHERE id = ?").get(request.params.staffId);
+    const current = database.prepare("SELECT id, role, active FROM operators WHERE id = ?").get(request.params.staffId) as
+      { id: string; role: string; active: number } | undefined;
     if (!current) return reply.code(404).send({ error: "Staff account not found" });
     const role = typeof body.role === "string" ? body.role : null;
     const active = typeof body.active === "boolean" ? (body.active ? 1 : 0) : null;
     const department = typeof body.department === "string" ? body.department.trim() : undefined;
     if (role && !["admin", "staff", "production", "leader"].includes(role)) return reply.code(400).send({ error: "Invalid staff role" });
+
+    const removesAdminAccess = (role !== null ? role !== "admin" : current.role !== "admin") ||
+      (active !== null ? active !== 1 : current.active !== 1);
+    if (current.role === "admin" && current.active === 1 && removesAdminAccess) {
+      const otherAdmins = database.prepare("SELECT COUNT(*) AS count FROM operators WHERE role = 'admin' AND active = 1 AND id != ?")
+        .get(current.id) as { count: number };
+      if (otherAdmins.count === 0) {
+        return reply.code(409).send({ error: "The church must retain at least one active administrator" });
+      }
+    }
+
     database.prepare("UPDATE operators SET role = COALESCE(?, role), active = COALESCE(?, active), department = COALESCE(?, department) WHERE id = ?")
       .run(role, active, department === undefined ? null : department, request.params.staffId);
     return { updated: true };
