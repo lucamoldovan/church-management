@@ -6,6 +6,10 @@ import {
   CircleHelp,
   Check,
   Clipboard,
+  CalendarDays,
+  Users,
+  UsersRound,
+  RadioTower,
   Command,
   Disc3,
   HardDrive,
@@ -29,13 +33,19 @@ import {
 } from "lucide-react";
 import { createDevicePairingCode, createInitialOperator, getAuthSession, getDevices, getPlaylists, getSources, getServerHealth, getSetupStatus, getChurchOverview, login, logout, revokeDeviceCredential, removeRevokedDevice, updateDeviceConfig, type ConnectionState, type Device, type NdiSource, type PlaylistSummary, type Operator, type PairingCode, type ServerHealth } from "./api";
 import { MediaPage, PlaylistsPage, SourcesPage } from "./MediaPages";
+import { ChurchPage } from "./ChurchPages";
 
-type Page = "overview" | "devices" | "sources" | "media" | "playlists" | "system";
+type Page = "overview" | "services" | "staff" | "events" | "groups" | "production" | "devices" | "sources" | "media" | "playlists" | "system";
 type AuthState = "checking" | "setup" | "login" | "authenticated" | "unavailable";
 
 const navigation: { id: Page; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "devices", label: "Devices", icon: Monitor },
+  { id: "services", label: "Services", icon: CalendarDays },
+  { id: "staff", label: "Staff", icon: Users },
+  { id: "events", label: "Events", icon: CalendarDays },
+  { id: "groups", label: "Groups", icon: UsersRound },
+  { id: "production", label: "ProPresenter", icon: RadioTower },
+  { id: "devices", label: "NDI screens", icon: Monitor },
   { id: "sources", label: "NDI sources", icon: Radio },
   { id: "media", label: "Media library", icon: Image },
   { id: "playlists", label: "Playlists", icon: Disc3 },
@@ -155,8 +165,8 @@ function App() {
         <div className="brand">
           <div className="brand-mark"><AudioWaveform size={21} strokeWidth={2.2} /></div>
           <div className="brand-copy">
-            <span className="brand-name">veyra</span>
-            <span className="brand-caption">NETWORK VIDEO</span>
+            <span className="brand-name">Church Ops</span>
+            <span className="brand-caption">OPERATIONS + MEDIA</span>
           </div>
           <button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => setMobileNavOpen(false)}>
             <X size={18} />
@@ -166,8 +176,8 @@ function App() {
         <div className="workspace-switcher">
           <div className="workspace-avatar">V</div>
           <div className="workspace-copy">
-            <strong>Local workspace</strong>
-            <span>Private network</span>
+            <strong>Church workspace</strong>
+            <span>Staff network</span>
           </div>
         </div>
 
@@ -203,7 +213,7 @@ function App() {
             <div className="help-icon"><CircleHelp size={17} /></div>
             <div>
               <strong>Need a hand?</strong>
-              <span>Hosted on your local network</span>
+              <span>Locally hosted · Staff only</span>
             </div>
           </div>
           <button className="profile-row profile-button" onClick={() => void handleLogout()} title="Sign out">
@@ -242,6 +252,11 @@ function App() {
               onNavigate={navigate}
             />
           )}
+          {page === "services" && <ChurchPage page="services" />}
+          {page === "staff" && <ChurchPage page="staff" />}
+          {page === "events" && <ChurchPage page="events" />}
+          {page === "groups" && <ChurchPage page="groups" />}
+          {page === "production" && <ChurchPage page="production" />}
           {page === "devices" && <DevicesPage />}
           {page === "sources" && <SourcesPage />}
           {page === "media" && <MediaPage />}
@@ -311,7 +326,7 @@ function AuthScreen({
         {mode === "checking" && (
           <div className="auth-message">
             <LoaderCircle className="auth-spinner" size={25} />
-            <h1>Connecting to Veyra</h1>
+            <h1>Connecting to Church Operations</h1>
             <p>Checking your local workspace…</p>
           </div>
         )}
@@ -320,7 +335,7 @@ function AuthScreen({
           <div className="auth-message">
             <div className="auth-symbol auth-symbol-error"><Server size={23} /></div>
             <h1>Server unavailable</h1>
-            <p>Start the Veyra server, then try connecting again. Your dashboard and data stay on your local network.</p>
+            <p>Start the Local server, then try connecting again. Your dashboard and data stay on your local network.</p>
             <button className="button button-dark button-full" onClick={onRetry}>Try again <ArrowRight size={15} /></button>
           </div>
         )}
@@ -331,7 +346,7 @@ function AuthScreen({
               <div className="auth-symbol"><LockKeyhole size={21} /></div>
               <div className="eyebrow">{isSetup ? "FIRST-TIME SETUP" : "LOCAL WORKSPACE"}</div>
               <h1>{isSetup ? "Create your workspace." : "Welcome back."}</h1>
-              <p>{isSetup ? "Create the administrator account for this Veyra installation." : "Sign in to manage your network video system."}</p>
+              <p>{isSetup ? "Create the first administrator account for this church installation." : "Sign in to manage church operations and production."}</p>
             </div>
 
             <form className="auth-form" onSubmit={(event) => void submit(event)}>
@@ -468,8 +483,8 @@ function Overview({
       <section className="page-heading">
         <div>
           <div className="eyebrow">YOUR NETWORK AT A GLANCE</div>
-          <h1>Your network.</h1>
-          <p>Here's what's happening across your Veyra network.</p>
+          <h1>Church operations.</h1>
+          <p>Here's what's happening across church operations and production.</p>
         </div>
         <button className="button button-secondary" onClick={() => onNavigate("devices")}>
           <Monitor size={16} /> View devices
