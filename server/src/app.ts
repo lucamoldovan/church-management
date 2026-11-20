@@ -1406,10 +1406,15 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       const presentation = presentationResponse.ok ? await presentationResponse.json() : null;
       const slide = slideResponse.ok ? await slideResponse.json() : null;
       const slideIndexData = slideIndexResponse.ok ? await slideIndexResponse.json() : null;
-      const slideIndex = typeof slideIndexData === "number" ? slideIndexData
-        : slideIndexData && typeof slideIndexData === "object" && "slide_index" in slideIndexData ? Number(slideIndexData.slide_index)
-        : slideIndexData && typeof slideIndexData === "object" && "index" in slideIndexData ? Number(slideIndexData.index)
-        : null;
+      const readSlideIndex = (value: unknown): number | null => {
+        if (typeof value === "number" && Number.isInteger(value)) return value;
+        if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+        const record = value as Record<string, unknown>;
+        if (typeof record.slide_index === "number" && Number.isInteger(record.slide_index)) return record.slide_index;
+        if (typeof record.index === "number" && Number.isInteger(record.index)) return record.index;
+        return readSlideIndex(record.presentation) ?? readSlideIndex(record.announcements);
+      };
+      const slideIndex = readSlideIndex(slideIndexData);
       const state = { connected: true, version, presentation, slide, slideIndex, checkedAt: new Date().toISOString() };
       database.prepare(`INSERT INTO propresenter_state (id, connected, version, presentation_name, slide_index, slide_count, slide_text, last_checked_at, error)
         VALUES (1, 1, ?, ?, ?, NULL, ?, ?, NULL)
