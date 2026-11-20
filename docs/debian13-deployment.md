@@ -271,7 +271,7 @@ sudo apt install -y build-essential cmake ninja-build pkg-config git \
 sudo systemctl enable --now avahi-daemon
 ```
 
-Download the official NDI SDK for Linux from https://ndi.video/for-developers/ndi-sdk/download/ and install it according to its license and instructions. Do not commit SDK files to Git. The repository CMake project expects the SDK directory via `NDI_SDK_DIR`. Pin the already-tested NDI 6 SDK version for the first deployment rather than introducing a just-released SDK update immediately before the service.
+Download the official NDI SDK for Linux from https://ndi.video/for-developers/ndi-sdk/download/ and install it according to its license and instructions. Do not commit SDK files to Git. The repository CMake project expects the SDK directory via `NDI_SDK_DIR`. The official download page currently lists NDI SDK 6.3.2, while NDI 6.4 was announced on 18 November 2026. Use the downloadable 6.3.2 SDK for the first build rather than introducing the just-announced 6.4 release immediately before the service. Important: this repository does not yet record a successful full-player build against a specific installed SDK version; the first full build and hardware test are still required.
 
 Copy the church CA certificate to the receiver, for example `/etc/veyra/church-ca.crt`, and ensure the receiver user can read it.
 
