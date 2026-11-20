@@ -147,7 +147,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     {loading ? <Loading/> : <div className="production-grid">
       <section className="panel production-status"><div className="production-status-icon"><RadioTower size={22}/></div><div><span className={`integration-dot ${propresenter?.connected ? "online" : ""}`}/><strong>{propresenter?.connected ? "Connected" : propresenter?.configured === false ? "Not configured" : "Disconnected"}</strong><p>{propresenter?.message ?? (propresenter?.connected ? "ProPresenter API is responding." : "Configure PROPRESENTER_URL on the local server.")}</p></div></section>
       <section className="panel"><div className="panel-heading"><div><h2>Active presentation</h2><p>Live data from ProPresenter</p></div><Activity size={18}/></div><pre className="live-json">{propresenter?.presentation ? JSON.stringify(propresenter.presentation, null, 2) : "No active presentation data."}</pre></section>
-      <section className="panel"><div className="panel-heading"><div><h2>Current slide</h2><p>Current slide and cue information</p></div><ShieldCheck size={18}/></div><pre className="live-json">{propresenter?.slide ? JSON.stringify(propresenter.slide, null, 2) : "No slide data available."}</pre></section>
+      <section className="panel"><div className="panel-heading"><div><h2>Current slide</h2><p>Current slide and cue information</p></div><ShieldCheck size={18}/></div><p className="form-hint">Current slide index: {propresenter?.slideIndex === undefined ? "—" : String(propresenter.slideIndex)}</p><pre className="live-json">{propresenter?.slide ? JSON.stringify(propresenter.slide, null, 2) : "No slide data available."}</pre></section>
     </div>}
   </div>;
 }
