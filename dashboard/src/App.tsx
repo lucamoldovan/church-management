@@ -320,7 +320,7 @@ function AuthScreen({
       <div className="auth-card">
         <div className="auth-brand">
           <div className="brand-mark"><AudioWaveform size={21} strokeWidth={2.2} /></div>
-          <div className="brand-copy"><span className="brand-name">veyra</span><span className="brand-caption">NETWORK VIDEO</span></div>
+          <div className="brand-copy"><span className="brand-name">Church Ops</span><span className="brand-caption">OPERATIONS + MEDIA</span></div>
         </div>
 
         {mode === "checking" && (
@@ -361,7 +361,7 @@ function AuthScreen({
                     onChange={(event) => setSetupKey(event.target.value)}
                     placeholder="Paste the key from the server terminal"
                   />
-                  <span className="field-hint">The first-run key is printed once in the Veyra server logs.</span>
+                  <span className="field-hint">The first-run key is printed once in the local server logs.</span>
                 </label>
               )}
               <label className="field-label">
@@ -416,7 +416,7 @@ function AuthScreen({
           </>
         )}
       </div>
-      <div className="auth-background-mark">VEYRA</div>
+      <div className="auth-background-mark">CHURCH OPS</div>
     </main>
   );
 }
@@ -548,7 +548,7 @@ function Overview({
           <div className="setup-topline"><span className="setup-kicker">GETTING STARTED</span><span className="setup-step">01 / 04</span></div>
           <div className="setup-icon"><Network size={22} /></div>
           <h2>{deviceCount === null ? "Checking your network." : deviceCount === 0 ? "Let's get your network connected." : "Your receivers are registered."}</h2>
-          <p>{deviceCount === null ? "Device inventory is temporarily unavailable. Check the server connection and try again." : deviceCount === 0 ? "Veyra is ready for its first receiver. Generate a pairing code to begin enrollment." : "Your devices are registered. Receiver-side enrollment and playback reporting are the next integration steps."}</p>
+          <p>{deviceCount === null ? "Device inventory is temporarily unavailable. Check the server connection and try again." : deviceCount === 0 ? "The local platform is ready for its first receiver. Generate a pairing code to begin enrollment." : "Your devices are registered. Receiver-side enrollment and playback reporting are the next integration steps."}</p>
           <div className="setup-progress"><span /></div>
           <div className="setup-progress-label"><span>Platform setup</span><strong>Just getting started</strong></div>
           <button className="button button-dark button-full" onClick={() => onNavigate("devices")}>
@@ -732,7 +732,7 @@ function DevicesPage() {
 
   const removeDevice = async (device: Device) => {
     if (device.credentialStatus !== "revoked") return;
-    if (!window.confirm(`Remove "${device.name}" from this Veyra workspace? This cannot be undone.`)) return;
+    if (!window.confirm(`Remove "${device.name}" from this church workspace? This cannot be undone.`)) return;
     setRevokingDeviceId(device.id);
     setError("");
     try {
@@ -751,7 +751,7 @@ function DevicesPage() {
         <div>
           <div className="eyebrow">RECEIVER MANAGEMENT</div>
           <h1>Devices</h1>
-          <p>Manage Veyra receivers, display assignments and playback state.</p>
+          <p>Manage NDI receivers, display assignments and playback state.</p>
         </div>
         <button className="button button-dark" onClick={() => void createCode()} disabled={creatingCode}>
           {creatingCode ? <LoaderCircle size={15} className="auth-spinner" /> : <Plus size={16} />}
@@ -763,7 +763,7 @@ function DevicesPage() {
         <section className="panel pairing-panel">
           <div className="pairing-heading">
             <div className="pairing-icon"><Network size={19} /></div>
-            <div><h2>One-time pairing code</h2><p>Generated for a new Veyra receiver</p></div>
+            <div><h2>One-time pairing code</h2><p>Generated for a new NDI receiver</p></div>
             <button className="icon-button" aria-label="Dismiss pairing code" onClick={() => setPairingCode(null)}><X size={17} /></button>
           </div>
           <div className="pairing-code-row">
@@ -851,7 +851,7 @@ function SystemPage({
   return (
     <>
       <section className="page-heading">
-        <div><div className="eyebrow">PLATFORM HEALTH</div><h1>System</h1><p>Health and diagnostics for your local Veyra installation.</p></div>
+        <div><div className="eyebrow">PLATFORM HEALTH</div><h1>System</h1><p>Health and diagnostics for your local Church Operations installation.</p></div>
         <span className={`pill ${connection === "online" ? "pill-success" : connection === "offline" ? "pill-danger" : "pill-neutral"}`}><span className="status-dot" />{connection === "online" ? "Operational" : connection === "offline" ? "Disconnected" : "Checking"}</span>
       </section>
       <section className="system-grid">
@@ -866,7 +866,7 @@ function SystemPage({
           <div className="system-card-icon"><HardDrive size={19} /></div>
           <div className="system-card-label">DATABASE</div>
           <h2>SQLite · WAL enabled</h2>
-          <p>Persistent local storage is initialized by the Veyra server.</p>
+          <p>Persistent local storage is initialized by the local server.</p>
           <div className="system-card-foot"><span className="status-dot dot-online" />Database ready</div>
         </div>
         <div className="panel system-card">
@@ -885,10 +885,10 @@ function SystemPage({
         </div>
       </section>
       <section className="panel system-info">
-        <div className="panel-heading"><div><h2>Platform components</h2><p>Implementation status of the Veyra stack</p></div><Command size={18} className="muted-icon" /></div>
-        <div className="component-row"><div className="component-icon"><MonitorPlay size={17} /></div><div className="component-copy"><strong>Veyra Receiver</strong><span>Native C++ / NDI / SDL2</span></div><span className="component-status status-foundation">Foundation</span></div>
-        <div className="component-row"><div className="component-icon"><Server size={17} /></div><div className="component-copy"><strong>Veyra Server</strong><span>TypeScript / Fastify</span></div><span className="component-status status-foundation">Foundation</span></div>
-        <div className="component-row"><div className="component-icon"><LayoutDashboard size={17} /></div><div className="component-copy"><strong>Veyra Dashboard</strong><span>React / Vite</span></div><span className="component-status status-foundation">Foundation</span></div>
+        <div className="panel-heading"><div><h2>Platform components</h2><p>Implementation status of the local platform</p></div><Command size={18} className="muted-icon" /></div>
+        <div className="component-row"><div className="component-icon"><MonitorPlay size={17} /></div><div className="component-copy"><strong>NDI Receiver Engine</strong><span>Native C++ / NDI / SDL2</span></div><span className="component-status status-foundation">Foundation</span></div>
+        <div className="component-row"><div className="component-icon"><Server size={17} /></div><div className="component-copy"><strong>Church Ops Server</strong><span>TypeScript / Fastify</span></div><span className="component-status status-foundation">Foundation</span></div>
+        <div className="component-row"><div className="component-icon"><LayoutDashboard size={17} /></div><div className="component-copy"><strong>Church Ops Dashboard</strong><span>React / Vite</span></div><span className="component-status status-foundation">Foundation</span></div>
       </section>
       <footer className="page-footer"><span>VEYRA <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Local-first by design <ShieldCheck size={13} /></span></footer>
     </>
