@@ -1140,6 +1140,22 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     return operator;
   };
 
+  const requireProductionOperator = (request: FastifyRequest, reply: FastifyReply) => {
+    const operator = requireOperator(request, reply);
+    if (!operator) return null;
+    const row = database.prepare("SELECT role, active FROM operators WHERE id = ?").get(operator.id) as
+      { role: string; active: number } | undefined;
+    if (!row || row.active !== 1) {
+      reply.code(403).send({ error: "This staff account is disabled" });
+      return null;
+    }
+    if (row.role !== "admin" && row.role !== "production") {
+      reply.code(403).send({ error: "Production permission required" });
+      return null;
+    }
+    return operator;
+  };
+
   app.get("/api/v1/church/overview", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
     const staff = database.prepare("SELECT COUNT(*) AS count FROM operators WHERE active = 1").get() as { count: number };
@@ -1410,6 +1426,37 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         ON CONFLICT(id) DO UPDATE SET connected=0, last_checked_at=excluded.last_checked_at, error=excluded.error`)
         .run(new Date().toISOString(), message);
       return { configured: true, connected: false, message };
+    }
+  });
+
+  app.post<{ Body: { action?: unknown } }>("/api/v1/integrations/propresenter/command", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    if (!requireProductionOperator(request, reply)) return;
+    const action = request.body?.action;
+    const endpoints: Record<string, string> = {
+      next: "/v1/presentation/active/next/trigger",
+      previous: "/v1/presentation/active/previous/trigger",
+      clear_slide: "/v1/clear/layer/slide",
+    };
+    if (typeof action !== "string" || !(action in endpoints)) {
+      return reply.code(400).send({ error: "Unsupported ProPresenter action" });
+    }
+    const baseUrl = process.env.PROPRESENTER_URL?.trim().replace(/\/$/, "");
+    if (!baseUrl) return reply.code(409).send({ error: "Set PROPRESENTER_URL on the local server." });
+    try {
+      const response = await fetch(baseUrl + endpoints[action], {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) {
+        return reply.code(502).send({ error: "ProPresenter rejected the action with HTTP " + response.status });
+      }
+      return { success: true, action, message: action === "next" ? "Advanced to the next cue."
+        : action === "previous" ? "Returned to the previous cue." : "Cleared the slide layer." };
+    } catch (error) {
+      return reply.code(502).send({ error: error instanceof Error ? error.message : "ProPresenter action failed" });
     }
   });
 
