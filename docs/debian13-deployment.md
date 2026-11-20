@@ -143,6 +143,7 @@ Keep the Planning Center credentials server-side. Never put them in dashboard co
 Copy `deploy/church-operations.service` to `/etc/systemd/system/`, then:
 
 ```bash
+sudo cp deploy/church-operations.service /etc/systemd/system/church-operations.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now church-operations
 sudo systemctl status church-operations --no-pager
@@ -168,6 +169,7 @@ sudo ufw default allow outgoing
 sudo ufw allow from 192.168.1.0/24 to any port 22 proto tcp
 sudo ufw allow from 192.168.1.0/24 to any port 8787 proto tcp
 sudo ufw allow from 192.168.1.0/24 to any port 445 proto tcp
+sudo ufw allow from 192.168.1.0/24 to any port 5353 proto udp
 sudo ufw enable
 sudo ufw status verbose
 ```
@@ -197,6 +199,52 @@ sudo blkid
 ```
 
 Only after positively identifying an empty/approved disk should it be partitioned and formatted. Mount it by UUID under `/srv/storage` using `/etc/fstab`. Do not put the application's private SQLite database or pairing secret inside a broadly writable SMB share. Keep application state under `/var/lib/church-operations`; share general church documents and media separately with Samba groups.
+
+Configure Samba only after the disk is mounted and the directories are created. Example for two staff shares:
+
+```bash
+sudo groupadd church-staff
+sudo groupadd church-media
+sudo install -d -o root -g church-staff -m 2770 /srv/storage/General
+sudo install -d -o root -g church-media -m 2770 /srv/storage/Media
+sudo usermod -aG church-staff <linux-user>
+sudo usermod -aG church-media <media-user>
+sudo smbpasswd -a <linux-user>
+sudo smbpasswd -a <media-user>
+sudo nano /etc/samba/smb.conf
+```
+
+Add these share definitions (keep the existing `[global]` section and set `security = user`, `server min protocol = SMB2`, and `map to guest = never` there):
+
+```ini
+[General]
+   path = /srv/storage/General
+   browseable = yes
+   read only = no
+   valid users = @church-staff
+   force group = church-staff
+   create mask = 0660
+   directory mask = 2770
+
+[Media]
+   path = /srv/storage/Media
+   browseable = yes
+   read only = no
+   valid users = @church-media
+   force group = church-media
+   create mask = 0660
+   directory mask = 2770
+```
+
+Then validate and start Samba:
+
+```bash
+sudo testparm
+sudo systemctl enable --now smbd
+sudo systemctl restart smbd
+```
+
+Create a matching Linux account before adding its Samba password. After changing group membership, users must sign out and back in. The private SQLite database, pairing secret and Veyra media directory must not be placed in these general-purpose shares.
 
 RAID is not a backup. Back up the database, media directory, pairing secret, TLS CA and private key, and the application environment to a second physical device. Test restoring a backup before relying on it.
 
@@ -252,7 +300,7 @@ Set `controlPlane.serverUrl` to `https://church-server.local:8787`, `deviceName`
 Create a dedicated desktop user (the graphical autologin account) and group before applying the ownership above:
 
 ```bash
-sudo adduser --disabled-password --gecos "" veyra
+sudo adduser veyra
 sudo usermod -aG video veyra
 sudo apt install -y xfce4 lightdm
 sudo install -d -m 0755 /etc/lightdm/lightdm.conf.d
