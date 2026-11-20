@@ -48,7 +48,7 @@ export function SourcesPage() {
   return (
     <>
       <section className="page-heading">
-        <div><div className="eyebrow">NETWORK INPUTS</div><h1>NDI sources</h1><p>Sources reported by Veyra receivers on your local network.</p></div>
+        <div><div className="eyebrow">NETWORK INPUTS</div><h1>NDI sources</h1><p>Sources reported by NDI receivers on your local network.</p></div>
         <button className="button button-secondary" onClick={() => setRefreshTick((tick) => tick + 1)} disabled={loading}><RefreshCw size={14} /> Refresh</button>
       </section>
       {error && <div className="inline-error" role="alert">{error}</div>}
@@ -79,7 +79,7 @@ export function SourcesPage() {
           </div>
         )}
       </section>
-      <footer className="page-footer"><span>VEYRA <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>NDI transport stays independent of server control <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>CHURCH OPS <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>NDI transport stays independent of server control <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
@@ -188,7 +188,7 @@ export function MediaPage() {
           </div>
         )}
       </section>
-      <footer className="page-footer"><span>VEYRA <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Stored on this Veyra server <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>CHURCH OPS <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Stored on the local server <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
@@ -410,7 +410,7 @@ export function PlaylistsPage() {
           )}
         </section>
       </div>
-      <footer className="page-footer"><span>VEYRA <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Image sequences · Local storage <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>CHURCH OPS <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Image sequences · Local storage <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
