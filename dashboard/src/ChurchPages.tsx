@@ -137,6 +137,18 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     }
   };
 
+  const presentationPayload = propresenter?.presentation as {
+    name?: string;
+    presentation?: { name?: string };
+    announcements?: { name?: string };
+  } | null;
+  const presentationName = presentationPayload?.name ??
+    presentationPayload?.presentation?.name ?? presentationPayload?.announcements?.name;
+  const slidePayload = propresenter?.slide as {
+    current?: { text?: string; notes?: string } | null;
+    next?: { text?: string; notes?: string } | null;
+  } | null;
+
   if (page === "services") return <div>
     <PageHeader eyebrow="SERVICE PLANNING" title="Services" description="Plan services locally and bring in existing plans from Planning Center." action={<button className="button button-dark" onClick={() => setShowForm(v => !v)}><Plus size={15}/> New service</button>}/>
     <div className="integration-strip">
@@ -186,8 +198,12 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
         </div>
         <p className="form-hint">Only administrators and production staff can use these controls. Clear slide affects the slide layer only.</p>
       </section>}
-      <section className="panel"><div className="panel-heading"><div><h2>Active presentation</h2><p>Live data from ProPresenter</p></div><Activity size={18}/></div><pre className="live-json">{propresenter?.presentation ? JSON.stringify(propresenter.presentation, null, 2) : "No active presentation data."}</pre></section>
-      <section className="panel"><div className="panel-heading"><div><h2>Current slide</h2><p>Current slide and cue information</p></div><ShieldCheck size={18}/></div><p className="form-hint">Current slide index: {propresenter?.slideIndex === undefined ? "—" : String(propresenter.slideIndex)}</p><pre className="live-json">{propresenter?.slide ? JSON.stringify(propresenter.slide, null, 2) : "No slide data available."}</pre></section>
+      <section className="panel"><div className="panel-heading"><div><h2>Active presentation</h2><p>Live data from ProPresenter</p></div><Activity size={18}/></div><strong>{presentationName || (propresenter?.presentation ? "Presentation active" : "No active presentation")}</strong></section>
+      <section className="panel"><div className="panel-heading"><div><h2>Live slide status</h2><p>Current and upcoming slide text</p></div><ShieldCheck size={18}/></div>
+        <p className="form-hint">Current slide index: {propresenter?.slideIndex == null ? "—" : String(propresenter.slideIndex)}</p>
+        <div className="service-order-item"><div><strong>On screen</strong><pre className="live-json">{slidePayload?.current?.text || "No current slide text."}</pre>{slidePayload?.current?.notes && <small>Notes: {slidePayload.current.notes}</small>}</div></div>
+        <div className="service-order-item"><div><strong>Up next</strong><pre className="live-json">{slidePayload?.next?.text || "No next slide text."}</pre>{slidePayload?.next?.notes && <small>Notes: {slidePayload.next.notes}</small>}</div></div>
+      </section>
     </div>}
   </div>;
 }
