@@ -301,7 +301,7 @@ Create a dedicated desktop user (the graphical autologin account) and group befo
 
 ```bash
 sudo adduser veyra
-sudo usermod -aG video veyra
+sudo usermod -aG video,render veyra
 sudo apt install -y xfce4 lightdm
 sudo install -d -m 0755 /etc/lightdm/lightdm.conf.d
 sudo tee /etc/lightdm/lightdm.conf.d/50-veyra-autologin.conf >/dev/null <<'EOF'
