@@ -3,7 +3,7 @@ import { Activity, CalendarDays, CircleAlert, LoaderCircle, Plus, RefreshCw, Use
 import {
   createChurchEvent, createChurchGroup, createChurchService, createChurchStaff,
   getChurchEvents, getChurchGroups, getChurchServices, getChurchStaff,
-  getPlanningCenterStatus, getProPresenterLive, getChurchServiceItems, syncPlanningCenter,
+  getPlanningCenterStatus, getProPresenterLive, getChurchServiceItems, sendProPresenterCommand, syncPlanningCenter,
   type ChurchEvent, type ChurchGroup, type ChurchService, type ChurchServiceItem, type ChurchStaff,
   type ProPresenterLive,
 } from "./api";
@@ -124,6 +124,19 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     finally { setBusy(false); }
   };
 
+  const runProductionAction = async (action: "next" | "previous" | "clear_slide") => {
+    setBusy(true); setError(""); setSuccess("");
+    try {
+      const result = await sendProPresenterCommand(action);
+      setSuccess(result.message);
+      setPropresenter(await getProPresenterLive());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ProPresenter command failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (page === "services") return <div>
     <PageHeader eyebrow="SERVICE PLANNING" title="Services" description="Plan services locally and bring in existing plans from Planning Center." action={<button className="button button-dark" onClick={() => setShowForm(v => !v)}><Plus size={15}/> New service</button>}/>
     <div className="integration-strip">
@@ -164,6 +177,15 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     <Notice error={error} success={success}/>
     {loading ? <Loading/> : <div className="production-grid">
       <section className="panel production-status"><div className="production-status-icon"><RadioTower size={22}/></div><div><span className={`integration-dot ${propresenter?.connected ? "online" : ""}`}/><strong>{propresenter?.connected ? "Connected" : propresenter?.configured === false ? "Not configured" : "Disconnected"}</strong><p>{propresenter?.message ?? (propresenter?.connected ? "ProPresenter API is responding." : "Configure PROPRESENTER_URL on the local server.")}</p></div></section>
+      {(role === "admin" || role === "production") && <section className="panel production-controls">
+        <div className="panel-heading"><div><h2>Live controls</h2><p>Commands are sent to the active ProPresenter presentation.</p></div></div>
+        <div className="production-control-actions">
+          <button className="button button-secondary" disabled={!propresenter?.connected || busy} onClick={() => void runProductionAction("previous")}>Previous cue</button>
+          <button className="button button-dark" disabled={!propresenter?.connected || busy} onClick={() => void runProductionAction("next")}>Next cue</button>
+          <button className="button button-secondary" disabled={!propresenter?.connected || busy} onClick={() => { if (window.confirm("Clear the current slide layer in ProPresenter?")) void runProductionAction("clear_slide"); }}>Clear slide</button>
+        </div>
+        <p className="form-hint">Only administrators and production staff can use these controls. Clear slide affects the slide layer only.</p>
+      </section>}
       <section className="panel"><div className="panel-heading"><div><h2>Active presentation</h2><p>Live data from ProPresenter</p></div><Activity size={18}/></div><pre className="live-json">{propresenter?.presentation ? JSON.stringify(propresenter.presentation, null, 2) : "No active presentation data."}</pre></section>
       <section className="panel"><div className="panel-heading"><div><h2>Current slide</h2><p>Current slide and cue information</p></div><ShieldCheck size={18}/></div><p className="form-hint">Current slide index: {propresenter?.slideIndex === undefined ? "—" : String(propresenter.slideIndex)}</p><pre className="live-json">{propresenter?.slide ? JSON.stringify(propresenter.slide, null, 2) : "No slide data available."}</pre></section>
     </div>}
