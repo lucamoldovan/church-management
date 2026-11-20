@@ -768,3 +768,83 @@ test("secure cookie policy can be enforced by the HTTPS deployment", async () =>
     await app.close();
   }
 });
+
+
+test("church staff, services, events and groups stay behind staff authentication", async () => {
+  const app = createTestApp();
+
+  try {
+    const unauthorized = await app.inject({ method: "GET", url: "/api/v1/church/staff" });
+    assert.equal(unauthorized.statusCode, 401);
+
+    const setup = await app.inject({
+      method: "POST",
+      url: "/api/v1/setup",
+      payload: { setupKey: "test-setup-key", username: "admin", password: "a-very-long-test-password" },
+    });
+    assert.equal(setup.statusCode, 201);
+    const adminId = setup.json().operator.id as string;
+    const cookie = String(setup.headers["set-cookie"]).split(";")[0];
+    const headers = { cookie };
+
+    const staff = await app.inject({
+      method: "POST",
+      url: "/api/v1/church/staff",
+      headers,
+      payload: {
+        username: "media-team",
+        displayName: "Media Team",
+        password: "another-very-long-password",
+        role: "production",
+        department: "Media",
+      },
+    });
+    assert.equal(staff.statusCode, 201);
+    assert.equal(staff.json().role, "production");
+
+    const staffList = await app.inject({ method: "GET", url: "/api/v1/church/staff", headers });
+    assert.equal(staffList.statusCode, 200);
+    assert.equal(staffList.json().staff.length, 2);
+
+    const disableLastAdmin = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/church/staff/${adminId}`,
+      headers,
+      payload: { active: false },
+    });
+    assert.equal(disableLastAdmin.statusCode, 409);
+
+    const service = await app.inject({
+      method: "POST",
+      url: "/api/v1/church/services",
+      headers,
+      payload: { title: "Sunday morning service", startsAt: "2026-12-01T10:00:00.000Z" },
+    });
+    assert.equal(service.statusCode, 201);
+
+    const event = await app.inject({
+      method: "POST",
+      url: "/api/v1/church/events",
+      headers,
+      payload: { title: "Christmas gathering", location: "Main hall" },
+    });
+    assert.equal(event.statusCode, 201);
+
+    const group = await app.inject({
+      method: "POST",
+      url: "/api/v1/church/groups",
+      headers,
+      payload: { name: "Youth study group", meetingDay: "Wednesday" },
+    });
+    assert.equal(group.statusCode, 201);
+
+    const overview = await app.inject({ method: "GET", url: "/api/v1/church/overview", headers });
+    assert.equal(overview.statusCode, 200);
+    assert.equal(overview.json().staffCount, 2);
+    assert.equal(overview.json().upcomingServices, 1);
+    assert.equal(overview.json().activeEvents, 1);
+    assert.equal(overview.json().activeGroups, 1);
+  } finally {
+    await app.close();
+  }
+});
