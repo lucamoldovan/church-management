@@ -24,7 +24,7 @@ function Notice({ error, success }: { error: string; success: string }) {
   return <div className={`church-notice ${error ? "church-notice-error" : "church-notice-success"}`} role="status">{error || success}</div>;
 }
 
-export function ChurchPage({ page }: { page: ChurchPageId }) {
+export function ChurchPage({ page, role }: { page: ChurchPageId; role: string }) {
   const [services, setServices] = useState<ChurchService[]>([]);
   const [staff, setStaff] = useState<ChurchStaff[]>([]);
   const [events, setEvents] = useState<ChurchEvent[]>([]);
@@ -103,7 +103,7 @@ export function ChurchPage({ page }: { page: ChurchPageId }) {
     <PageHeader eyebrow="SERVICE PLANNING" title="Services" description="Plan services locally and bring in existing plans from Planning Center." action={<button className="button button-dark" onClick={() => setShowForm(v => !v)}><Plus size={15}/> New service</button>}/>
     <div className="integration-strip">
       <div><span className={`integration-dot ${pco?.connected ? "online" : ""}`}/><div><strong>Planning Center</strong><small>{pco?.message ?? "Checking connection…"}</small></div></div>
-      <button className="button button-secondary" onClick={() => void sync()} disabled={busy || !pco?.connected}><RefreshCw size={14}/> Sync services</button>
+      {role === "admin" && <button className="button button-secondary" onClick={() => void sync()} disabled={busy || !pco?.connected}><RefreshCw size={14}/> Sync services</button>}
     </div>
     {showForm && <form className="panel church-form" onSubmit={submit}><h2>Create service</h2><label>Title<input name="title" required maxLength={160}/></label><label>Starts<input name="startsAt" type="datetime-local"/></label><label>Ends<input name="endsAt" type="datetime-local"/></label><label>Location<input name="location"/></label><button className="button button-dark" disabled={busy}>Save service</button></form>}
     <Notice error={error} success={success}/>
@@ -111,8 +111,8 @@ export function ChurchPage({ page }: { page: ChurchPageId }) {
   </div>;
 
   if (page === "staff") return <div>
-    <PageHeader eyebrow="PEOPLE & ACCESS" title="Staff" description="Internal accounts for church staff, team leaders and production operators." action={<button className="button button-dark" onClick={() => setShowForm(v => !v)}><Plus size={15}/> Add staff</button>}/>
-    {showForm && <form className="panel church-form" onSubmit={submit}><h2>Create staff account</h2><div className="church-form-grid"><label>Display name<input name="displayName" required/></label><label>Username<input name="username" required minLength={3} maxLength={32}/></label><label>Temporary password<input name="password" type="password" required minLength={12}/></label><label>Role<select name="role"><option value="staff">Staff</option><option value="production">Production</option><option value="leader">Team leader</option><option value="admin">Administrator</option></select></label><label>Department<input name="department" placeholder="e.g. Media"/></label></div><p className="form-hint">Passwords must be at least 12 characters. Share initial credentials securely.</p><button className="button button-dark" disabled={busy}>Create account</button></form>}
+    <PageHeader eyebrow="PEOPLE & ACCESS" title="Staff" description="Internal accounts for church staff, team leaders and production operators." action={role === "admin" ? <button className="button button-dark" onClick={() => setShowForm(v => !v)}><Plus size={15}/> Add staff</button> : undefined}/>
+    {showForm && role === "admin" && <form className="panel church-form" onSubmit={submit}><h2>Create staff account</h2><div className="church-form-grid"><label>Display name<input name="displayName" required/></label><label>Username<input name="username" required minLength={3} maxLength={32}/></label><label>Temporary password<input name="password" type="password" required minLength={12}/></label><label>Role<select name="role"><option value="staff">Staff</option><option value="production">Production</option><option value="leader">Team leader</option><option value="admin">Administrator</option></select></label><label>Department<input name="department" placeholder="e.g. Media"/></label></div><p className="form-hint">Passwords must be at least 12 characters. Share initial credentials securely.</p><button className="button button-dark" disabled={busy}>Create account</button></form>}
     <Notice error={error} success={success}/>
     {loading ? <Loading/> : <div className="church-list">{staff.map(person => <article className="panel church-row" key={person.id}><div className="church-row-icon"><Users/></div><div className="church-row-main"><strong>{person.displayName || person.username}</strong><span>@{person.username}{person.department ? ` · ${person.department}` : ""}</span></div><span className="source-pill">{person.role}</span><span className={`source-pill ${person.active ? "source-active" : "source-inactive"}`}>{person.active ? "Active" : "Disabled"}</span></article>)}{!staff.length && <Empty text="No staff accounts found."/>}</div>}
   </div>;
