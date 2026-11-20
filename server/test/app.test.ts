@@ -559,7 +559,7 @@ test("backup command creates a consistent database and pairing-secret backup", (
 
     const backupDatabase = openDatabase(join(backupDirectory, manifest.databaseFile));
     try {
-      assert.equal(backupDatabase.pragma("user_version", { simple: true }), 6);
+      assert.equal(backupDatabase.pragma("user_version", { simple: true }), 7);
     } finally {
       backupDatabase.close();
     }
@@ -656,13 +656,13 @@ test("database initializes a versioned schema", () => {
   const database = openDatabase(":memory:");
 
   try {
-    assert.equal(database.pragma("user_version", { simple: true }), 6);
+    assert.equal(database.pragma("user_version", { simple: true }), 7);
     const tables = database.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
     ).all() as Array<{ name: string }>;
     assert.deepEqual(
       tables.map((table) => table.name),
-      ["devices", "media_assets", "operators", "pairing_codes", "playlist_items", "playlists", "sessions"],
+      ["church_events", "church_group_members", "church_groups", "church_service_items", "church_services", "devices", "media_assets", "operators", "pairing_codes", "playlist_items", "playlists", "propresenter_state", "sessions"],
     );
   } finally {
     database.close();
@@ -715,7 +715,7 @@ test("database upgrades a populated version-one schema without losing devices", 
 
     const migrated = openDatabase(databasePath);
     try {
-      assert.equal(migrated.pragma("user_version", { simple: true }), 6);
+      assert.equal(migrated.pragma("user_version", { simple: true }), 7);
       const device = migrated.prepare(
         "SELECT id, name, credential_revoked_at, discovered_sources_json FROM devices WHERE id = ?",
       ).get("device-1") as { id: string; name: string; credential_revoked_at: string | null; discovered_sources_json: string };
