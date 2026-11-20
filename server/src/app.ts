@@ -1221,8 +1221,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get("/api/v1/church/services", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
     const services = database.prepare(`
-      SELECT id, title, starts_at AS startsAt, ends_at AS endsAt, status, location, notes, source, external_id AS externalId
-      FROM church_services ORDER BY starts_at IS NULL, starts_at ASC LIMIT 100
+      SELECT s.id, s.title, s.starts_at AS startsAt, s.ends_at AS endsAt, s.status, s.location, s.notes, s.source, s.external_id AS externalId,
+             (SELECT COUNT(*) FROM church_service_items i WHERE i.service_id = s.id) AS itemCount
+      FROM church_services s ORDER BY s.starts_at IS NULL, s.starts_at ASC LIMIT 100
     `).all();
     return { services };
   });
