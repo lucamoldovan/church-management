@@ -252,11 +252,11 @@ function App() {
               onNavigate={navigate}
             />
           )}
-          {page === "services" && <ChurchPage page="services" />}
-          {page === "staff" && <ChurchPage page="staff" />}
-          {page === "events" && <ChurchPage page="events" />}
-          {page === "groups" && <ChurchPage page="groups" />}
-          {page === "production" && <ChurchPage page="production" />}
+          {page === "services" && <ChurchPage page="services" role={operator.role} />}
+          {page === "staff" && <ChurchPage page="staff" role={operator.role} />}
+          {page === "events" && <ChurchPage page="events" role={operator.role} />}
+          {page === "groups" && <ChurchPage page="groups" role={operator.role} />}
+          {page === "production" && <ChurchPage page="production" role={operator.role} />}
           {page === "devices" && <DevicesPage />}
           {page === "sources" && <SourcesPage />}
           {page === "media" && <MediaPage />}
