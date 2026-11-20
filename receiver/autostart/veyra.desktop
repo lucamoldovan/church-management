@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Veyra Receiver
+Comment=Start the Veyra NDI receiver after the XFCE desktop session is ready
+Exec=sh -lc "systemctl --user import-environment DISPLAY; if [ -n \"$XAUTHORITY\" ]; then systemctl --user set-environment \"XAUTHORITY=$XAUTHORITY\"; fi; xset s off || true; xset -dpms || true; xset s noblank || true; systemctl --user start veyra.service"
+Terminal=false
+X-GNOME-Autostart-enabled=true

@@ -1,0 +1,32 @@
+[Unit]
+Description=Church Operations local staff platform
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=churchops
+Group=churchops
+WorkingDirectory=/opt/church-operations/server
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/church-operations/.env
+ExecStart=/usr/bin/node /opt/church-operations/server/dist/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+StateDirectory=church-operations
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/church-operations
+
+[Install]
+WantedBy=multi-user.target

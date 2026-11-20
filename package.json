@@ -1,0 +1,22 @@
+{
+  "name": "church-operations",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "server",
+    "dashboard"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n API,Dashboard -c blue,green \"npm run dev --workspace @church-ops/server\" \"npm run dev --workspace @church-ops/dashboard\"",
+    "build": "npm run build --workspace @church-ops/dashboard && npm run build --workspace @church-ops/server",
+    "start": "npm run start --workspace @church-ops/server",
+    "test": "npm run test --workspace @church-ops/server",
+    "typecheck": "npm run build --workspace @church-ops/dashboard && npm run build --workspace @church-ops/server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
