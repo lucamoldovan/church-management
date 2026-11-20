@@ -57,7 +57,17 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { setLoading(true); void refresh(); }, [page]);
+  useEffect(() => {
+    setLoading(true);
+    void refresh();
+    if (page !== "production") return;
+    const timer = window.setInterval(() => {
+      void getProPresenterLive().then(setPropresenter).catch((e) => {
+        setError(e instanceof Error ? e.message : "Could not refresh ProPresenter status.");
+      });
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [page]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setBusy(true); setError(""); setSuccess("");
