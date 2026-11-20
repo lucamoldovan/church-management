@@ -194,11 +194,15 @@ export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "
     }
 
     if (currentVersion < 7) {
-      database.exec(`
-        ALTER TABLE operators ADD COLUMN display_name TEXT NOT NULL DEFAULT '';
-        ALTER TABLE operators ADD COLUMN role TEXT NOT NULL DEFAULT 'admin';
-        ALTER TABLE operators ADD COLUMN department TEXT;
-        ALTER TABLE operators ADD COLUMN active INTEGER NOT NULL DEFAULT 1;
+      const operatorColumns = new Set(
+        (database.pragma("table_info(operators)") as Array<{ name: string }>).map((column) => column.name),
+      );
+      if (!operatorColumns.has("display_name")) database.exec("ALTER TABLE operators ADD COLUMN display_name TEXT NOT NULL DEFAULT ''");
+      if (!operatorColumns.has("role")) database.exec("ALTER TABLE operators ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
+      if (!operatorColumns.has("department")) database.exec("ALTER TABLE operators ADD COLUMN department TEXT");
+      if (!operatorColumns.has("active")) database.exec("ALTER TABLE operators ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+      database.exec(
+`
 
         UPDATE operators SET display_name = username WHERE display_name = '';
 
