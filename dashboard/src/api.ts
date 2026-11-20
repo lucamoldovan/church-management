@@ -333,7 +333,7 @@ export function syncPlanningCenter(): Promise<{ imported: number; serviceTypes: 
 }
 export interface ProPresenterLive {
   configured?: boolean; connected: boolean; message?: string; version?: unknown;
-  presentation?: unknown; slide?: unknown; checkedAt?: string;
+  presentation?: unknown; slide?: unknown; slideIndex?: unknown; checkedAt?: string;
 }
 export function getProPresenterLive(): Promise<ProPresenterLive> {
   return request("/api/v1/integrations/propresenter/live");
