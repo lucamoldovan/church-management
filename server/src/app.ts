@@ -294,8 +294,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       const createOperator = database.transaction(() => {
         const currentCount = database.prepare("SELECT COUNT(*) AS count FROM operators").get() as { count: number };
         if (currentCount.count > 0) throw new Error("SETUP_ALREADY_COMPLETED");
-        database.prepare("INSERT INTO operators (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)")
-          .run(operatorId, username, passwordHash, createdAt);
+        database.prepare("INSERT INTO operators (id, username, password_hash, display_name, role, created_at) VALUES (?, ?, ?, ?, 'admin', ?)")
+          .run(operatorId, username, passwordHash, username, createdAt);
       });
       createOperator();
     } catch (error) {
@@ -334,10 +334,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       return reply.code(400).send({ error: "Password must be between 1 and 256 characters" });
     }
 
-    const operator = database.prepare("SELECT id, username, password_hash FROM operators WHERE username = ?")
-      .get(username) as { id: string; username: string; password_hash: string } | undefined;
+    const operator = database.prepare("SELECT id, username, password_hash, active FROM operators WHERE username = ?")
+      .get(username) as { id: string; username: string; password_hash: string; active: number } | undefined;
 
-    if (!operator || !(await verifyPassword(password, operator.password_hash))) {
+    if (!operator || operator.active !== 1 || !(await verifyPassword(password, operator.password_hash))) {
       return reply.code(401).send({ error: "Invalid username or password" });
     }
 
