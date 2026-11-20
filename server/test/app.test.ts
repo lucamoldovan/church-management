@@ -913,3 +913,79 @@ test("production operators can send only allowlisted ProPresenter commands", asy
     await app.close();
   }
 });
+
+test("Planning Center sync imports service plans and replaces changed service orders", async () => {
+  const app = createTestApp();
+  const originalFetch = globalThis.fetch;
+  const originalAppId = process.env.PLANNING_CENTER_APP_ID;
+  const originalSecret = process.env.PLANNING_CENTER_SECRET;
+  let currentItems: Array<{ id: string; attributes: Record<string, unknown> }> = [
+    { id: "item-1", attributes: { title: "Welcome", sequence: 1, item_type: "other" } },
+    { id: "item-2", attributes: { title: "Worship", sequence: 2, item_type: "song" } },
+  ];
+  process.env.PLANNING_CENTER_APP_ID = "test-client";
+  process.env.PLANNING_CENTER_SECRET = "test-secret";
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    let data: unknown[] = [];
+    if (url.endsWith("/service_types?per_page=100")) {
+      data = [{ id: "type-1", attributes: { name: "Sunday Service" } }];
+    } else if (url.includes("/service_types/type-1/plans?filter=future")) {
+      data = [{ id: "plan-1", attributes: { title: "Sunday Worship", sort_date: "2026-11-22T10:00:00Z" } }];
+    } else if (url.includes("/service_types/type-1/plans/plan-1/items")) {
+      data = currentItems;
+    }
+    return new Response(JSON.stringify({ data }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  try {
+    await app.inject({ method: "POST", url: "/api/v1/setup", payload: {
+      setupKey: "test-setup-key", username: "admin", password: "a-very-long-test-password",
+    }});
+    const login = await app.inject({ method: "POST", url: "/api/v1/auth/session", payload: {
+      username: "admin", password: "a-very-long-test-password",
+    }});
+    const cookie = String(login.headers["set-cookie"]).split(";")[0];
+
+    const firstSync = await app.inject({
+      method: "POST", url: "/api/v1/integrations/planning-center/sync",
+      headers: { cookie },
+    });
+    assert.equal(firstSync.statusCode, 200);
+    assert.equal(firstSync.json().imported, 1);
+    assert.equal(firstSync.json().itemsImported, 2);
+
+    const services = await app.inject({
+      method: "GET", url: "/api/v1/church/services", headers: { cookie },
+    });
+    assert.equal(services.json().services.length, 1);
+    const serviceId = services.json().services[0].id as string;
+    assert.equal(services.json().services[0].itemCount, 2);
+
+    currentItems = [
+      { id: "item-2", attributes: { title: "Worship updated", sequence: 1, item_type: "song" } },
+    ];
+    const secondSync = await app.inject({
+      method: "POST", url: "/api/v1/integrations/planning-center/sync",
+      headers: { cookie },
+    });
+    assert.equal(secondSync.statusCode, 200);
+    assert.equal(secondSync.json().itemsImported, 1);
+
+    const order = await app.inject({
+      method: "GET", url: `/api/v1/church/services/${serviceId}/items`, headers: { cookie },
+    });
+    assert.equal(order.json().items.length, 1);
+    assert.equal(order.json().items[0].title, "Worship updated");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalAppId === undefined) delete process.env.PLANNING_CENTER_APP_ID;
+    else process.env.PLANNING_CENTER_APP_ID = originalAppId;
+    if (originalSecret === undefined) delete process.env.PLANNING_CENTER_SECRET;
+    else process.env.PLANNING_CENTER_SECRET = originalSecret;
+    await app.close();
+  }
+});
