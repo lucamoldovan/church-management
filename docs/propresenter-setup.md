@@ -62,6 +62,10 @@ PLANNING_CENTER_SECRET=your_secret
 
 The current importer reads future Service Types, plans and their ordered items. It is a one-way import into the local SQLite database. It does not sync Planning Center People, Groups, Check-Ins, Giving, volunteer assignments or attendance. It also does not write changes back to Planning Center.
 
+### Optional: ProPresenter's own Planning Center integration
+
+This is separate from the Church Operations server connector. If you want ProPresenter itself to import and use Planning Center service plans, open **ProPresenter → Settings → Integrations → Planning Center**, sign in, select the church organization if prompted, and approve access. Renewed Vision recommends an account with Editor or Administrator privileges on the Planning Center plan; this feature also requires an active Planning Center Services subscription. The server-side PAT does not sign ProPresenter in.
+
 Official references:
 - Getting started: https://api.planningcenteronline.com/docs/overview/getting-started
 - Authentication: https://api.planningcenteronline.com/docs/overview/authentication
