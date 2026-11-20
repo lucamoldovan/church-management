@@ -41,6 +41,14 @@ Open **ProPresenter** in the Church Operations dashboard. The current integratio
 
 The dashboard polls live status every five seconds and now exposes an allowlisted control panel for administrators and production staff: Previous cue, Next cue, and Clear slide. The server calls the documented ProPresenter HTTP API endpoints from the LAN. Clear slide affects only the slide layer. These commands are intentionally narrow; arbitrary URL or shell commands are not accepted.
 
+The control actions map to these ProPresenter API routes:
+
+- Previous cue: `GET /v1/presentation/active/previous/trigger`
+- Next cue: `GET /v1/presentation/active/next/trigger`
+- Clear slide: `GET /v1/clear/layer/slide`
+
+The live slide index parser handles the documented nested `presentation.index` response, and the dashboard displays the `current.text` and `next.text` fields returned by `/v1/status/slide`.
+
 ## Planning Center Services: single-church authentication
 
 For this one-church deployment, use a Planning Center Personal Access Token (PAT), not OAuth. Planning Center's official docs state that PATs are intended for scripts and servers controlled by the same organization and must be sent using HTTP Basic Authentication. PAT credentials must never be placed in browser code.
