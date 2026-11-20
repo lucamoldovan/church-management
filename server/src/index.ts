@@ -1,4 +1,8 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { config } from "dotenv";
+
+config({ path: resolve(process.cwd(), "../.env") });
 import { isIP } from "node:net";
 import { buildApp } from "./app.js";
 
