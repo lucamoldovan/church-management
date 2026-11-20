@@ -1347,9 +1347,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       let imported = 0;
       let itemsImported = 0;
       let plansProcessed = 0;
-      for (const type of (types.data ?? []).slice(0, 10)) {
+      for (const type of types.data ?? []) {
         if (plansProcessed >= 25) break;
-        const plans = await fetchJson(apiBase + "/service_types/" + encodeURIComponent(type.id) + "/plans?filter=future&per_page=20");
+        const plans = await fetchJson(apiBase + "/service_types/" + encodeURIComponent(type.id) + "/plans?filter=future&per_page=100");
         for (const plan of plans.data ?? []) {
           if (plansProcessed >= 25) break;
           const attrs = plan.attributes ?? {};
@@ -1366,6 +1366,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           plansProcessed++;
 
           const items = await fetchJson(apiBase + "/service_types/" + encodeURIComponent(type.id) + "/plans/" + encodeURIComponent(plan.id) + "/items?per_page=100");
+          // Replace the local order snapshot so removed Planning Center items do not linger.
+          database.prepare("DELETE FROM church_service_items WHERE service_id = ?").run(service.id);
           for (const [itemIndex, item] of (items.data ?? []).entries()) {
             const itemAttrs = item.attributes ?? {};
             const itemTitle = String(itemAttrs.title || itemAttrs.service_position || "Untitled item").slice(0, 160);
