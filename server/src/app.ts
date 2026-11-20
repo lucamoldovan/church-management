@@ -1336,29 +1336,32 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const baseUrl = process.env.PROPRESENTER_URL?.trim().replace(/\/$/, "");
     if (!baseUrl) return { configured: false, connected: false, message: "Set PROPRESENTER_URL on the local server." };
     const headers: Record<string, string> = { Accept: "application/json" };
-    const apiToken = process.env.PROPRESENTER_API_TOKEN?.trim();
-    if (apiToken) headers.Authorization = `Bearer ${apiToken}`;
     try {
-      const [versionResponse, presentationResponse, slideResponse] = await Promise.all([
+      const [versionResponse, presentationResponse, slideResponse, slideIndexResponse] = await Promise.all([
         fetch(`${baseUrl}/version`, { headers, signal: AbortSignal.timeout(4000) }),
         fetch(`${baseUrl}/v1/presentation/active`, { headers, signal: AbortSignal.timeout(4000) }),
         fetch(`${baseUrl}/v1/status/slide`, { headers, signal: AbortSignal.timeout(4000) }),
+        fetch(`${baseUrl}/v1/presentation/slide_index`, { headers, signal: AbortSignal.timeout(4000) }),
       ]);
       if (!versionResponse.ok) throw new Error(`ProPresenter returned HTTP ${versionResponse.status}`);
       const version = await versionResponse.json();
       const presentation = presentationResponse.ok ? await presentationResponse.json() : null;
       const slide = slideResponse.ok ? await slideResponse.json() : null;
-      const state = { connected: true, version, presentation, slide, checkedAt: new Date().toISOString() };
+      const slideIndexData = slideIndexResponse.ok ? await slideIndexResponse.json() : null;
+      const slideIndex = typeof slideIndexData === "number" ? slideIndexData
+        : slideIndexData && typeof slideIndexData === "object" && "slide_index" in slideIndexData ? Number(slideIndexData.slide_index)
+        : slideIndexData && typeof slideIndexData === "object" && "index" in slideIndexData ? Number(slideIndexData.index)
+        : null;
+      const state = { connected: true, version, presentation, slide, slideIndex, checkedAt: new Date().toISOString() };
       database.prepare(`INSERT INTO propresenter_state (id, connected, version, presentation_name, slide_index, slide_count, slide_text, last_checked_at, error)
-        VALUES (1, 1, ?, ?, ?, ?, ?, ?, NULL)
+        VALUES (1, 1, ?, ?, ?, NULL, ?, ?, NULL)
         ON CONFLICT(id) DO UPDATE SET connected=1, version=excluded.version, presentation_name=excluded.presentation_name,
-          slide_index=excluded.slide_index, slide_count=excluded.slide_count, slide_text=excluded.slide_text,
+          slide_index=excluded.slide_index, slide_count=NULL, slide_text=excluded.slide_text,
           last_checked_at=excluded.last_checked_at, error=NULL`)
         .run(typeof version === "object" && version && "version" in version ? String(version.version) : JSON.stringify(version).slice(0, 160),
           typeof presentation === "object" && presentation && "name" in presentation ? String(presentation.name).slice(0, 160) : null,
-          typeof slide === "object" && slide && "index" in slide ? Number(slide.index) : null,
-          typeof slide === "object" && slide && "count" in slide ? Number(slide.count) : null,
-          typeof slide === "object" && slide && "text" in slide ? String(slide.text).slice(0, 2000) : null,
+          slideIndex,
+          slide ? JSON.stringify(slide).slice(0, 2000) : null,
           state.checkedAt);
       return state;
     } catch (error) {
