@@ -1,0 +1,17 @@
+[Unit]
+Description=Veyra NDI video receiver
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=SDL_VIDEODRIVER=x11
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=%h/.Xauthority
+ExecStart=/usr/local/bin/veyra --config /etc/veyra/config.json
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

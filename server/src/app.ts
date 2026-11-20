@@ -1,0 +1,1125 @@
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
+import fastifyStatic from "@fastify/static";
+import cookie from "@fastify/cookie";
+import rateLimit from "@fastify/rate-limit";
+import { createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { openDatabase, type VeyraDatabase } from "./database.js";
+import { createSession, hashPassword, SESSION_COOKIE, SESSION_TTL, hashSessionToken, verifyPassword } from "./security.js";
+
+interface BuildAppOptions {
+  databasePath?: string;
+  setupKeyPath?: string;
+  setupKey?: string;
+  pairingSecretPath?: string;
+  pairingSecret?: string;
+  mediaDirectory?: string;
+  dashboardDirectory?: string;
+  https?: { key: Buffer; cert: Buffer; minVersion: "TLSv1.2" };
+  secureCookies?: boolean;
+}
+
+interface SetupBody {
+  setupKey?: unknown;
+  username?: unknown;
+  password?: unknown;
+}
+
+interface LoginBody {
+  username?: unknown;
+  password?: unknown;
+}
+
+function readSetupKey(database: VeyraDatabase, options: BuildAppOptions): { key: string | null; path: string | null; generated: boolean } {
+  const operatorCount = database.prepare("SELECT COUNT(*) AS count FROM operators").get() as { count: number };
+  const setupKeyPath = resolve(options.setupKeyPath ?? process.env.VEYRA_SETUP_KEY_PATH ?? "data/setup-key");
+
+  if (operatorCount.count > 0) {
+    if (!options.setupKey) rmSync(setupKeyPath, { force: true });
+    return { key: null, path: null, generated: false };
+  }
+
+  if (options.setupKey) return { key: options.setupKey, path: null, generated: false };
+
+  mkdirSync(dirname(setupKeyPath), { recursive: true });
+
+  if (existsSync(setupKeyPath)) {
+    const fileInfo = lstatSync(setupKeyPath);
+    if (!fileInfo.isFile()) {
+      throw new Error("Veyra setup key path must be a regular file, not a symlink or special file");
+    }
+    chmodSync(setupKeyPath, 0o600);
+    const existingKey = readFileSync(setupKeyPath, "utf8").trim();
+    if (existingKey.length < 32) {
+      throw new Error("Veyra setup key file is empty or invalid; remove it to generate a new key");
+    }
+    return { key: existingKey, path: setupKeyPath, generated: false };
+  }
+
+  const key = randomBytes(24).toString("base64url");
+  writeFileSync(setupKeyPath, key + "\n", { mode: 0o600, flag: "wx" });
+  return { key, path: setupKeyPath, generated: true };
+}
+
+function readPairingSecret(options: BuildAppOptions): Buffer {
+  if (options.pairingSecret) {
+    const secret = Buffer.from(options.pairingSecret, "utf8");
+    if (secret.length < 32) throw new Error("Veyra pairing secret must be at least 32 bytes");
+    return secret;
+  }
+
+  const secretPath = resolve(options.pairingSecretPath ?? process.env.VEYRA_PAIRING_SECRET_PATH ?? "data/pairing-secret");
+  mkdirSync(dirname(secretPath), { recursive: true });
+
+  if (existsSync(secretPath)) {
+    const fileInfo = lstatSync(secretPath);
+    if (!fileInfo.isFile()) throw new Error("Veyra pairing secret path must be a regular file");
+    chmodSync(secretPath, 0o600);
+    const value = readFileSync(secretPath, "utf8").trim();
+    if (!/^[a-f0-9]{64}$/i.test(value)) {
+      throw new Error("Veyra pairing secret file is invalid; restore it from backup or remove it to rotate pairing verification");
+    }
+    return Buffer.from(value, "hex");
+  }
+
+  const secret = randomBytes(32);
+  writeFileSync(secretPath, secret.toString("hex") + "\n", { mode: 0o600, flag: "wx" });
+  return secret;
+}
+
+const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
+const MAX_PLAYLIST_BYTES = 512 * 1024 * 1024;
+
+function detectImageMime(buffer: Buffer): "image/png" | "image/jpeg" | "image/webp" | null {
+  if (buffer.length >= 8 &&
+      buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return "image/png";
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (buffer.length >= 12 &&
+      buffer.toString("ascii", 0, 4) === "RIFF" &&
+      buffer.toString("ascii", 8, 12) === "WEBP") {
+    return "image/webp";
+  }
+  return null;
+}
+
+function stripControlCharacters(value: string): string {
+  return [...value].filter((character) => {
+    const code = character.charCodeAt(0);
+    return code >= 0x20 && code !== 0x7f;
+  }).join("");
+}
+
+function safeDisplayName(rawName: string | undefined): string {
+  let decoded = "";
+  if (rawName) {
+    try { decoded = decodeURIComponent(rawName); } catch { decoded = rawName; }
+  }
+  return decoded
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replaceAll("/", "_")
+    .replaceAll("\\", "_")
+    .trim()
+    .slice(0, 120) || "Untitled image";
+}
+
+function ensurePrivateDirectory(path: string): void {
+  const absolutePath = resolve(path);
+  const homeDirectory = process.env.HOME ? resolve(process.env.HOME) : "";
+  if (absolutePath === process.cwd() || (homeDirectory && absolutePath === homeDirectory)) {
+    throw new Error("Veyra media storage must use a dedicated subdirectory");
+  }
+  const unsafeTargets = new Set([
+    "/", "/tmp", "/var", "/var/cache", "/var/lib", "/home", "/root",
+    "/etc", "/usr", "/opt", "/run", "/mnt", "/media", "/dev", "/proc",
+    "/sys", "/boot",
+  ]);
+  if (unsafeTargets.has(absolutePath)) {
+    throw new Error("Veyra media storage must use a dedicated private directory");
+  }
+  mkdirSync(absolutePath, { recursive: true, mode: 0o700 });
+  const info = lstatSync(absolutePath);
+  if (!info.isDirectory() || info.isSymbolicLink()) {
+    throw new Error("Veyra media storage path must be a real directory, not a symlink");
+  }
+  chmodSync(absolutePath, 0o700);
+}
+
+function hashPairingCode(code: string, secret: Buffer): string {
+  return createHmac("sha256", secret).update(code).digest("hex");
+}
+
+function safeEqual(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function getSessionOperator(database: VeyraDatabase, token: string | undefined): { id: string; username: string } | null {
+  if (!token) return null;
+
+  const row = database.prepare(`
+    SELECT operators.id, operators.username, sessions.expires_at
+    FROM sessions
+    INNER JOIN operators ON operators.id = sessions.operator_id
+    WHERE sessions.token_hash = ?
+  `).get(hashSessionToken(token)) as { id: string; username: string; expires_at: string } | undefined;
+
+  if (!row) return null;
+  if (Date.parse(row.expires_at) <= Date.now()) {
+    database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashSessionToken(token));
+    return null;
+  }
+
+  return { id: row.id, username: row.username };
+}
+
+function getAuthenticatedOperator(database: VeyraDatabase, request: FastifyRequest, reply: FastifyReply): { id: string; username: string } | null {
+  const operator = getSessionOperator(database, request.cookies[SESSION_COOKIE]);
+  if (!operator) {
+    reply.code(401).send({ error: "Authentication required" });
+    return null;
+  }
+  return operator;
+}
+
+function setSessionCookie(reply: FastifyReply, token: string, secureCookies: boolean): void {
+  reply.setCookie(SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: secureCookies,
+    sameSite: "strict",
+    path: "/",
+    maxAge: SESSION_TTL,
+  });
+}
+
+export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
+  const database = openDatabase(options.databasePath);
+  let setup: ReturnType<typeof readSetupKey>;
+  let pairingSecret: Buffer;
+  try {
+    setup = readSetupKey(database, options);
+    pairingSecret = readPairingSecret(options);
+  } catch (error) {
+    database.close();
+    throw error;
+  }
+  const secureCookies = Boolean(options.https) || options.secureCookies === true ||
+    process.env.VEYRA_COOKIE_SECURE === "true";
+  const app = Fastify({
+    logger: {
+      level: process.env.LOG_LEVEL ?? "info",
+    },
+    ...(options.https ? { https: options.https } : {}),
+  });
+  const mediaDirectory = resolve(options.mediaDirectory ?? process.env.VEYRA_MEDIA_DIRECTORY ?? "data/media");
+  app.addContentTypeParser(
+    ["image/png", "image/jpeg", "image/webp"],
+    { parseAs: "buffer", bodyLimit: MAX_MEDIA_BYTES },
+    (_request, body, done) => done(null, body),
+  );
+
+  app.addHook("onSend", async (_request, reply, payload) => {
+    reply.header("X-Content-Type-Options", "nosniff");
+    reply.header("Referrer-Policy", "no-referrer");
+    reply.header("Cache-Control", "no-store");
+    if (options.https) reply.header("Strict-Transport-Security", "max-age=31536000");
+    return payload;
+  });
+
+  if (setup.generated && setup.key) {
+    app.log.warn({ setupKey: setup.key }, "Veyra first-run setup key — enter this in the dashboard");
+  }
+
+  app.register(cookie);
+  app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
+
+  const dashboardDirectory = resolve(options.dashboardDirectory ?? process.env.CHURCH_DASHBOARD_DIRECTORY ?? "../dashboard/dist");
+  if (existsSync(join(dashboardDirectory, "index.html"))) {
+    app.register(fastifyStatic, { root: dashboardDirectory, prefix: "/", wildcard: false });
+    app.get("/", async (_request, reply) => reply.sendFile("index.html"));
+    app.setNotFoundHandler(async (request, reply) => {
+      if (request.method === "GET" && !request.url.startsWith("/api/")) {
+        return reply.sendFile("index.html");
+      }
+      return reply.code(404).send({ error: "Not found" });
+    });
+  }
+
+  app.addHook("onClose", async () => {
+    database.close();
+  });
+
+  app.get("/api/v1/health", async () => ({
+    status: "ok",
+    service: "veyra-server",
+    version: "0.1.0",
+  }));
+
+  app.get("/api/v1/setup/status", async () => {
+    const result = database.prepare("SELECT COUNT(*) AS count FROM operators").get() as { count: number };
+    return { setupRequired: result.count === 0 };
+  });
+
+  app.post<{ Body: SetupBody }>("/api/v1/setup", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    const body = request.body ?? {};
+    const username = typeof body.username === "string" ? body.username.trim() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    const suppliedKey = typeof body.setupKey === "string" ? body.setupKey : "";
+
+    if (!setup.key || !safeEqual(suppliedKey, setup.key)) {
+      return reply.code(403).send({ error: "Invalid or expired setup key" });
+    }
+    if (!/^[a-zA-Z0-9_-]{3,32}$/.test(username)) {
+      return reply.code(400).send({ error: "Username must be 3–32 characters and use letters, numbers, _ or -" });
+    }
+    if (password.length < 12 || password.length > 256) {
+      return reply.code(400).send({ error: "Password must be between 12 and 256 characters" });
+    }
+
+    const existing = database.prepare("SELECT COUNT(*) AS count FROM operators").get() as { count: number };
+    if (existing.count > 0) {
+      return reply.code(409).send({ error: "Initial setup has already been completed" });
+    }
+
+    const operatorId = randomUUID();
+    const createdAt = new Date().toISOString();
+    const passwordHash = await hashPassword(password);
+
+    try {
+      const createOperator = database.transaction(() => {
+        const currentCount = database.prepare("SELECT COUNT(*) AS count FROM operators").get() as { count: number };
+        if (currentCount.count > 0) throw new Error("SETUP_ALREADY_COMPLETED");
+        database.prepare("INSERT INTO operators (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)")
+          .run(operatorId, username, passwordHash, createdAt);
+      });
+      createOperator();
+    } catch (error) {
+      if (error instanceof Error && error.message === "SETUP_ALREADY_COMPLETED") {
+        return reply.code(409).send({ error: "Initial setup has already been completed" });
+      }
+      request.log.error(error, "Could not create initial Veyra operator");
+      return reply.code(409).send({ error: "Initial setup could not be completed" });
+    }
+
+    if (setup.path) {
+      try { rmSync(setup.path, { force: true }); } catch (error) {
+        request.log.error(error, "Could not remove used setup key file");
+      }
+    }
+
+    const session = createSession(database, operatorId);
+    setSessionCookie(reply, session.token, secureCookies);
+    return reply.code(201).send({ authenticated: true, operator: { id: operatorId, username } });
+  });
+
+  app.get("/api/v1/auth/session", async (request) => {
+    const operator = getSessionOperator(database, request.cookies[SESSION_COOKIE]);
+    return operator
+      ? { authenticated: true, operator }
+      : { authenticated: false, operator: null };
+  });
+
+  app.post<{ Body: LoginBody }>("/api/v1/auth/session", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    const body = request.body ?? {};
+    const username = typeof body.username === "string" ? body.username.trim() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    if (password.length === 0 || password.length > 256) {
+      return reply.code(400).send({ error: "Password must be between 1 and 256 characters" });
+    }
+
+    const operator = database.prepare("SELECT id, username, password_hash FROM operators WHERE username = ?")
+      .get(username) as { id: string; username: string; password_hash: string } | undefined;
+
+    if (!operator || !(await verifyPassword(password, operator.password_hash))) {
+      return reply.code(401).send({ error: "Invalid username or password" });
+    }
+
+    const session = createSession(database, operator.id);
+    setSessionCookie(reply, session.token, secureCookies);
+    return { authenticated: true, operator: { id: operator.id, username: operator.username } };
+  });
+
+  app.delete("/api/v1/auth/session", async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (token) database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashSessionToken(token));
+    reply.clearCookie(SESSION_COOKIE, { path: "/" });
+    return { authenticated: false };
+  });
+
+  app.get("/api/v1/sources", async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const deviceRows = database.prepare(`
+      SELECT id, name, last_seen_at, discovered_sources_json
+      FROM devices
+      WHERE credential_revoked_at IS NULL
+    `).all() as Array<{
+      id: string;
+      name: string;
+      last_seen_at: string | null;
+      discovered_sources_json: string;
+    }>;
+
+    const sourceMap = new Map<string, {
+      name: string;
+      address: string | null;
+      devices: Map<string, string>;
+      lastSeenAt: string | null;
+    }>();
+    const nowMs = Date.now();
+
+    for (const device of deviceRows) {
+      if (!device.last_seen_at) continue;
+      const lastSeenMs = Date.parse(device.last_seen_at);
+      if (!Number.isFinite(lastSeenMs) || nowMs - lastSeenMs > 120_000) continue;
+      let reported: unknown;
+      try { reported = JSON.parse(device.discovered_sources_json); } catch { reported = []; }
+      if (!Array.isArray(reported)) continue;
+
+      for (const rawSource of reported) {
+        if (typeof rawSource !== "object" || rawSource === null) continue;
+        const source = rawSource as { name?: unknown; url?: unknown };
+        if (typeof source.name !== "string" || source.name.length === 0) continue;
+        const address = typeof source.url === "string" && source.url.length > 0 ? source.url : null;
+        const key = address ?? source.name;
+        let entry = sourceMap.get(key);
+        if (!entry) {
+          entry = { name: source.name, address, devices: new Map(), lastSeenAt: null };
+          sourceMap.set(key, entry);
+        }
+        entry.devices.set(device.id, device.name);
+        if (device.last_seen_at && (!entry.lastSeenAt || device.last_seen_at > entry.lastSeenAt)) {
+          entry.lastSeenAt = device.last_seen_at;
+        }
+      }
+    }
+
+    return {
+      sources: [...sourceMap.entries()]
+        .map(([id, source]) => ({
+          id,
+          name: source.name,
+          address: source.address,
+          deviceCount: source.devices.size,
+          devices: [...source.devices.entries()].map(([deviceId, deviceName]) => ({
+            id: deviceId,
+            name: deviceName,
+          })),
+          lastSeenAt: source.lastSeenAt,
+        }))
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    };
+  });
+
+  app.post("/api/v1/media", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    if (!Buffer.isBuffer(request.body) || request.body.length === 0) {
+      return reply.code(400).send({ error: "An image file is required" });
+    }
+    const image = request.body as Buffer;
+    if (image.length > MAX_MEDIA_BYTES) {
+      return reply.code(413).send({ error: "Image exceeds the 20 MB upload limit" });
+    }
+
+    const detectedMime = detectImageMime(image);
+    const declaredMime = ((request.headers["content-type"] ?? "").split(";")[0] ?? "").trim().toLowerCase();
+    if (!detectedMime || detectedMime !== declaredMime) {
+      return reply.code(415).send({ error: "Only valid PNG, JPEG, and WebP images are supported" });
+    }
+
+    const extension = detectedMime === "image/png" ? "png" : detectedMime === "image/jpeg" ? "jpg" : "webp";
+    const id = randomUUID();
+    const storageKey = `${id}.${extension}`;
+    const filenameHeader = request.headers["x-veyra-filename"];
+    const displayName = safeDisplayName(typeof filenameHeader === "string" ? filenameHeader : undefined);
+    const createdAt = new Date().toISOString();
+    const sha256 = createHash("sha256").update(image).digest("hex");
+
+    ensurePrivateDirectory(mediaDirectory);
+    const filePath = join(mediaDirectory, storageKey);
+    let fileCreated = false;
+    try {
+      writeFileSync(filePath, image, { flag: "wx", mode: 0o600 });
+      fileCreated = true;
+      database.prepare(`
+        INSERT INTO media_assets (id, display_name, storage_key, mime_type, size_bytes, sha256, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(id, displayName, storageKey, detectedMime, image.length, sha256, createdAt);
+    } catch (error) {
+      if (fileCreated) rmSync(filePath, { force: true });
+      request.log.error(error, "Could not store uploaded Veyra media");
+      return reply.code(500).send({ error: "Image could not be stored" });
+    }
+
+    return reply.code(201).send({
+      id,
+      name: displayName,
+      mimeType: detectedMime,
+      sizeBytes: image.length,
+      sha256,
+      createdAt,
+      contentUrl: `/api/v1/media/${id}/content`,
+    });
+  });
+
+  app.get("/api/v1/media", async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const media = database.prepare(`
+      SELECT id, display_name, mime_type, size_bytes, sha256, created_at
+      FROM media_assets
+      ORDER BY created_at DESC
+    `).all() as Array<{
+      id: string;
+      display_name: string;
+      mime_type: string;
+      size_bytes: number;
+      sha256: string;
+      created_at: string;
+    }>;
+
+    return {
+      media: media.map((item) => ({
+        id: item.id,
+        name: item.display_name,
+        mimeType: item.mime_type,
+        sizeBytes: item.size_bytes,
+        sha256: item.sha256,
+        createdAt: item.created_at,
+        contentUrl: `/api/v1/media/${item.id}/content`,
+      })),
+    };
+  });
+
+  app.get<{ Params: { mediaId: string } }>("/api/v1/media/:mediaId/content", async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const item = database.prepare("SELECT storage_key, mime_type FROM media_assets WHERE id = ?")
+      .get(request.params.mediaId) as { storage_key: string; mime_type: string } | undefined;
+    if (!item) return reply.code(404).send({ error: "Media item not found" });
+
+    try {
+      ensurePrivateDirectory(mediaDirectory);
+      const filePath = resolve(mediaDirectory, item.storage_key);
+      if (dirname(filePath) !== mediaDirectory) {
+        return reply.code(404).send({ error: "Media item not found" });
+      }
+      const content = readFileSync(filePath);
+      return reply
+        .type(item.mime_type)
+        .header("Content-Disposition", "inline")
+        .send(content);
+    } catch (error) {
+      request.log.error(error, "Stored Veyra media file is missing or unreadable");
+      return reply.code(404).send({ error: "Media file is unavailable" });
+    }
+  });
+
+  app.delete<{ Params: { mediaId: string } }>("/api/v1/media/:mediaId", async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const item = database.prepare("SELECT storage_key FROM media_assets WHERE id = ?")
+      .get(request.params.mediaId) as { storage_key: string } | undefined;
+    if (!item) return reply.code(404).send({ error: "Media item not found" });
+
+    const references = database.prepare("SELECT COUNT(*) AS count FROM playlist_items WHERE media_id = ?")
+      .get(request.params.mediaId) as { count: number };
+    if (references.count > 0) {
+      return reply.code(409).send({ error: "This image is used by a playlist and cannot be deleted yet" });
+    }
+
+    try {
+      ensurePrivateDirectory(mediaDirectory);
+      const filePath = resolve(mediaDirectory, item.storage_key);
+      if (dirname(filePath) !== mediaDirectory) {
+        return reply.code(500).send({ error: "Stored media path is invalid" });
+      }
+      rmSync(filePath, { force: true });
+      database.prepare("DELETE FROM media_assets WHERE id = ?").run(request.params.mediaId);
+      return reply.code(204).send();
+    } catch (error) {
+      request.log.error(error, "Could not delete Veyra media");
+      return reply.code(500).send({ error: "Image could not be deleted" });
+    }
+  });
+
+  app.get("/api/v1/playlists", async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const playlists = database.prepare(`
+      SELECT playlists.id, playlists.name, playlists.description, playlists.created_at,
+             playlists.updated_at, COUNT(playlist_items.id) AS item_count
+      FROM playlists
+      LEFT JOIN playlist_items ON playlist_items.playlist_id = playlists.id
+      GROUP BY playlists.id
+      ORDER BY playlists.updated_at DESC
+    `).all() as Array<{
+      id: string;
+      name: string;
+      description: string;
+      created_at: string;
+      updated_at: string;
+      item_count: number;
+    }>;
+
+    return {
+      playlists: playlists.map((playlist) => ({
+        id: playlist.id,
+        name: playlist.name,
+        description: playlist.description,
+        itemCount: playlist.item_count,
+        createdAt: playlist.created_at,
+        updatedAt: playlist.updated_at,
+      })),
+    };
+  });
+
+  app.post<{ Body: { name?: unknown; description?: unknown } }>("/api/v1/playlists", async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const body = request.body ?? {};
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const description = typeof body.description === "string" ? body.description.trim() : "";
+    if (name.length < 1 || name.length > 80) {
+      return reply.code(400).send({ error: "Playlist name must be between 1 and 80 characters" });
+    }
+    if (description.length > 500) {
+      return reply.code(400).send({ error: "Playlist description cannot exceed 500 characters" });
+    }
+
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    database.prepare("INSERT INTO playlists (id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
+      .run(id, name, description, now, now);
+    return reply.code(201).send({ id, name, description, itemCount: 0, createdAt: now, updatedAt: now });
+  });
+
+  app.get<{ Params: { playlistId: string } }>("/api/v1/playlists/:playlistId", async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const playlist = database.prepare("SELECT id, name, description, created_at, updated_at FROM playlists WHERE id = ?")
+      .get(request.params.playlistId) as {
+        id: string; name: string; description: string; created_at: string; updated_at: string;
+      } | undefined;
+    if (!playlist) return reply.code(404).send({ error: "Playlist not found" });
+
+    const items = database.prepare(`
+      SELECT playlist_items.id, playlist_items.media_id, playlist_items.position,
+             playlist_items.duration_seconds, media_assets.display_name, media_assets.mime_type,
+             media_assets.size_bytes
+      FROM playlist_items
+      INNER JOIN media_assets ON media_assets.id = playlist_items.media_id
+      WHERE playlist_items.playlist_id = ?
+      ORDER BY playlist_items.position ASC
+    `).all(playlist.id) as Array<{
+      id: string; media_id: string; position: number; duration_seconds: number;
+      display_name: string; mime_type: string; size_bytes: number;
+    }>;
+
+    return {
+      id: playlist.id,
+      name: playlist.name,
+      description: playlist.description,
+      createdAt: playlist.created_at,
+      updatedAt: playlist.updated_at,
+      items: items.map((item) => ({
+        id: item.id,
+        mediaId: item.media_id,
+        position: item.position,
+        durationSeconds: item.duration_seconds,
+        mediaName: item.display_name,
+        mimeType: item.mime_type,
+        sizeBytes: item.size_bytes,
+        contentUrl: `/api/v1/media/${item.media_id}/content`,
+      })),
+    };
+  });
+
+  app.put<{ Params: { playlistId: string }; Body: { name?: unknown; description?: unknown; items?: unknown } }>(
+    "/api/v1/playlists/:playlistId",
+    async (request, reply) => {
+      const operator = getAuthenticatedOperator(database, request, reply);
+      if (!operator) return;
+
+      const existing = database.prepare("SELECT id FROM playlists WHERE id = ?")
+        .get(request.params.playlistId) as { id: string } | undefined;
+      if (!existing) return reply.code(404).send({ error: "Playlist not found" });
+
+      const body = request.body ?? {};
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      const description = typeof body.description === "string" ? body.description.trim() : "";
+      if (name.length < 1 || name.length > 80) {
+        return reply.code(400).send({ error: "Playlist name must be between 1 and 80 characters" });
+      }
+      if (description.length > 500) {
+        return reply.code(400).send({ error: "Playlist description cannot exceed 500 characters" });
+      }
+      if (!Array.isArray(body.items) || body.items.length > 200) {
+        return reply.code(400).send({ error: "Playlist items must be an array containing at most 200 images" });
+      }
+
+      const items: Array<{ mediaId: string; durationSeconds: number }> = [];
+      for (const rawItem of body.items) {
+        if (typeof rawItem !== "object" || rawItem === null) {
+          return reply.code(400).send({ error: "Each playlist item must be an object" });
+        }
+        const item = rawItem as { mediaId?: unknown; durationSeconds?: unknown };
+        if (typeof item.mediaId !== "string" || item.mediaId.length < 1 ||
+            typeof item.durationSeconds !== "number" || !Number.isInteger(item.durationSeconds) ||
+            item.durationSeconds < 1 || item.durationSeconds > 3600) {
+          return reply.code(400).send({ error: "Each item needs a media ID and a duration from 1 to 3600 seconds" });
+        }
+        items.push({ mediaId: item.mediaId, durationSeconds: item.durationSeconds });
+      }
+
+      const uniqueMediaIds = [...new Set(items.map((item) => item.mediaId))];
+      if (uniqueMediaIds.length > 0) {
+        const placeholders = uniqueMediaIds.map(() => "?").join(",");
+        const found = database.prepare(`SELECT id, size_bytes FROM media_assets WHERE id IN (${placeholders})`)
+          .all(...uniqueMediaIds) as Array<{ id: string; size_bytes: number }>;
+        if (found.length !== uniqueMediaIds.length) {
+          return reply.code(400).send({ error: "One or more playlist images do not exist in the media library" });
+        }
+        const sizesById = new Map(found.map((asset) => [asset.id, asset.size_bytes]));
+        const totalBytes = items.reduce((total, item) => total + (sizesById.get(item.mediaId) ?? 0), 0);
+        if (totalBytes > MAX_PLAYLIST_BYTES) {
+          return reply.code(400).send({ error: "A receiver fallback playlist cannot exceed 512 MiB" });
+        }
+      }
+
+      const now = new Date().toISOString();
+      const replaceItems = database.transaction(() => {
+        database.prepare("UPDATE playlists SET name = ?, description = ?, updated_at = ?, revision = revision + 1 WHERE id = ?")
+          .run(name, description, now, request.params.playlistId);
+        database.prepare("DELETE FROM playlist_items WHERE playlist_id = ?").run(request.params.playlistId);
+        const insert = database.prepare(`
+          INSERT INTO playlist_items (id, playlist_id, media_id, position, duration_seconds)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+        items.forEach((item, position) => {
+          insert.run(randomUUID(), request.params.playlistId, item.mediaId, position, item.durationSeconds);
+        });
+      });
+      replaceItems();
+
+      return {
+        id: request.params.playlistId,
+        name,
+        description,
+        itemCount: items.length,
+        updatedAt: now,
+      };
+    },
+  );
+
+  app.delete<{ Params: { playlistId: string } }>("/api/v1/playlists/:playlistId", async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const result = database.prepare("DELETE FROM playlists WHERE id = ?").run(request.params.playlistId);
+    if (result.changes === 0) return reply.code(404).send({ error: "Playlist not found" });
+    return reply.code(204).send();
+  });
+
+  app.post("/api/v1/devices/pairing-codes", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const code = randomInt(0, 1_000_000_000_000).toString().padStart(12, "0");
+    database.prepare("DELETE FROM pairing_codes WHERE expires_at <= ? OR used_at IS NOT NULL")
+      .run(new Date().toISOString());
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
+
+    database.prepare(`
+      INSERT INTO pairing_codes (id, code_hash, created_by, expires_at, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(randomUUID(), hashPairingCode(code, pairingSecret), operator.id, expiresAt, now.toISOString());
+
+    return reply.code(201).send({ code, expiresAt });
+  });
+
+  app.get("/api/v1/devices", async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const rows = database.prepare(`
+      SELECT id, name, platform, software_version, last_seen_at, last_ip,
+             playback_mode, ndi_source_name, uptime_seconds, created_at,
+             credential_revoked_at, config_version, assigned_ndi_source_name,
+             assigned_ndi_source_address, fallback_playlist_id
+      FROM devices
+      ORDER BY name COLLATE NOCASE ASC
+    `).all() as Array<{
+      id: string;
+      name: string;
+      platform: string;
+      software_version: string;
+      last_seen_at: string | null;
+      last_ip: string | null;
+      playback_mode: string;
+      ndi_source_name: string | null;
+      uptime_seconds: number | null;
+      created_at: string;
+      credential_revoked_at: string | null;
+      config_version: number;
+      assigned_ndi_source_name: string | null;
+      assigned_ndi_source_address: string | null;
+      fallback_playlist_id: string | null;
+    }>;
+
+    const now = Date.now();
+    return {
+      devices: rows.map((device) => {
+        const age = device.last_seen_at ? now - Date.parse(device.last_seen_at) : Number.POSITIVE_INFINITY;
+        const status = age <= 45_000 ? "online" : age <= 120_000 ? "stale" : "offline";
+        return {
+          id: device.id,
+          name: device.name,
+          status,
+          platform: device.platform,
+          softwareVersion: device.software_version,
+          lastSeenAt: device.last_seen_at,
+          lastIp: device.last_ip,
+          playbackMode: device.playback_mode,
+          ndiSourceName: device.ndi_source_name,
+          uptimeSeconds: device.uptime_seconds,
+          createdAt: device.created_at,
+          credentialRevokedAt: device.credential_revoked_at,
+          credentialStatus: device.credential_revoked_at ? "revoked" : "active",
+          configVersion: device.config_version,
+          assignedNdiSourceName: device.assigned_ndi_source_name,
+          assignedNdiSourceAddress: device.assigned_ndi_source_address,
+          fallbackPlaylistId: device.fallback_playlist_id,
+        };
+      }),
+    };
+  });
+
+
+  app.put<{ Params: { deviceId: string }; Body: { ndiSourceName?: unknown; ndiSourceAddress?: unknown; fallbackPlaylistId?: unknown } }>(
+    "/api/v1/devices/:deviceId/config",
+    async (request, reply) => {
+      const operator = getAuthenticatedOperator(database, request, reply);
+      if (!operator) return;
+
+      const device = database.prepare(
+        "SELECT id FROM devices WHERE id = ? AND credential_revoked_at IS NULL",
+      ).get(request.params.deviceId) as { id: string } | undefined;
+      if (!device) return reply.code(404).send({ error: "Active device not found" });
+
+      const body = request.body ?? {};
+      const sourceName = body.ndiSourceName === null || body.ndiSourceName === ""
+        ? null
+        : typeof body.ndiSourceName === "string" ? stripControlCharacters(body.ndiSourceName).trim() : undefined;
+      const sourceAddress = body.ndiSourceAddress === null || body.ndiSourceAddress === ""
+        ? null
+        : typeof body.ndiSourceAddress === "string" ? stripControlCharacters(body.ndiSourceAddress).trim() : undefined;
+      const fallbackPlaylistId = body.fallbackPlaylistId === null || body.fallbackPlaylistId === ""
+        ? null
+        : typeof body.fallbackPlaylistId === "string" ? body.fallbackPlaylistId : undefined;
+
+      if (sourceName === undefined || sourceAddress === undefined || fallbackPlaylistId === undefined ||
+          (sourceName !== null && (sourceName.length === 0 || sourceName.length > 160)) ||
+          (sourceAddress !== null && (sourceAddress.length === 0 || sourceAddress.length > 2048))) {
+        return reply.code(400).send({ error: "Invalid device configuration values" });
+      }
+      if ((sourceName === null) !== (sourceAddress === null)) {
+        return reply.code(400).send({ error: "Set both NDI source name and address, or clear both" });
+      }
+      if (fallbackPlaylistId !== null) {
+        const playlist = database.prepare("SELECT id FROM playlists WHERE id = ?")
+          .get(fallbackPlaylistId) as { id: string } | undefined;
+        if (!playlist) return reply.code(400).send({ error: "Fallback playlist does not exist" });
+      }
+
+      database.prepare(`
+        UPDATE devices
+        SET assigned_ndi_source_name = ?, assigned_ndi_source_address = ?,
+            fallback_playlist_id = ?, config_version = config_version + 1,
+            updated_at = ?
+        WHERE id = ?
+      `).run(sourceName, sourceAddress, fallbackPlaylistId, new Date().toISOString(), device.id);
+
+      const updated = database.prepare(`
+        SELECT config_version, assigned_ndi_source_name, assigned_ndi_source_address,
+               fallback_playlist_id
+        FROM devices WHERE id = ?
+      `).get(device.id) as {
+        config_version: number; assigned_ndi_source_name: string | null;
+        assigned_ndi_source_address: string | null; fallback_playlist_id: string | null;
+      };
+      return {
+        deviceId: device.id,
+        configVersion: updated.config_version,
+        ndiSourceName: updated.assigned_ndi_source_name,
+        ndiSourceAddress: updated.assigned_ndi_source_address,
+        fallbackPlaylistId: updated.fallback_playlist_id,
+      };
+    },
+  );
+
+  function authenticateReceiver(request: FastifyRequest, reply: FastifyReply): { id: string } | null {
+    const authorization = request.headers.authorization ?? "";
+    const deviceToken = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+    if (!deviceToken) {
+      reply.code(401).send({ error: "Device authentication required" });
+      return null;
+    }
+    const device = database.prepare(
+      "SELECT id FROM devices WHERE device_token_hash = ? AND credential_revoked_at IS NULL",
+    ).get(hashSessionToken(deviceToken)) as { id: string } | undefined;
+    if (!device) {
+      reply.code(401).send({ error: "Invalid device credential" });
+      return null;
+    }
+    return device;
+  }
+
+  app.get("/api/v1/receiver/config", async (request, reply) => {
+    const device = authenticateReceiver(request, reply);
+    if (!device) return;
+    const config = database.prepare(`
+      SELECT config_version, assigned_ndi_source_name, assigned_ndi_source_address,
+             fallback_playlist_id
+      FROM devices WHERE id = ?
+    `).get(device.id) as {
+      config_version: number; assigned_ndi_source_name: string | null;
+      assigned_ndi_source_address: string | null; fallback_playlist_id: string | null;
+    };
+    return {
+      schemaVersion: 1,
+      configVersion: config.config_version,
+      ndi: { sourceName: config.assigned_ndi_source_name, sourceAddress: config.assigned_ndi_source_address },
+      fallbackPlaylistId: config.fallback_playlist_id,
+    };
+  });
+
+  app.get("/api/v1/receiver/media-manifest", async (request, reply) => {
+    const device = authenticateReceiver(request, reply);
+    if (!device) return;
+    const assignment = database.prepare(`
+      SELECT d.config_version, d.fallback_playlist_id, p.updated_at, p.revision
+      FROM devices d LEFT JOIN playlists p ON p.id = d.fallback_playlist_id
+      WHERE d.id = ?
+    `).get(device.id) as { config_version: number; fallback_playlist_id: string | null; updated_at: string | null; revision: number | null };
+    const items = assignment.fallback_playlist_id ? database.prepare(`
+      SELECT pi.position, pi.duration_seconds, ma.id, ma.mime_type, ma.size_bytes, ma.sha256
+      FROM playlist_items pi
+      INNER JOIN media_assets ma ON ma.id = pi.media_id
+      WHERE pi.playlist_id = ?
+      ORDER BY pi.position ASC
+    `).all(assignment.fallback_playlist_id) as Array<{
+      position: number; duration_seconds: number; id: string; mime_type: string; size_bytes: number; sha256: string;
+    }> : [];
+    return {
+      schemaVersion: 1,
+      configVersion: assignment.config_version,
+      playlistId: assignment.fallback_playlist_id,
+      playlistUpdatedAt: assignment.updated_at,
+      playlistRevision: assignment.revision,
+      items: items.map((item) => ({
+        mediaId: item.id,
+        position: item.position,
+        durationSeconds: item.duration_seconds,
+        mimeType: item.mime_type,
+        sizeBytes: item.size_bytes,
+        sha256: item.sha256,
+        downloadPath: `/api/v1/receiver/media/${item.id}`,
+      })),
+    };
+  });
+
+  app.get<{ Params: { mediaId: string } }>("/api/v1/receiver/media/:mediaId", async (request, reply) => {
+    const device = authenticateReceiver(request, reply);
+    if (!device) return;
+    const asset = database.prepare(`
+      SELECT ma.storage_key, ma.mime_type
+      FROM media_assets ma
+      INNER JOIN playlist_items pi ON pi.media_id = ma.id
+      INNER JOIN devices d ON d.fallback_playlist_id = pi.playlist_id
+      WHERE d.id = ? AND ma.id = ?
+      LIMIT 1
+    `).get(device.id, request.params.mediaId) as { storage_key: string; mime_type: string } | undefined;
+    if (!asset) return reply.code(404).send({ error: "Assigned media item not found" });
+    try {
+      ensurePrivateDirectory(mediaDirectory);
+      const filePath = resolve(mediaDirectory, asset.storage_key);
+      if (dirname(filePath) !== mediaDirectory) return reply.code(404).send({ error: "Media item not found" });
+      return reply.type(asset.mime_type).header("Cache-Control", "private, no-store").send(readFileSync(filePath));
+    } catch (error) {
+      request.log.error(error, "Assigned Veyra media is missing or unreadable");
+      return reply.code(404).send({ error: "Media file is unavailable" });
+    }
+  });
+
+  app.delete<{ Params: { deviceId: string } }>("/api/v1/devices/:deviceId", async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const result = database.prepare("DELETE FROM devices WHERE id = ? AND credential_revoked_at IS NOT NULL")
+      .run(request.params.deviceId);
+    if (result.changes === 0) {
+      return reply.code(409).send({ error: "Revoke the device credential before removing the device" });
+    }
+    return reply.code(204).send();
+  });
+
+  app.post<{ Params: { deviceId: string } }>("/api/v1/devices/:deviceId/revoke", async (request, reply) => {
+    const operator = getAuthenticatedOperator(database, request, reply);
+    if (!operator) return;
+
+    const result = database.prepare(`
+      UPDATE devices
+      SET credential_revoked_at = COALESCE(credential_revoked_at, ?), updated_at = ?
+      WHERE id = ?
+    `).run(new Date().toISOString(), new Date().toISOString(), request.params.deviceId);
+    if (result.changes === 0) {
+      return reply.code(404).send({ error: "Device not found" });
+    }
+    return { revoked: true };
+  });
+
+  app.post<{ Body: { code?: unknown; deviceName?: unknown; platform?: unknown; version?: unknown } }>(
+    "/api/v1/receiver/pair",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const body = request.body ?? {};
+      const code = typeof body.code === "string" ? body.code.trim() : "";
+      const deviceName = typeof body.deviceName === "string" ? body.deviceName.trim() : "";
+      const platform = typeof body.platform === "string" ? body.platform.trim().slice(0, 80) : "unknown";
+      const version = typeof body.version === "string" ? body.version.trim().slice(0, 40) : "unknown";
+
+      if (!/^\d{12}$/.test(code)) {
+        return reply.code(400).send({ error: "Pairing code must contain 12 digits" });
+      }
+      if (deviceName.length < 1 || deviceName.length > 64) {
+        return reply.code(400).send({ error: "Device name must be between 1 and 64 characters" });
+      }
+
+      const deviceId = randomUUID();
+      const deviceToken = randomBytes(32).toString("base64url");
+      const now = new Date().toISOString();
+
+      const pairDevice = database.transaction(() => {
+        const pairing = database.prepare(`
+          SELECT id, expires_at, used_at
+          FROM pairing_codes
+          WHERE code_hash = ?
+        `).get(hashPairingCode(code, pairingSecret)) as { id: string; expires_at: string; used_at: string | null } | undefined;
+
+        if (!pairing || pairing.used_at || Date.parse(pairing.expires_at) <= Date.now()) return false;
+
+        const used = database.prepare("UPDATE pairing_codes SET used_at = ? WHERE id = ? AND used_at IS NULL")
+          .run(now, pairing.id);
+        if (used.changes !== 1) return false;
+
+        database.prepare(`
+          INSERT INTO devices (
+            id, name, device_token_hash, platform, software_version,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(deviceId, deviceName, hashSessionToken(deviceToken), platform || "unknown", version || "unknown", now, now);
+
+        return true;
+      });
+
+      if (!pairDevice()) {
+        return reply.code(403).send({ error: "Pairing code is invalid, expired, or already used" });
+      }
+
+      return reply.code(201).send({
+        deviceId,
+        deviceToken,
+        heartbeatIntervalSeconds: 15,
+      });
+    },
+  );
+
+  app.post<{ Body: { version?: unknown; platform?: unknown; uptimeSeconds?: unknown; playbackMode?: unknown; ndiSourceName?: unknown; ndiSources?: unknown } }>(
+    "/api/v1/receiver/heartbeat",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const device = authenticateReceiver(request, reply);
+      if (!device) return;
+
+      const body = request.body ?? {};
+      const version = typeof body.version === "string" ? body.version.trim().slice(0, 40) : "unknown";
+      const platform = typeof body.platform === "string" ? body.platform.trim().slice(0, 80) : "unknown";
+      const uptimeSeconds = typeof body.uptimeSeconds === "number" &&
+        Number.isSafeInteger(body.uptimeSeconds) && body.uptimeSeconds >= 0
+        ? body.uptimeSeconds
+        : null;
+      const allowedModes = new Set(["ndi", "fallback", "idle", "error", "unknown"]);
+      const playbackMode = typeof body.playbackMode === "string" && allowedModes.has(body.playbackMode)
+        ? body.playbackMode
+        : "unknown";
+      const ndiSourceName = typeof body.ndiSourceName === "string"
+        ? body.ndiSourceName.slice(0, 160)
+        : null;
+      let discoveredSourcesJson: string | null = null;
+      if (body.ndiSources !== undefined) {
+        if (!Array.isArray(body.ndiSources) || body.ndiSources.length > 100) {
+          return reply.code(400).send({ error: "ndiSources must be an array of at most 100 sources" });
+        }
+        const discoveredSources: Array<{ name: string; url: string }> = [];
+        const seenSources = new Set<string>();
+        for (const rawSource of body.ndiSources) {
+          if (typeof rawSource !== "object" || rawSource === null) {
+            return reply.code(400).send({ error: "Each discovered source must be an object" });
+          }
+          const source = rawSource as { name?: unknown; url?: unknown };
+          const sourceName = typeof source.name === "string"
+            ? stripControlCharacters(source.name)
+            : "";
+          const sourceUrl = typeof source.url === "string"
+            ? stripControlCharacters(source.url)
+            : "";
+          if (!sourceName) {
+            return reply.code(400).send({ error: "Each discovered source needs a valid name" });
+          }
+          const identity = sourceUrl || sourceName;
+          if (seenSources.has(identity)) continue;
+          seenSources.add(identity);
+          discoveredSources.push({ name: sourceName, url: sourceUrl });
+        }
+        discoveredSourcesJson = JSON.stringify(discoveredSources);
+      }
+      const now = new Date().toISOString();
+
+      database.prepare(`
+        UPDATE devices
+        SET last_seen_at = ?, last_ip = ?, software_version = ?, platform = ?,
+            playback_mode = ?, ndi_source_name = ?, uptime_seconds = ?,
+            discovered_sources_json = COALESCE(?, discovered_sources_json), updated_at = ?
+        WHERE id = ?
+      `).run(now, request.ip, version || "unknown", platform || "unknown", playbackMode, ndiSourceName, uptimeSeconds, discoveredSourcesJson, now, device.id);
+
+      return { accepted: true, serverTime: now };
+    },
+  );
+
+  return app;
+}

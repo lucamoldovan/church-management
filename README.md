@@ -1,195 +1,63 @@
-# Casa Pâinii — Church Management Platform
+# Church Operations
 
-A full-stack church management platform for Casa Pâinii.
+A staff-only church operations and media platform. The dashboard, API, database and NDI receiver control plane are designed to run on infrastructure owned by the church.
 
-## Tech Stack
+## Architecture
 
-| Layer | Technology |
-|---|---|
-| Frontend + API | Next.js 16 (App Router, TypeScript) |
-| Database & Auth | Supabase (Postgres + RLS + Auth + Storage) |
-| Payments | Stripe |
-| Deployment | Cloudflare Workers via OpenNext |
+- **Dashboard:** React + TypeScript + Vite. One staff application for church operations and production.
+- **Local API:** Node.js 22+ + Fastify.
+- **Database:** SQLite via better-sqlite3. Stored locally with restrictive filesystem permissions.
+- **NDI screens:** Native Linux receiver based on the existing Veyra NDI receiver engine and control-plane protocol.
+- **ProPresenter:** Server-side integration with the ProPresenter HTTP API.
+- **Planning Center:** Initial read/sync source for service plans. The local database is the future source of truth.
 
-The project has **no separate Python backend**. Server-side business logic and API endpoints live in Next.js Route Handlers under `frontend/src/app/api` and run in the Cloudflare Worker.
+There are no Cloudflare Workers, D1, R2, OpenNext, Supabase or hosted application dependencies in this branch. The only external network connections are optional integrations configured by the church (currently Planning Center and the ProPresenter machine on the LAN).
 
-## Features
+## Local development
 
-- Member profiles and role-based authentication
-- Events with registration, ticketing, and approval workflow
-- Stripe payment integration (online + cash at event)
-- QR code tickets and NFC bracelet check-in system
-- Study groups with attendance tracking
-- Admin dashboard with analytics
-- Sermon library and livestream configuration
-- Google Calendar and Facebook auto-publishing
-- Role-based access control
-
-## Project Structure
-
-```
-church-management/
-├── frontend/              # Deployable Next.js application
-│   ├── src/app/           # Pages + API Route Handlers
-│   ├── src/lib/           # Supabase/auth helpers
-│   ├── open-next.config.ts
-│   ├── wrangler.toml
-│   └── package.json
-├── supabase/
-│   ├── schema.sql
-│   └── migrations/
-└── .env.example
-```
-
-## Local Development
-
-### 1. Install
+Requirements: Node.js 22+, npm, and (for native NDI receivers) CMake, a C++20 compiler, SDL2 and the NDI SDK 6.
 
 ```bash
-cd frontend
 npm install
-```
-
-Create `frontend/.env.local` from the repository root `.env.example`.
-
-### 2. Database
-
-Run these SQL files in order in the Supabase SQL Editor:
-
-1. `supabase/schema.sql`
-2. `supabase/migrations/phase1_payments.sql`
-3. `supabase/migrations/phase2_bracelets.sql`
-4. `supabase/migrations/phase3_event_planning.sql`
-5. `supabase/migrations/phase5_integrations.sql`
-6. `supabase/migrations/phase6_bracelet_history.sql`
-7. `supabase/migrations/phase7_schema_fixes.sql`
-8. `supabase/migrations/phase8_missing_tables.sql`
-9. `supabase/migrations/phase9_event_packages_and_profile_fields.sql`
-
-The `posters` Supabase Storage bucket must exist and be public if Facebook/event-poster publishing is enabled.
-
-### 3. Run
-
-```bash
-cd frontend
 npm run dev
 ```
 
-## Cloudflare Workers Deployment
+The API runs on `http://127.0.0.1:8787` and the Vite dashboard on `http://127.0.0.1:5173`. The Vite server proxies `/api` requests to the local API.
 
-Cloudflare currently supports Next.js on Workers through multiple paths; this repository intentionally uses the **OpenNext adapter** for the existing Next.js application.
+The first launch prints a one-time setup key in the API terminal. Use it to create the first administrator account in the dashboard. Additional staff accounts can then be created from **Staff**.
 
-### Option A — Cloudflare Workers Builds
+## Single-server deployment
 
-Connect the GitHub repository to Cloudflare Workers Builds.
-
-Set the project root to:
-
-```
-frontend
-```
-
-Build command:
+Build the dashboard and API:
 
 ```bash
-npm install && npm run build:cf
+npm run build
+npm start
 ```
 
-Deploy command:
+The Fastify server serves the built dashboard and API from one origin. The default bind is loopback-only. To make the app available to staff devices on the church LAN, configure a trusted local TLS certificate and set:
 
-```bash
-npx wrangler deploy
+```env
+CHURCH_HOST=0.0.0.0
+CHURCH_TLS_CERT_PATH=/path/to/church-server.crt
+CHURCH_TLS_KEY_PATH=/path/to/church-server.key
 ```
 
-Cloudflare Workers Builds supports a separate build command and deploy command. citeturn0search7
+The server deliberately refuses to bind to a non-loopback interface without TLS. Configure the certificate on the devices that access the staff dashboard.
 
-### Option B — Wrangler locally
+## Integrations
 
-```bash
-cd frontend
-npm install
-npm run preview
-npm run deploy
-```
+Set these values in the local server environment (never in browser code):
 
-`preview` builds and runs the application through the Workers/OpenNext runtime; `deploy` builds and deploys it.
+- `PLANNING_CENTER_APP_ID`
+- `PLANNING_CENTER_SECRET`
+- `PROPRESENTER_URL` (for example, the ProPresenter machine's LAN address and configured API port)
+- `PROPRESENTER_API_TOKEN` (only if enabled/configured by the ProPresenter installation)
 
-## Required Cloudflare Variables / Secrets
+Planning Center uses a Personal Access Token for this single-church server integration. Credentials are kept server-side. The current sync imports future Services plans; it does not yet replace Planning Center's people, groups or volunteer scheduling modules.
 
-Configure these in Cloudflare **Build Variables and Secrets** / Worker environment settings:
+## NDI receivers
 
-| Variable | Required | Type |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Variable |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Variable |
-| `SUPABASE_SERVICE_KEY` | Yes | Secret |
-| `STRIPE_SECRET_KEY` | Yes for payments | Secret |
-| `STRIPE_WEBHOOK_SECRET` | Yes for payments | Secret |
-| `GOOGLE_CLIENT_ID` | Optional | Variable |
-| `GOOGLE_CLIENT_SECRET` | Optional | Secret |
-| `GOOGLE_CALENDAR_ID` | Optional | Variable |
-| `FB_PAGE_ID` | Optional | Variable |
-| `FB_PAGE_ACCESS_TOKEN` | Optional | Secret |
-| `EVENT_TIMEZONE` | Optional | Variable |
+Build and install the receiver from `receiver/` on a supported Linux display machine. The receiver remains a separate native process because NDI decoding and fullscreen display output cannot run inside a browser tab. It pairs with the local server and is managed from the **NDI screens** section of the staff dashboard.
 
-**Never commit service-role, Stripe, OAuth, or Facebook secrets.**
-
-## Stripe Webhook
-
-Create a Stripe webhook endpoint:
-
-```
-https://YOUR_DOMAIN/api/payments/webhook
-```
-
-Listen for:
-
-- `checkout.session.completed`
-
-Set its signing secret as `STRIPE_WEBHOOK_SECRET`.
-
-## Google Calendar OAuth
-
-Create a Google OAuth 2.0 Web application and add:
-
-```
-https://YOUR_DOMAIN/api/oauth/calendar/callback
-```
-
-Then configure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
-
-The OAuth flow uses an HTTP-only state cookie to bind the callback to the initiating browser session.
-
-## Security Model
-
-- Supabase Auth identifies the current user.
-- Sensitive API routes enforce authentication and staff/owner authorization.
-- Server-side Supabase access uses `SUPABASE_SERVICE_KEY`, which must remain secret.
-- Stripe webhooks verify the Stripe signature before changing payment state.
-- Google OAuth callbacks require an authenticated staff user and validate OAuth state.
-- Public/client Supabase keys are safe to expose; service-role and third-party secrets are not.
-
-## Database Notes
-
-The canonical event package table is `event_packages`. The phase 9 migration provides a compatibility view named `ticket_types`.
-
-Important tables include:
-
-- `profiles`
-- `events`
-- `event_packages`
-- `registrations`
-- `checkins`
-- `bracelets`
-- `bracelet_assignments`
-- `study_groups`
-- `group_members`
-- `group_meetings`
-- `group_attendance`
-- `sermons`
-- `livestream_config`
-- `payment_transactions`
-- `notifications`
-- `social_media`
-- `contact_messages`
-- `integration_tokens`
+See [docs/architecture.md](docs/architecture.md) and [docs/control-plane-contract.md](docs/control-plane-contract.md) for the receiver/server contract.

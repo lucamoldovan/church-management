@@ -1,29 +1,13 @@
-# Environment files - never commit secrets
+node_modules/
+**/node_modules/
+**/dist/
+**/build/
+data/
 .env
 .env.*
-*.env
-.env.local
-backend/.env
-frontend/.env.local
-credentials.json
-*.pem
-*.key
-.credentials
-
-# Emergent AI agent artifacts - not needed in production
-.emergent/
-memory/
-
-# Cloudflare / Vercel build output
-.vercel/
-.wrangler/
-
-# Node
-node_modules/
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+.DS_Store
