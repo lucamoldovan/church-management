@@ -507,7 +507,7 @@ function Overview({
       <section className="stat-grid" aria-label="Network summary">
         <StatCard label="Total devices" value={deviceCount === null ? "—" : String(deviceCount)} detail={deviceCount === null ? "Device status unavailable" : deviceCount === 0 ? "No receivers registered" : "Registered receivers"} icon={Monitor} />
         <StatCard label="Online now" value={onlineCount === null ? "—" : String(onlineCount)} detail={onlineCount === null ? "Device status unavailable" : "Reporting a recent heartbeat"} icon={Wifi} />
-        <StatCard label="NDI sources" value="—" value={sourceCount === null ? "—" : String(sourceCount)} detail="Discovered on the local network" icon={Radio} />
+        <StatCard label="NDI sources" value={sourceCount === null ? "—" : String(sourceCount)} detail="Discovered on the local network" icon={Radio} />
         <StatCard label="Media assets" value={mediaCount === null ? "—" : String(mediaCount)} detail="Media assets stored locally" icon={Image} />
       </section>
 
