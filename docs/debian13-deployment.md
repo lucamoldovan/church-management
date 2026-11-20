@@ -254,6 +254,15 @@ sudo systemctl restart smbd
 
 Create a matching Linux account before adding its Samba password. After changing group membership, users must sign out and back in. The private SQLite database, pairing secret and Veyra media directory must not be placed in these general-purpose shares.
 
+Run the application's backup script after initial setup. The destination must be on a second physical disk mounted at `/srv/backups` (create and mount it first):
+
+```bash
+sudo install -d -o churchops -g churchops -m 0700 /srv/backups/church-operations
+sudo -u churchops bash -lc 'set -a; . /opt/church-operations/.env; set +a; cd /opt/church-operations; npm run backup --workspace @church-ops/server -- /srv/backups/church-operations'
+```
+
+The script backs up the SQLite database, Veyra pairing secret and media directory together. Separately keep an encrypted/offline copy of `/opt/church-operations/.env`, `/etc/church-operations/tls/`, and `/root/church-local-ca/ca.key`; the script intentionally does not copy those secrets into the media backup. Test restoring a backup before relying on it.
+
 RAID is not a backup. Back up the database, media directory, pairing secret, TLS CA and private key, and the application environment to a second physical device. Test restoring a backup before relying on it.
 
 ## 9. NDI receiver — separate display computer
