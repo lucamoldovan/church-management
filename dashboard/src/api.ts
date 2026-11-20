@@ -285,9 +285,9 @@ export interface ChurchOverview {
 }
 export interface ChurchService {
   id: string; title: string; startsAt: string | null; endsAt: string | null;
-  status: string; location: string | null; notes: string | null; source: string; externalId: string | null;
+  status: string; location: string | null; notes: string | null; source: string; externalId: string | null; itemCount?: number;
 }
-export interface ChurchStaff {
+export interface ChurchServiceItem { id: string; position: number; title: string; itemType: string; durationSeconds: number | null; assignedTo: string | null; notes: string | null; }\nexport interface ChurchStaff {
   id: string; username: string; displayName: string; role: string; department: string | null; active: number; createdAt: string;
 }
 export interface ChurchEvent {
@@ -304,7 +304,7 @@ export function getChurchOverview(signal?: AbortSignal): Promise<ChurchOverview>
 export function getChurchServices(signal?: AbortSignal): Promise<{ services: ChurchService[] }> {
   return request<{ services: ChurchService[] }>("/api/v1/church/services", { signal });
 }
-export function createChurchService(input: { title: string; startsAt?: string; endsAt?: string; location?: string; notes?: string }): Promise<ChurchService> {
+export function getChurchServiceItems(serviceId: string): Promise<{ items: ChurchServiceItem[] }> {\n  return request<{ items: ChurchServiceItem[] }>(`/api/v1/church/services/${encodeURIComponent(serviceId)}/items`);\n}\nexport function createChurchService(input: { title: string; startsAt?: string; endsAt?: string; location?: string; notes?: string }): Promise<ChurchService> {
   return request<ChurchService>("/api/v1/church/services", { method: "POST", body: JSON.stringify(input) });
 }
 export function getChurchStaff(signal?: AbortSignal): Promise<{ staff: ChurchStaff[] }> {
@@ -328,7 +328,7 @@ export function createChurchGroup(input: { name: string; description?: string; l
 export function getPlanningCenterStatus(): Promise<{ configured: boolean; connected: boolean; message: string }> {
   return request("/api/v1/integrations/planning-center/status");
 }
-export function syncPlanningCenter(): Promise<{ imported: number; serviceTypes: number; syncedAt: string }> {
+export function syncPlanningCenter(): Promise<{ imported: number; itemsImported: number; plansProcessed: number; serviceTypes: number; syncedAt: string }> {
   return request("/api/v1/integrations/planning-center/sync", { method: "POST" });
 }
 export interface ProPresenterLive {
