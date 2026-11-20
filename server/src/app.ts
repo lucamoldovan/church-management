@@ -240,7 +240,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   const dashboardDirectory = resolve(options.dashboardDirectory ?? process.env.CHURCH_DASHBOARD_DIRECTORY ?? "../dashboard/dist");
   if (existsSync(join(dashboardDirectory, "index.html"))) {
-    app.register(fastifyStatic, { root: dashboardDirectory, prefix: "/", wildcard: false });
+    app.register(fastifyStatic, { root: dashboardDirectory, prefix: "/", wildcard: true });
     app.get("/", async (_request, reply) => reply.sendFile("index.html"));
     app.setNotFoundHandler(async (request, reply) => {
       if (request.method === "GET" && !request.url.startsWith("/api/")) return reply.sendFile("index.html");
