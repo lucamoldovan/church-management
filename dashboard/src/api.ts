@@ -305,7 +305,10 @@ export function getChurchOverview(signal?: AbortSignal): Promise<ChurchOverview>
 export function getChurchServices(signal?: AbortSignal): Promise<{ services: ChurchService[] }> {
   return request<{ services: ChurchService[] }>("/api/v1/church/services", { signal });
 }
-export function getChurchServiceItems(serviceId: string): Promise<{ items: ChurchServiceItem[] }> {\n  return request<{ items: ChurchServiceItem[] }>(`/api/v1/church/services/${encodeURIComponent(serviceId)}/items`);\n}\nexport function createChurchService(input: { title: string; startsAt?: string; endsAt?: string; location?: string; notes?: string }): Promise<ChurchService> {
+export function getChurchServiceItems(serviceId: string): Promise<{ items: ChurchServiceItem[] }> {
+  return request<{ items: ChurchServiceItem[] }>(`/api/v1/church/services/${encodeURIComponent(serviceId)}/items`);
+}
+export function createChurchService(input: { title: string; startsAt?: string; endsAt?: string; location?: string; notes?: string }): Promise<ChurchService> {
   return request<ChurchService>("/api/v1/church/services", { method: "POST", body: JSON.stringify(input) });
 }
 export function getChurchStaff(signal?: AbortSignal): Promise<{ staff: ChurchStaff[] }> {
