@@ -159,15 +159,15 @@ function safeEqual(left: string, right: string): boolean {
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-function getSessionOperator(database: VeyraDatabase, token: string | undefined): { id: string; username: string } | null {
+function getSessionOperator(database: VeyraDatabase, token: string | undefined): { id: string; username: string; role: string } | null {
   if (!token) return null;
 
   const row = database.prepare(`
-    SELECT operators.id, operators.username, operators.active, sessions.expires_at
+    SELECT operators.id, operators.username, operators.role, operators.active, sessions.expires_at
     FROM sessions
     INNER JOIN operators ON operators.id = sessions.operator_id
     WHERE sessions.token_hash = ?
-  `).get(hashSessionToken(token)) as { id: string; username: string; active: number; expires_at: string } | undefined;
+  `).get(hashSessionToken(token)) as { id: string; username: string; role: string; active: number; expires_at: string } | undefined;
 
   if (!row || row.active !== 1) return null;
   if (Date.parse(row.expires_at) <= Date.now()) {
@@ -175,7 +175,7 @@ function getSessionOperator(database: VeyraDatabase, token: string | undefined):
     return null;
   }
 
-  return { id: row.id, username: row.username };
+  return { id: row.id, username: row.username, role: row.role };
 }
 
 function getAuthenticatedOperator(database: VeyraDatabase, request: FastifyRequest, reply: FastifyReply): { id: string; username: string } | null {
@@ -314,7 +314,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
     const session = createSession(database, operatorId);
     setSessionCookie(reply, session.token, secureCookies);
-    return reply.code(201).send({ authenticated: true, operator: { id: operatorId, username } });
+    return reply.code(201).send({ authenticated: true, operator: { id: operatorId, username, role: "admin" } });
   });
 
   app.get("/api/v1/auth/session", async (request) => {
@@ -334,8 +334,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       return reply.code(400).send({ error: "Password must be between 1 and 256 characters" });
     }
 
-    const operator = database.prepare("SELECT id, username, password_hash, active FROM operators WHERE username = ?")
-      .get(username) as { id: string; username: string; password_hash: string; active: number } | undefined;
+    const operator = database.prepare("SELECT id, username, password_hash, role, active FROM operators WHERE username = ?")
+      .get(username) as { id: string; username: string; password_hash: string; role: string; active: number } | undefined;
 
     if (!operator || operator.active !== 1 || !(await verifyPassword(password, operator.password_hash))) {
       return reply.code(401).send({ error: "Invalid username or password" });
@@ -343,7 +343,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
     const session = createSession(database, operator.id);
     setSessionCookie(reply, session.token, secureCookies);
-    return { authenticated: true, operator: { id: operator.id, username: operator.username } };
+    return { authenticated: true, operator: { id: operator.id, username: operator.username, role: operator.role } };
   });
 
   app.delete("/api/v1/auth/session", async (request, reply) => {
