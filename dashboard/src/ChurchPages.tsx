@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { CalendarDays, CircleAlert, LoaderCircle, Plus, RefreshCw, Users, UsersRound, RadioTower, ShieldCheck } from "lucide-react";
+import { Activity, CalendarDays, CircleAlert, LoaderCircle, Plus, RefreshCw, Users, UsersRound, RadioTower, ShieldCheck } from "lucide-react";
 import {
   createChurchEvent, createChurchGroup, createChurchService, createChurchStaff,
   getChurchEvents, getChurchGroups, getChurchServices, getChurchStaff,
