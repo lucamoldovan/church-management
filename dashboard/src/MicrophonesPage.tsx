@@ -21,12 +21,10 @@ const slots: Array<{ key: SlotKey; label: string; detail: string }> = [
   { key: "headset", label: "Headset", detail: "Headset / bodypack channel" },
 ];
 
-function isSingerRole(teamName: string | null, positionName: string | null): boolean {
-  const team = (teamName ?? "").toLowerCase();
-  const position = (positionName ?? "").toLowerCase();
-  return /singer|vocal|choir/.test(position) ||
-    /singer|vocal|choir/.test(team) ||
-    /worship leader/.test(position);
+function isSingerRole(teamName: string | null, _positionName: string | null): boolean {
+  // Planning Center's Sunday roster uses the Romanian team name "Voci".
+  // Include everyone scheduled in that team, across its Voci and Lider De Închinare positions.
+  return (teamName ?? "").trim().toLocaleLowerCase("ro") === "voci";
 }
 
 export function MicrophonesPage() {
