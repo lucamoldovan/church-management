@@ -80,7 +80,7 @@ Implemented:
 - Per-device NDI source and fallback-playlist assignments with monotonically increasing configuration versions.
 - Receiver-authenticated configuration and assigned-media manifest polling, plus media downloads restricted to assets in that receiver's assigned fallback playlist.
 - Per-device NDI discovery snapshots reported through heartbeats and an authenticated aggregated source inventory endpoint.
-- Transactional SQLite schema migrations through version 6, including a populated version-1 upgrade test.
+- Transactional SQLite schema migrations through version 10, including populated legacy-schema upgrade and Planning Center privacy-cleanup tests.
 - Authenticated local image uploads for PNG, JPEG, and WebP, with content-signature checks, a 20 MB limit, SHA-256 metadata, and owner-only file storage.
 - Authenticated media listing, inline content delivery, and safe deletion blocked while a playlist references the asset.
 - Playlist CRUD with ordered image items and validated per-item display durations from 1 to 3600 seconds.
