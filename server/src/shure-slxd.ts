@@ -271,7 +271,10 @@ export class ShureSlxdMonitor {
     this.started = false;
     if (this.reconnectTimer) clearInterval(this.reconnectTimer);
     this.reconnectTimer = null;
-    for (const device of this.devices.values()) device.socket.destroy();
+    for (const device of this.devices.values()) {
+      if (device.connected && !device.socket.destroyed) device.socket.end("< SET 1 METER_RATE 00000 >");
+      else device.socket.destroy();
+    }
     this.devices.clear();
   }
 }
