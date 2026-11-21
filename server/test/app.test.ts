@@ -1093,7 +1093,13 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     if (url === "http://127.0.0.1:1025/v1/status/slide") return new Response(JSON.stringify({ current: { text: "Amazing grace, how sweet the sound", uuid: "slide-uuid" } }), { headers: { "content-type": "application/json" } });
     if (url === "http://127.0.0.1:1025/v1/presentation/slide_index") return new Response(JSON.stringify({ presentation: { index: 2 } }), { headers: { "content-type": "application/json" } });
     let document: { data?: unknown; included?: unknown[]; links?: { next?: string | null } } = { data: [] };
-    if (url.endsWith("/service_types?per_page=100")) {
+    if (url === "https://api.planningcenteronline.com/people/v2/people?per_page=100") {
+      document.data = [{ id: "person-1", type: "Person", attributes: { first_name: "Alice", last_name: "Singer", email: "alice@example.test", phone_number: "555-0100" } },
+        { id: "person-directory-only", type: "Person", attributes: { first_name: "Directory", last_name: "Only", email: "private@example.test", phone_number: "555-0101" } }];
+      document.links = { next: "/people/v2/people?per_page=100&offset=100" };
+    } else if (url.endsWith("/people/v2/people?per_page=100&offset=100")) {
+      document.data = [{ id: "person-directory-page-2", type: "Person", attributes: { first_name: "Second", last_name: "Page", email: "second@example.test", phone_number: "555-0102" } }];
+    } else if (url.endsWith("/service_types?per_page=100")) {
       document.data = [{ id: "type-1", type: "ServiceType", attributes: { name: "Sunday Service" } }];
       document.links = { next: "/services/v2/service_types?per_page=100&offset=100" };
     } else if (url.endsWith("/service_types?per_page=100&offset=100")) {
@@ -1148,6 +1154,16 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     assert.equal(sync.json().serviceTypes, 2);
     assert.equal(sync.json().scheduledAssignmentsImported, 1);
     assert.equal(sync.json().itemAssignmentsImported, 2);
+    assert.equal(sync.json().peopleImported, 3);
+
+    const peopleDirectory = await app.inject({ method: "GET", url: "/api/v1/church/people", headers });
+    assert.equal(peopleDirectory.statusCode, 200, peopleDirectory.body);
+    assert.equal(peopleDirectory.json().total, 4); // Three full-directory records plus the separately discovered team leader.
+    const directoryOnly = peopleDirectory.json().people.find((person: { externalId: string }) => person.externalId === "person-directory-only");
+    assert.equal(directoryOnly.displayName, "Directory Only");
+    assert.deepEqual(directoryOnly.teams, []);
+    assert.deepEqual(Object.keys(directoryOnly).sort(), ["displayName", "externalId", "id", "teams"]);
+    assert.equal(peopleDirectory.json().people.some((person: { displayName: string }) => person.displayName === "Second Page"), true);
 
     const services = await app.inject({ method: "GET", url: "/api/v1/church/services", headers });
     const serviceId = services.json().services[0].id as string;
