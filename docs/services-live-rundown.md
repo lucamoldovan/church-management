@@ -1,5 +1,29 @@
 # Services — Planning Center mirror and live rundown
 
+## Verified Planning Center API surface
+
+The official Services API documents the following read endpoints needed for the first implementation:
+
+- Plans and their ordered items: service type → plans → plan items.
+- Scheduled people on a particular plan: `GET /services/v2/service_types/{service_type_id}/plans/{plan_id}/team_members` (PlanPerson resources).
+- Service times: `GET /services/v2/service_types/{service_type_id}/plans/{plan_id}/plan_times`.
+- Teams assigned to a plan: `GET /services/v2/service_types/{service_type_id}/plans/{plan_id}/signup_teams`.
+- Team directory and positions: `GET /services/v2/teams` and `GET /services/v2/teams/{team_id}/team_positions`.
+- Person profile and plan/team associations: Services People and PlanPerson resources.
+- Item-specific assignments: `GET /services/v2/service_types/{service_type_id}/plans/{plan_id}/items/{item_id}/item_assignments`.
+
+PlanPerson resources expose the scheduled person, team, status, notes and team-position name, with related endpoints for plan times and team. ItemAssignment can identify a Person or TeamPosition assigned to a specific rundown item. The importer should use these relationships rather than trying to infer teams from a person's global profile.
+
+API responses use JSON:API relationships and pagination. The implementation must follow next-page links and should use include relationships only where the endpoint supports them.
+
+Official references:
+- [Planning Center JSON:API format and includes](https://api.planningcenteronline.com/docs/overview/json-api)
+- [Plan API](https://api.planningcenteronline.com/docs/apps/services/versions/2018-11-01/vertices/plan)
+- [PlanPerson API](https://api.planningcenteronline.com/docs/apps/services/versions/2018-11-01/vertices/plan_person)
+- [Team API](https://api.planningcenteronline.com/docs/apps/services/versions/2018-11-01/vertices/team)
+- [PlanTime API](https://api.planningcenteronline.com/docs/apps/services/versions/2018-11-01/vertices/plan_time)
+- [ItemAssignment API](https://api.planningcenteronline.com/docs/apps/services/versions/2018-11-01/vertices/item_assignment)
+
 ## Goal
 
 Build a staff-facing Services workspace that mirrors the useful operational parts of Planning Center Services while keeping Church Operations self-hosted and keeping Planning Center as the read-only source of truth during this integration phase.
