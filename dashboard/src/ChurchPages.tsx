@@ -3,9 +3,9 @@ import { Activity, CalendarDays, CircleAlert, LoaderCircle, Plus, RefreshCw, Use
 import {
   createChurchEvent, createChurchGroup, createChurchService, createChurchStaff,
   getChurchEvents, getChurchGroups, getChurchServices, getChurchStaff,
-  getPlanningCenterStatus, getProPresenterLive, getChurchServiceItems, getChurchServiceWorkspace, getChurchTeams,
+  getPlanningCenterStatus, getProPresenterLive, getChurchServiceWorkspace, getChurchTeams,
   sendProPresenterCommand, syncPlanningCenter,
-  type ChurchEvent, type ChurchGroup, type ChurchService, type ChurchServiceItem, type ChurchStaff,
+  type ChurchEvent, type ChurchGroup, type ChurchService, type ChurchStaff,
   type ChurchServiceWorkspace, type ChurchTeamDirectory, type ProPresenterLive,
 } from "./api";
 
@@ -27,8 +27,6 @@ function Notice({ error, success }: { error: string; success: string }) {
 
 export function ChurchPage({ page, role }: { page: ChurchPageId; role: string }) {
   const [services, setServices] = useState<ChurchService[]>([]);
-  const [expandedServiceId, setExpandedServiceId] = useState<string | null>(null);
-  const [serviceItems, setServiceItems] = useState<Record<string, ChurchServiceItem[]>>({});
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [workspace, setWorkspace] = useState<ChurchServiceWorkspace | null>(null);
   const [teamDirectory, setTeamDirectory] = useState<ChurchTeamDirectory[]>([]);
@@ -136,24 +134,12 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     finally { setBusy(false); }
   };
 
-  const toggleServiceItems = async (serviceId: string) => {
-    if (expandedServiceId === serviceId) { setExpandedServiceId(null); return; }
-    setExpandedServiceId(serviceId);
-    if (serviceItems[serviceId]) return;
-    setBusy(true); setError("");
-    try {
-      const result = await getChurchServiceItems(serviceId);
-      setServiceItems(current => ({ ...current, [serviceId]: result.items }));
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not load the service order."); }
-    finally { setBusy(false); }
-  };
-
   const sync = async () => {
     setBusy(true); setError(""); setSuccess("");
     try {
       const result = await syncPlanningCenter();
       setSuccess(`Synced ${result.imported} plans, ${result.itemsImported} rundown items, ${result.peopleImported} people, ${result.teamsImported} teams, ${result.positionsImported} positions, ${result.scheduledAssignmentsImported} scheduled roles and ${result.itemAssignmentsImported} item assignments.`);
-      setServiceItems({}); setExpandedServiceId(null); setWorkspace(null);
+      setWorkspace(null);
       await refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Planning Center sync failed."); }
     finally { setBusy(false); }
