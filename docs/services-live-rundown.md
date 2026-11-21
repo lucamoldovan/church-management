@@ -28,7 +28,7 @@ Official references:
 
 Build a staff-facing Services workspace that mirrors the useful operational parts of Planning Center Services while keeping Kasapini Dashboard self-hosted and keeping Planning Center as the read-only source of truth during this integration phase.
 
-The local data model must remain provider-independent. Store Planning Center identifiers as external IDs and normalize people, teams, positions, service plans, plan items, and scheduled assignments locally. This allows a future migration to native Kasapini Dashboard planning without redesigning the dashboard.
+The local data model must remain provider-independent. Store Planning Center identifiers as external IDs and normalize people, teams, positions, service plans, plan items, and scheduled assignments locally. This keeps the read-only Planning Center mirror provider-independent. It does not imply a migration to local planning; Planning Center remains authoritative unless that scope is explicitly changed later.
 
 ## Current implementation (baseline on local-operations-platform)
 
