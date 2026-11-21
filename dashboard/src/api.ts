@@ -421,7 +421,7 @@ export interface ShureSlxdDevice {
   remoteAddress: string; channel: number; diagnostic: string | null;
 }
 export interface ShureSlxdStatus {
-  enabled: boolean; listening: boolean; host: string | null; port: number | null;
+  enabled: boolean; running: boolean; host: string | null; port: number | null;
   configuredReceiverCount: number; devices: ShureSlxdDevice[]; message: string;
 }
 export function getShureSlxdStatus(): Promise<ShureSlxdStatus> {
