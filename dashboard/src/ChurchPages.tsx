@@ -268,7 +268,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
               <div className="service-team-heading"><div><strong>{team.name}</strong>{!!team.leaders?.length && <small className="service-team-leaders">Lead: {team.leaders.join(", ")}</small>}</div><span>{team.positions.reduce((count, position) => count + position.members.length, 0)} members</span></div>
               <div className="service-position-grid">{team.positions.map((position) => <div className="service-position-card" key={position.id}>
                 <strong>{position.name}</strong><small>{position.members.length} members</small>
-                {position.members.map((member) => <span key={member.id}>{member.personName}</span>)}
+                {position.members.map((member) => <span key={member.id}>{member.personName}{member.schedulePreference ? ` · ${member.schedulePreference}` : ""}</span>)}
                 {!position.members.length && <span className="service-team-empty">No assigned members</span>}
               </div>)}</div>
               {!team.positions.length && <Empty text="No positions imported for this team."/>}
