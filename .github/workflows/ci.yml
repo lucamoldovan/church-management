@@ -4,7 +4,9 @@ on:
   push:
     branches: [local-operations-platform]
   pull_request:
-    branches: [local-operations-platform]
+    # The current deployment PR targets cloudflare-migration.
+    # Keep local-operations-platform too for future PRs into this branch.
+    branches: [cloudflare-migration, local-operations-platform]
 
 permissions:
   contents: read
