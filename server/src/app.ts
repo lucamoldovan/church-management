@@ -1376,7 +1376,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     };
     const apiBase = "https://api.planningcenteronline.com/services/v2";
     type PcoResource = { id: string; type?: string; attributes?: Record<string, unknown>; relationships?: Record<string, { data?: { id: string; type: string } | Array<{ id: string; type: string }> | null }> };
-    type PcoDocument = { data?: PcoResource[]; included?: PcoResource[]; links?: { next?: string | null } };
+    type PcoDocument = { data?: PcoResource[] | PcoResource; included?: PcoResource[]; links?: { next?: string | null } };
     const fetchPage = async (url: string): Promise<PcoDocument> => {
       const response = await fetch(url, { headers, signal: AbortSignal.timeout(12000) });
       if (!response.ok) throw new Error("Planning Center returned HTTP " + response.status + " for " + new URL(url).pathname);
@@ -1394,7 +1394,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           throw new Error("Planning Center returned an unexpected pagination URL; sync stopped safely.");
         }
         const page = await fetchPage(target.toString());
-        data.push(...(page.data ?? []));
+        const pageData = Array.isArray(page.data) ? page.data : page.data ? [page.data] : [];
+        data.push(...pageData);
         included.push(...(page.included ?? []));
         next = page.links?.next ? new URL(page.links.next, target).toString() : null;
       }
@@ -1545,7 +1546,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
               const assignable = relationship(assignment, "assignable");
               if (assignable?.type === "Person" && !personResources.has(assignable.id)) {
                 const personDocument = await fetchPage(apiBase + "/people/" + encodeURIComponent(assignable.id));
-                const person = personDocument.data?.[0];
+                const person = Array.isArray(personDocument.data) ? personDocument.data[0] : personDocument.data;
                 if (person) personResources.set(person.id, person);
               }
             }
