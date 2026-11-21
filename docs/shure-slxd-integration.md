@@ -53,23 +53,22 @@ Metering:
 5. Enforce one controller per receiver/system. Do not compete with Wireless Workbench; provide a clear warning if another controller appears to be active or the receiver rejects/does not answer commands.
 6. Do not bind a network listener to all interfaces unless explicitly configured. Restrict the control service to the intended LAN interface and document firewall requirements.
 
-## Manual microphone assignments
+## Microphone page and Sunday assignments
 
-Assignments are operator-managed and persistent; no automatic assignment in the first release.
+The microphone controls live in their own top-level **Microphones** tab in Church Operations. They are not embedded in the Services rundown and are not tied to individual songs.
 
-- Support up to five singer slots, each associated with exactly one receiver/transmitter channel and one person.
-- Keep the sixth headset receiver as a separate role/slot. The role and display label should be editable.
-- Allow an operator to change a receiver's person assignment at any time.
-- Allow unassigned receivers.
-- Prevent one receiver from being assigned to two active people at once, and prevent one person from occupying multiple singer slots unless the operator explicitly changes the assignment.
-- **Never show the full church-wide people directory in the microphone assignment selector.**
-- The operator selects a service plan and a song/rundown item first. The selectable people are only the singers assigned/scheduled to that specific song/item in the selected Planning Center plan (using that item's Planning Center item assignments and the relevant singer/team-position assignments).
-- If the song has no eligible singer assignments, show an empty state such as “No singers assigned to this song”; do not fall back to all church singers or all Planning Center people.
-- The operator manually maps each eligible singer to one available receiver/channel. The assignment is scoped to the selected service plan and song/item, not a global permanent person-to-microphone mapping.
-- Support up to five singer slots for a song, plus the separate headset receiver/role. If fewer than five singers are assigned to that song, show only those eligible people.
-- Keep the receiver-to-person/song mapping local and do not write it back to Planning Center.
-- Preserve assignments when a receiver's DHCP IP changes by keying them to Shure hardware identity.
-- Keep role labels configurable (e.g. Singer 1–5, Headset).
+- Show six persistent receiver slots together: Microphone 1–5 and Headset.
+- Each slot has its own dropdown for the person using that receiver during the selected Sunday service.
+- The operator first selects a Planning Center service plan/date. The dropdown options come from the people actually scheduled to that plan through Planning Center Services' plan team schedule (PlanPerson / scheduled team members).
+- Do not use the church-wide People directory, team membership directory, song/item leader assignments, or item-specific assignments as the dropdown source.
+- The plan's scheduled people are the Sunday roster. Filter that roster to singer/vocal roles for the five singer microphones; the headset slot remains a distinct role and can be configured for the relevant scheduled person. Do not silently fall back to the global directory if the roster is empty.
+- If the selected plan has no eligible scheduled singers, show an explicit empty state and leave the singer dropdowns unavailable.
+- Changing the selected Sunday loads that plan's roster and its saved microphone mapping. Assignments are local to that service plan/date and do not write to Planning Center.
+- Prevent assigning the same person to multiple microphone slots for the same service. Clearing a dropdown unassigns that slot.
+- A missing or stale assignment (person no longer scheduled on the selected plan) must be visibly flagged and require a new selection.
+- Receiver telemetry and microphone-to-receiver identity are separate from the Sunday person assignment. Stable Shure Device ID/serial identity must be used once discovery is implemented; DHCP IP changes must not break a receiver's identity.
+
+The first implementation adds the dedicated tab, six assignment slots, a service-plan selector, server-side validation against that plan's scheduled roster, and local persistence. Hardware discovery and live SLX-D telemetry remain a separate next phase and must not be presented as connected until verified with a physical receiver.
 
 ## Dashboard
 
