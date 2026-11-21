@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 
 export type VeyraDatabase = Database.Database;
 
-const CURRENT_SCHEMA_VERSION = 8;
+const CURRENT_SCHEMA_VERSION = 9;
 
 export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "data/veyra.sqlite"): VeyraDatabase {
   const resolvedPath = databasePath === ":memory:" ? databasePath : resolve(databasePath);
@@ -339,6 +339,23 @@ export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "
       if (!churchServiceItemColumns.has("service_position")) database.exec("ALTER TABLE church_service_items ADD COLUMN service_position TEXT");
       database.exec("CREATE INDEX IF NOT EXISTS church_service_items_song_idx ON church_service_items(song_external_id)");
       database.pragma("user_version = 8");
+    }
+
+    if (currentVersion < 9) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS service_microphone_assignments (
+          id TEXT PRIMARY KEY,
+          service_id TEXT NOT NULL REFERENCES church_services(id) ON DELETE CASCADE,
+          slot_key TEXT NOT NULL CHECK (slot_key IN ('mic-1', 'mic-2', 'mic-3', 'mic-4', 'mic-5', 'headset')),
+          person_id TEXT NOT NULL REFERENCES service_people(id) ON DELETE CASCADE,
+          updated_at TEXT NOT NULL,
+          UNIQUE(service_id, slot_key),
+          UNIQUE(service_id, person_id)
+        );
+        CREATE INDEX IF NOT EXISTS service_microphone_assignments_service_idx
+          ON service_microphone_assignments(service_id, slot_key);
+      `);
+      database.pragma("user_version = 9");
     }
   });
 
