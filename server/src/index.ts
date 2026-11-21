@@ -61,13 +61,13 @@ try {
   await shureMonitor.start();
   await app.listen({ host, port });
 } catch (error) {
-  app.log.error(error, "Church Operations server failed to start");
+  app.log.error(error, "Kasapini Dashboard server failed to start");
   await shureMonitor.close().catch(() => undefined);
   process.exitCode = 1;
 }
 
 async function shutdown(signal: string): Promise<void> {
-  app.log.info({ signal }, "Shutting down Veyra server");
+  app.log.info({ signal }, "Shutting down Kasapini Dashboard server");
   try {
     await app.close();
     await shureMonitor.close();
