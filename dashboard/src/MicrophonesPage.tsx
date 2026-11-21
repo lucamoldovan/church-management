@@ -45,11 +45,10 @@ export function MicrophonesPage() {
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [hardware, setHardware] = useState<ShureSlxdStatus | null>(null);
 
-  const candidates = useMemo<PersonOption[]>(() => {
+  const scheduledCandidates = useMemo<PersonOption[]>(() => {
     if (!workspace) return [];
     const unique = new Map<string, PersonOption>();
     for (const person of workspace.assignments) {
-      if (!isOnVociTeam(person.teamName)) continue;
       if (!unique.has(person.personId)) {
         unique.set(person.personId, {
           id: person.personId,
@@ -60,6 +59,14 @@ export function MicrophonesPage() {
     }
     return [...unique.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [workspace]);
+
+  const candidates = useMemo(
+    () => scheduledCandidates.filter((person) => {
+      const assignment = workspace?.assignments.find((row) => row.personId === person.id);
+      return isOnVociTeam(assignment?.teamName ?? null);
+    }),
+    [scheduledCandidates, workspace],
+  );
 
   const loadPlans = async () => {
     setLoading(true);
@@ -167,7 +174,7 @@ export function MicrophonesPage() {
         <div>
           <div className="eyebrow">WIRELESS PRODUCTION</div>
           <h1>Microphones</h1>
-          <p>Assign the five handheld microphones and the pastor’s headset to people scheduled in the Voci team for each Sunday service.</p>
+          <p>Assign the five handheld microphones to the Voci team and the pastor’s headset to anyone scheduled on the selected Sunday service plan.</p>
         </div>
         <button className="button button-secondary" onClick={() => void loadPlans()} disabled={loading}>
           <RefreshCw size={15} /> Refresh services
@@ -178,7 +185,7 @@ export function MicrophonesPage() {
         <div>
           <div className="mic-section-kicker">SERVICE PLAN</div>
           <h2>Who is serving this Sunday?</h2>
-          <p>Choose a Planning Center plan to load everyone scheduled in the Voci team and this Sunday’s saved microphone assignments.</p>
+          <p>Choose a Planning Center plan to load its scheduled people and this Sunday’s saved microphone assignments.</p>
         </div>
         <label className="mic-plan-select">
           <span>Sunday service</span>
@@ -234,20 +241,21 @@ export function MicrophonesPage() {
       ) : (
         <>
           <div className="mic-roster-summary">
-            <div><span>PEOPLE IN VOCI</span><strong>{candidates.length}</strong></div>
+            <div><span>VOCI SINGERS SCHEDULED</span><strong>{candidates.length}</strong></div>
             <p>{selectedService.title} · {selectedService.startsAt ? new Date(selectedService.startsAt).toLocaleDateString() : "Date not set"} · {workspace?.assignments.length ?? 0} people scheduled on this plan</p>
           </div>
           {candidates.length === 0 && (
             <div className="mic-empty-roster" role="status">
               <AlertCircle size={17} />
-              <div><strong>No one from the Voci team is scheduled on this service</strong><span>Only people scheduled in the Voci team on this Sunday plan are shown. All positions within Voci are eligible for all six slots. The church-wide directory is never used as a fallback.</span></div>
+              <div><strong>No one from the Voci team is scheduled on this service</strong><span>The five handheld microphone slots require someone scheduled in Voci. The pastor’s headset can still be assigned to anyone scheduled on this service plan. The church-wide directory is never used as a fallback.</span></div>
             </div>
           )}
           <div className="mic-slot-grid">
             {slots.map((slot, index) => {
-              const assigned = candidates.find((person) => person.id === draft[slot.key]);
+              const slotCandidates = slot.key === "headset" ? scheduledCandidates : candidates;
+              const assigned = slotCandidates.find((person) => person.id === draft[slot.key]);
               const previous = saved.find((item) => item.slotKey === slot.key);
-              const stale = Boolean(previous && draft[slot.key] === previous.personId && !candidates.some((person) => person.id === previous.personId));
+              const stale = Boolean(previous && draft[slot.key] === previous.personId && !slotCandidates.some((person) => person.id === previous.personId));
               return (
                 <article className="panel mic-slot-card" key={slot.key}>
                   <div className="mic-slot-top">
@@ -260,7 +268,7 @@ export function MicrophonesPage() {
                     <span><UserRound size={14} /> Assigned person</span>
                     <select
                       value={draft[slot.key]}
-                      disabled={candidates.length === 0 && !draft[slot.key]}
+                      disabled={slotCandidates.length === 0 && !draft[slot.key]}
                       onChange={(event) => {
                         setNotice("");
                         setDraft((current) => ({ ...current, [slot.key]: event.target.value }));
@@ -268,7 +276,7 @@ export function MicrophonesPage() {
                     >
                       <option value="">Unassigned</option>
                       {stale && <option value={previous!.personId} disabled>{previous!.personName} · no longer on plan</option>}
-                      {candidates.map((person) => (
+                      {slotCandidates.map((person) => (
                         <option key={person.id} value={person.id} disabled={selectedPeople.includes(person.id) && draft[slot.key] !== person.id}>
                           {person.name}{person.role ? ` · ${person.role}` : ""}
                         </option>
@@ -289,7 +297,7 @@ export function MicrophonesPage() {
           </div>
         </>
       )}
-      <footer className="page-footer"><span>CHURCH OPS <span className="footer-separator">/</span> WIRELESS</span><span>Local assignments · Planning Center read-only</span></footer>
+      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> WIRELESS</span><span>Local assignments · Planning Center read-only</span></footer>
     </>
   );
 }
