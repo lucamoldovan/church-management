@@ -8,6 +8,10 @@ on:
     # Keep local-operations-platform too for future PRs into this branch.
     branches: [cloudflare-migration, local-operations-platform, shure-slxd-integration, kasapini-dashboard-audit]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
