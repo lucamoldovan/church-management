@@ -144,6 +144,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
       setSuccess(`Synced ${result.imported} plans, ${result.itemsImported} rundown items, ${result.peopleImported} people, ${result.teamsImported} teams, ${result.positionsImported} positions, ${result.scheduledAssignmentsImported} scheduled roles and ${result.itemAssignmentsImported} item assignments.`);
       setWorkspace(null);
       await refresh();
+      if (serviceView === "teams") setTeamDirectory((await getChurchTeams()).teams);
     } catch (e) { setError(e instanceof Error ? e.message : "Planning Center sync failed."); }
     finally { setBusy(false); }
   };
