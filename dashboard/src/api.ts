@@ -422,7 +422,7 @@ export interface ShureSlxdDevice {
 }
 export interface ShureSlxdStatus {
   enabled: boolean; listening: boolean; host: string | null; port: number | null;
-  allowedReceiverCount: number; devices: ShureSlxdDevice[]; message: string;
+  configuredReceiverCount: number; devices: ShureSlxdDevice[]; message: string;
 }
 export function getShureSlxdStatus(): Promise<ShureSlxdStatus> {
   return request("/api/v1/integrations/shure-slxd/status");
