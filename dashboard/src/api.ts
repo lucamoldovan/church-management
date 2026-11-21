@@ -349,9 +349,6 @@ export function getChurchServiceWorkspace(serviceId: string): Promise<ChurchServ
 export function getChurchTeams(): Promise<{ teams: ChurchTeamDirectory[] }> {
   return request<{ teams: ChurchTeamDirectory[] }>("/api/v1/church/teams");
 }
-export function createChurchService(input: { title: string; startsAt?: string; endsAt?: string; location?: string; notes?: string }): Promise<ChurchService> {
-  return request<ChurchService>("/api/v1/church/services", { method: "POST", body: JSON.stringify(input) });
-}
 export function getChurchStaff(signal?: AbortSignal): Promise<{ staff: ChurchStaff[] }> {
   return request<{ staff: ChurchStaff[] }>("/api/v1/church/staff", { signal });
 }
