@@ -1389,15 +1389,15 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       let pages = 0;
       while (next) {
         if (++pages > 100) throw new Error("Planning Center pagination exceeded 100 pages; sync stopped safely.");
-        const target = new URL(next, apiBase + "/");
-        if (target.origin !== "https://api.planningcenteronline.com" || !target.pathname.startsWith("/services/v2/")) {
+        const targetUrl: URL = new URL(next, apiBase + "/");
+        if (targetUrl.origin !== "https://api.planningcenteronline.com" || !targetUrl.pathname.startsWith("/services/v2/")) {
           throw new Error("Planning Center returned an unexpected pagination URL; sync stopped safely.");
         }
-        const page = await fetchPage(target.toString());
+        const page = await fetchPage(targetUrl.toString());
         const pageData = Array.isArray(page.data) ? page.data : page.data ? [page.data] : [];
         data.push(...pageData);
         included.push(...(page.included ?? []));
-        next = page.links?.next ? new URL(page.links.next, target).toString() : null;
+        next = page.links?.next ? new URL(page.links.next, targetUrl).toString() : null;
       }
       return { data, included };
     };
@@ -1415,7 +1415,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       const first = attr(person, "first_name");
       const last = attr(person, "last_name");
       const full = attr(person, "full_name") ?? attr(person, "name") ?? fallback;
-      const composed = [first, last].filter((part): part is string => typeof part === "string" && part.trim()).join(" ");
+      const composed = [first, last].filter((part): part is string => typeof part === "string" && part.trim().length > 0).join(" ");
       return String(composed || full || "Unnamed person").trim().slice(0, 160);
     };
     const now = () => new Date().toISOString();
