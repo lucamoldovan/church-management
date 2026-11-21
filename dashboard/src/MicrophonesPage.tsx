@@ -196,7 +196,7 @@ export function MicrophonesPage() {
         <div>
           <strong>SLX-D receiver monitoring</strong>
           <span>{hardware?.message ?? "Checking the local SLX-D monitor…"}</span>
-          {hardware?.enabled && <small>{hardware.listening ? `Listening on ${hardware.host}:${hardware.port} · ${hardware.allowedReceiverCount} allowed receiver IPs` : "Listener not running"}</small>}
+          {hardware?.enabled && <small>{hardware.listening ? `Connecting to ${hardware.configuredReceiverCount} configured receiver IPs on TCP ${hardware.port}` : "Listener not running"}</small>}
         </div>
         <span className={`mic-hardware-state ${hardware?.listening ? "is-online" : ""}`}>{hardware?.listening ? "Listening" : hardware?.enabled ? "Unavailable" : "Disabled"}</span>
       </section>
