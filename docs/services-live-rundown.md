@@ -115,3 +115,25 @@ Use database migrations, foreign keys, unique external-ID constraints, and trans
 - A ProPresenter cue matching a song highlights exactly one corresponding plan item; ambiguous or absent matches do not guess.
 - All clients viewing the same plan see the same live highlight and a clear connection/staleness indicator.
 - The feature works with the local server and local database; no Cloudflare, Supabase, or hosted realtime dependency is introduced.
+
+
+## Implementation status on services-live-rundown
+
+The first implementation is now present on the feature branch:
+
+- Schema version 8 adds provider-independent people, teams, positions, team-position memberships, plan-team links, plan times, plan-person assignments, item assignments, and per-plan live state.
+- The Planning Center importer follows JSON:API pagination (with a 100-page safety limit per collection), imports future plans across service types, imports service-type teams and positions, imports people assigned to positions, and imports plan-specific scheduled people, times, and item-level Person/TeamPosition assignments.
+- Plan replacement is performed transactionally after the API snapshot has been fetched. Existing service items and their item assignments are replaced together so deleted items do not leave stale assignment rows.
+- The authenticated Services workspace endpoint returns the selected plan, ordered items, assigned teams, scheduled people/positions/statuses, plan times, item assignments, and saved live state.
+- The authenticated team directory endpoint returns teams with positions and assigned members.
+- The Services dashboard has a plan selector, live rundown, scheduled-team roster, service-time panel, and separate team-directory view. Local service creation remains available.
+- The ProPresenter live endpoint can accept a selected service ID. It matches only an exact normalized active presentation name or exact normalized current-slide title against a song item. It never uses substring lyric matching. One unique match is highlighted; duplicate matches are reported as ambiguous and do not highlight any row. Unmatched and disconnected states are explicit.
+- The dashboard polls the selected service workspace and ProPresenter state every five seconds. This is shared server-backed state observed by each staff dashboard; it is polling, not a WebSocket push channel.
+
+## Verification notes and limitations
+
+Automated tests cover service/team/position/person import, plan-specific assignments and service times, item-level Person and TeamPosition assignments, workspace and team-directory responses, exact ProPresenter matching, and ambiguous duplicate-song matching. The draft pull request runs the repository's build and API test workflow.
+
+A real Planning Center account is still needed to confirm the church's exact API permission set and actual response payloads. A real ProPresenter service is needed to confirm whether the active presentation name corresponds to each song presentation in the church's playlist. If the church uses one combined presentation for the whole service, an explicit ProPresenter-to-Planning-Center cue mapping will be needed; this implementation deliberately does not guess from lyric fragments.
+
+The importer is read-only with respect to Planning Center. Planning Center remains the source of truth for imported plans, teams, people, and assignments.
