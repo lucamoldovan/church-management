@@ -1159,7 +1159,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get("/api/v1/church/overview", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
     const staff = database.prepare("SELECT COUNT(*) AS count FROM operators WHERE active = 1").get() as { count: number };
-    const services = database.prepare("SELECT COUNT(*) AS count FROM church_services WHERE starts_at >= ?").get(new Date().toISOString()) as { count: number };
+    const services = database.prepare("SELECT COUNT(*) AS count FROM church_services WHERE source = 'planning_center' AND starts_at >= ?").get(new Date().toISOString()) as { count: number };
     const events = database.prepare("SELECT COUNT(*) AS count FROM church_events WHERE status != 'cancelled' AND (ends_at IS NULL OR ends_at >= ?)").get(new Date().toISOString()) as { count: number };
     const groups = database.prepare("SELECT COUNT(*) AS count FROM church_groups WHERE active = 1").get() as { count: number };
     const devices = database.prepare("SELECT COUNT(*) AS count, SUM(CASE WHEN last_seen_at >= ? THEN 1 ELSE 0 END) AS online FROM devices WHERE credential_revoked_at IS NULL").get(new Date(Date.now() - 60_000).toISOString()) as { count: number; online: number | null };
