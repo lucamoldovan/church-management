@@ -50,12 +50,14 @@ sudo git clone --branch local-operations-platform --single-branch \
   https://github.com/lucamoldovan/church-management.git \
   /opt/church-operations
 cd /opt/church-operations
-sudo npm ci
+# This branch currently has no committed package-lock.json. npm install
+# resolves the workspace dependencies and creates one on this server.
+npm install --no-audit --no-fund
 sudo npm run build
 sudo npm test
 ```
 
-The current GitHub Actions workflow for this branch has passed the dashboard/API build and API tests. That does not replace the physical NDI receiver test described below.
+The first install uses npm install because this branch does not yet commit a package-lock.json; this creates /opt/church-operations/package-lock.json on the server. For later deployments on this same checkout, use npm ci after preserving that generated lockfile. The GitHub Actions workflow also uses npm install until a lockfile is committed. A successful CI build does not replace the physical NDI receiver test described below.
 
 Create private writable state:
 
