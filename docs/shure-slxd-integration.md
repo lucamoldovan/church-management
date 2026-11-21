@@ -2,14 +2,14 @@
 
 ## Goal
 
-Add a local, read-only Shure monitoring integration to Church Operations for six single-channel SLX-D receivers: five singer microphones and one headset. The integration must not interfere with Wireless Workbench or change RF settings, frequencies, transmitter settings, or audio gain.
+Add a local, read-only Shure monitoring integration to Kasapini Dashboard for six single-channel SLX-D receivers: five singer microphones and one headset. The integration must not interfere with Wireless Workbench or change RF settings, frequencies, transmitter settings, or audio gain.
 
 ## Confirmed equipment and operating assumptions
 
 - Six single-channel SLX-D receivers (not SLX-D+).
 - Five handheld/singer channels and one headset/bodypack channel.
 - Transmitters use AA batteries.
-- Receivers are connected by Ethernet to the same switch/LAN as the local Church Operations server.
+- Receivers are connected by Ethernet to the same switch/LAN as the local Kasapini Dashboard server.
 - The RF band will be recorded when the user supplies it.
 - Use DHCP/automatic IP addressing by default. DHCP reservations may be used for stable addresses, but static addressing is not required merely to assign an IP.
 
@@ -17,8 +17,8 @@ Add a local, read-only Shure monitoring integration to Church Operations for six
 
 - Third-party command strings use TCP port 2202.
 - Third-party control is blocked by default on SLX-D; enable it at **Advanced Settings → Controller Access → Allow**.
-- Shure says to use only one controller per system to avoid command conflicts. Church Operations must therefore coordinate with Wireless Workbench: do not run two competing third-party command-string controllers simultaneously.
-- Shure's support guidance clarifies that the control system must open the TCP connection to the receiver; the receiver does not send command strings to an arbitrary controller destination. Church Operations therefore connects outbound to each configured receiver IP on TCP port 2202. Do not run a broad subnet scan; configure the six receiver IPs explicitly, preferably with DHCP reservations.
+- Shure says to use only one controller per system to avoid command conflicts. Kasapini Dashboard must therefore coordinate with Wireless Workbench: do not run two competing third-party command-string controllers simultaneously.
+- Shure's support guidance clarifies that the control system must open the TCP connection to the receiver; the receiver does not send command strings to an arbitrary controller destination. Kasapini Dashboard therefore connects outbound to each configured receiver IP on TCP port 2202. Do not run a broad subnet scan; configure the six receiver IPs explicitly, preferably with DHCP reservations.
 - Shure's Wireless Workbench network guidance uses DHCP and network discovery. Shure's enterprise network guidance identifies Shure Discovery multicast at 239.255.254.253:8427 and Bonjour/mDNS at 224.0.0.251:5353. Discovery must be tested on the church switch; multicast filtering/VLAN boundaries can prevent it.
 - A receiver's DHCP address and its identity are separate concerns. Use its Shure Device ID/serial/model as stable identity, not its current IP address.
 
@@ -48,14 +48,14 @@ Metering:
 
 1. Implement an isolated Shure adapter; do not mix socket/protocol logic into route handlers.
 2. Start with a diagnostic mode that reports discovery packets and device identities without changing receiver settings.
-3. Configure the receiver's Controller Access setting to Allow, then verify an outbound TCP connection from Church Operations to one receiver on port 2202.
+3. Configure the receiver's Controller Access setting to Allow, then verify an outbound TCP connection from Kasapini Dashboard to one receiver on port 2202.
 4. Configure up to six receiver IP addresses explicitly. Use each Shure Device ID as stable identity; do not rely on DHCP IP addresses for long-term assignments.
 5. Enforce one controller per receiver/system. Do not compete with Wireless Workbench; provide a clear warning if another controller appears to be active or the receiver rejects/does not answer commands.
 6. Restrict outbound connections to the explicitly configured receiver IPs; do not scan the subnet or expose a TCP listener.
 
 ## Microphone page and Sunday assignments
 
-The microphone controls live in their own top-level **Microphones** tab in Church Operations. They are not embedded in the Services rundown and are not tied to individual songs.
+The microphone controls live in their own top-level **Microphones** tab in Kasapini Dashboard. They are not embedded in the Services rundown and are not tied to individual songs.
 
 - Show six persistent receiver slots together: Microphone 1–5 and Headset.
 - Each slot has its own dropdown for the person using that receiver during the selected Sunday service.
@@ -70,9 +70,9 @@ The microphone controls live in their own top-level **Microphones** tab in Churc
 
 The first implementation adds the dedicated tab, six assignment slots, automatic selection of the nearest upcoming Sunday plan (or today's plan when today is Sunday), a manual plan selector, server-side validation against that plan's scheduled `Voci` team roster, and local persistence. The selected Sunday is matched using the browser's local calendar date.
 
-The initial read-only telemetry adapter is now implemented: outbound TCP connections to up to six explicitly configured receiver IPs on port 2202, automatic reconnects, SLX-D ASCII frame parsing, device ID/model/firmware/RF band/channel/frequency, transmitter model/link state, AA battery bars (with explicitly approximate percentage), reported runtime states, both antenna RSSI values, and audio peak/RMS meters. The dashboard polls the authenticated status endpoint and labels disconnected devices as stale. Protocol parsing and conversion tests run in CI.
+The initial read-only telemetry adapter and parser tests are implemented. The current experimental adapter assumes outbound TCP connections to up to six explicitly configured receiver IPs on port 2202, with reconnects, SLX-D ASCII parsing, device ID/model/firmware/RF band/channel/frequency, transmitter model/link state, AA battery bars (with explicitly approximate percentage), runtime states, both antenna RSSI values, and audio peak/RMS meters. However, the connection direction is not considered verified because the official user guide identifies the receiver as the TCP client. Keep the adapter disabled until the physical test resolves this discrepancy.
 
-The monitor is disabled by default. It requires `SHURE_SLXD_ENABLED=true` and `SHURE_SLXD_RECEIVER_IPS` containing the receiver IP addresses (comma-separated). Church Operations initiates outbound TCP connections to each receiver on port 2202; no inbound listener is opened on the server. The receiver must have Controller Access set to Allow. The network path and all telemetry values still require a physical one-receiver test. No RF frequency, transmitter, or audio gain settings are changed. The only SET command configures the telemetry meter interval (`METER_RATE`).
+The monitor is disabled by default. It requires `SHURE_SLXD_ENABLED=true` and `SHURE_SLXD_RECEIVER_IPS` containing the receiver IP addresses (comma-separated). Kasapini Dashboard initiates outbound TCP connections to each receiver on port 2202; no inbound listener is opened on the server. The receiver must have Controller Access set to Allow. The network path and all telemetry values still require a physical one-receiver test. No RF frequency, transmitter, or audio gain settings are changed. The only SET command configures the telemetry meter interval (`METER_RATE`).
 
 ## Dashboard
 
@@ -118,13 +118,13 @@ Create a dedicated **Wireless** section showing:
 Planning Center remains the source of truth. This phase is a read-only local cache, not a migration of church administration away from Planning Center.
 
 - Import every person available to the connected Planning Center account using the People API, following pagination.
-- Store only the Planning Center person ID, display name (first/last or preferred display name when available), and team memberships needed by Church Operations. Do not import or persist email addresses, phone numbers, birthdates, medical notes, household data, or unrelated profile fields.
+- Store only the Planning Center person ID, display name (first/last or preferred display name when available), and team memberships needed by Kasapini Dashboard. Do not import or persist email addresses, phone numbers, birthdates, medical notes, household data, or unrelated profile fields.
 - Resolve team membership through the Planning Center Services API and retain team names. Positions may be read when required to resolve membership, but the local directory's visible data is limited to names and teams.
 - Keep the Planning Center person ID as the stable external key. Re-sync updates names and team membership; it must not create duplicate local people.
 - Do not delete local records merely because they disappear from a single sync response. Handle archived/inactive/deleted status only when explicitly supported and verified by the relevant Planning Center API fields.
-- Manual person creation in Church Operations is out of scope for this phase. If a person is missing, add them in Planning Center and run the next sync; the local directory remains a read-only mirror.
+- Manual person creation in Kasapini Dashboard is out of scope for this phase. If a person is missing, add them in Planning Center and run the next sync; the local directory remains a read-only mirror.
 - Service plans, scheduled teams, scheduled people, item assignments, and microphone dropdown eligibility continue to come from the selected Planning Center service plan. The local directory cache must never replace or override a plan's actual Sunday roster.
-- No local team scheduling, service-plan editing, or migration to a Church Operations-owned planning system is part of this phase.
+- No local team scheduling, service-plan editing, or migration to a Kasapini Dashboard-owned planning system is part of this phase.
 
 
 ## People directory implementation
