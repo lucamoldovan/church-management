@@ -186,6 +186,7 @@ export class ShureSlxdMonitor {
   async start(): Promise<void> {
     if (!this.options.enabled || this.server) return;
     if (!this.allowedIps.size) throw new Error("SHURE_SLXD_ALLOWED_IPS must contain the receiver IP addresses before enabling SLX-D monitoring");
+    if (this.allowedIps.size > 6 || [...this.allowedIps].some((ip) => isIP(ip) === 0)) throw new Error("SHURE_SLXD_ALLOWED_IPS must contain up to six valid receiver IP addresses");
     if (!Number.isInteger(this.options.port) || this.options.port < 1 || this.options.port > 65535) throw new Error("SHURE_SLXD_PORT must be between 1 and 65535");
     if (isIP(this.options.host) === 0) throw new Error("SHURE_SLXD_HOST must be an explicit IP address");
     const meterRate = this.options.meterRateMs ?? 1000;
@@ -204,7 +205,8 @@ export class ShureSlxdMonitor {
 
   private accept(socket: Socket): void {
     const remoteAddress = normalizeAddress(socket.remoteAddress ?? "unknown");
-    if (!this.allowedIps.has(remoteAddress)) {
+    const activeDevices = [...this.devices.values()].filter((device) => device.connected && !device.socket.destroyed);
+    if (!this.allowedIps.has(remoteAddress) || activeDevices.length >= 6 || activeDevices.some((device) => device.remoteAddress === remoteAddress)) {
       socket.destroy();
       return;
     }
