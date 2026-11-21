@@ -1641,9 +1641,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         }
       }
       return {
-        imported: plansProcessed, itemsImported, peopleImported: database.prepare("SELECT COUNT(*) AS count FROM service_people").get() as { count: number }.count,
-        teamsImported: database.prepare("SELECT COUNT(*) AS count FROM service_teams").get() as { count: number }.count,
-        positionsImported: database.prepare("SELECT COUNT(*) AS count FROM service_positions").get() as { count: number }.count,
+        imported: plansProcessed, itemsImported, peopleImported: (database.prepare("SELECT COUNT(*) AS count FROM service_people").get() as { count: number }).count,
+        teamsImported: (database.prepare("SELECT COUNT(*) AS count FROM service_teams").get() as { count: number }).count,
+        positionsImported: (database.prepare("SELECT COUNT(*) AS count FROM service_positions").get() as { count: number }).count,
         scheduledAssignmentsImported, itemAssignmentsImported, serviceTypes: typeResult.data.length,
         syncedAt: new Date().toISOString(),
       };
