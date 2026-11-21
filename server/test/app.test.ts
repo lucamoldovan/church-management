@@ -1112,10 +1112,15 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
       document.data = [{ id: "item-1", type: "Item", attributes: { title: "Amazing Grace", sequence: 1, item_type: "song", length: 240, description: "Start softly" }, relationships: { song: { data: { type: "Song", id: "song-1" } } } }];
       document.included = [{ id: "song-1", type: "Song", attributes: { title: "Amazing Grace" } }];
     } else if (url.endsWith("/team_members?include=person,team&per_page=100")) {
-      document.data = [{ id: "plan-person-1", type: "PlanPerson", attributes: { name: "Alice Singer", team_position_name: "Vocals", status: "confirmed", notes: "Arrive early" }, relationships: { person: { data: { type: "Person", id: "person-1" } }, team: { data: { type: "Team", id: "team-1" } }, times: { data: [{ type: "PlanTime", id: "time-1" }] } } }];
+      document.data = [
+        { id: "plan-person-1", type: "PlanPerson", attributes: { name: "Alice Singer", team_position_name: "Vocals", status: "confirmed", notes: "Arrive early" }, relationships: { person: { data: { type: "Person", id: "person-1" } }, team: { data: { type: "Team", id: "team-1" } }, times: { data: [{ type: "PlanTime", id: "time-1" }] } } },
+        { id: "plan-person-pastor", type: "PlanPerson", attributes: { name: "Pastor Sam", team_position_name: "Pastor", status: "confirmed" }, relationships: { person: { data: { type: "Person", id: "person-3" } }, team: { data: { type: "Team", id: "team-2" } } } },
+      ];
       document.included = [
         { id: "person-1", type: "Person", attributes: { first_name: "Alice", last_name: "Singer" } },
+        { id: "person-3", type: "Person", attributes: { first_name: "Pastor", last_name: "Sam" } },
         { id: "team-1", type: "Team", attributes: { name: "Voci", sequence: 1 } },
+        { id: "team-2", type: "Team", attributes: { name: "Pastoral", sequence: 2 } },
       ];
     } else if (url.endsWith("/plan_times?per_page=100")) {
       document.data = [{ id: "time-1", type: "PlanTime", attributes: { name: "Sunday 10:00", starts_at: "2026-11-22T10:00:00Z", ends_at: "2026-11-22T11:30:00Z", time_type: "service" } }];
@@ -1144,13 +1149,13 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     assert.equal(sync.statusCode, 200, sync.body);
     assert.equal(sync.json().imported, 1);
     assert.equal(sync.json().serviceTypes, 2);
-    assert.equal(sync.json().scheduledAssignmentsImported, 1);
+    assert.equal(sync.json().scheduledAssignmentsImported, 2);
     assert.equal(sync.json().itemAssignmentsImported, 2);
     assert.equal(sync.json().peopleImported, 3);
 
     const peopleDirectory = await app.inject({ method: "GET", url: "/api/v1/church/people", headers });
     assert.equal(peopleDirectory.statusCode, 200, peopleDirectory.body);
-    assert.equal(peopleDirectory.json().total, 4); // Three full-directory records plus the separately discovered team leader.
+    assert.equal(peopleDirectory.json().total, 5); // Three directory records, one team leader and one plan-scheduled pastor.
     const directoryOnly = peopleDirectory.json().people.find((person: { externalId: string }) => person.externalId === "person-directory-only");
     assert.equal(directoryOnly.displayName, "Directory Only");
     assert.deepEqual(directoryOnly.teams, []);
@@ -1176,22 +1181,38 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     assert.equal(emptyMicAssignments.statusCode, 200);
     assert.deepEqual(emptyMicAssignments.json().assignments, []);
 
+    const singer = workspace.json().assignments.find((person: { personName: string }) => person.personName === "Alice Singer");
+    const pastor = workspace.json().assignments.find((person: { personName: string }) => person.personName === "Pastor Sam");
+    assert.ok(singer);
+    assert.ok(pastor);
+
     const saveMicAssignments = await app.inject({
       method: "PUT",
       url: `/api/v1/church/services/${serviceId}/microphones`,
       headers,
-      payload: { assignments: [{ slotKey: "mic-1", personId: workspace.json().assignments[0].personId }] },
+      payload: { assignments: [
+        { slotKey: "mic-1", personId: singer.personId },
+        { slotKey: "headset", personId: pastor.personId },
+      ] },
     });
     assert.equal(saveMicAssignments.statusCode, 200, saveMicAssignments.body);
-    assert.equal(saveMicAssignments.json().assignments[0].personName, "Alice Singer");
+    assert.deepEqual(saveMicAssignments.json().assignments.map((item: { personName: string }) => item.personName).sort(), ["Alice Singer", "Pastor Sam"]);
+
+    const pastorOnSingerMic = await app.inject({
+      method: "PUT",
+      url: `/api/v1/church/services/${serviceId}/microphones`,
+      headers,
+      payload: { assignments: [{ slotKey: "mic-1", personId: pastor.personId }] },
+    });
+    assert.equal(pastorOnSingerMic.statusCode, 400);
 
     const duplicateMicPerson = await app.inject({
       method: "PUT",
       url: `/api/v1/church/services/${serviceId}/microphones`,
       headers,
       payload: { assignments: [
-        { slotKey: "mic-1", personId: workspace.json().assignments[0].personId },
-        { slotKey: "headset", personId: workspace.json().assignments[0].personId },
+        { slotKey: "mic-1", personId: singer.personId },
+        { slotKey: "headset", personId: singer.personId },
       ] },
     });
     assert.equal(duplicateMicPerson.statusCode, 409);
