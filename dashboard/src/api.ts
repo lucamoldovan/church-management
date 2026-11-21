@@ -285,7 +285,8 @@ export interface ChurchOverview {
 }
 export interface ChurchService {
   id: string; title: string; startsAt: string | null; endsAt: string | null;
-  status: string; location: string | null; notes: string | null; source: string; externalId: string | null; itemCount?: number;
+  status: string; location: string | null; notes: string | null; source: string; externalId: string | null;
+  serviceTypeName?: string | null; itemCount?: number;
 }
 export interface ChurchServiceItem {
   id: string; position: number; title: string; itemType: string; durationSeconds: number | null;
