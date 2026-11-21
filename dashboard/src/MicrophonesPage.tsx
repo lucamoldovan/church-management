@@ -18,13 +18,13 @@ const slots: Array<{ key: SlotKey; label: string; detail: string }> = [
   { key: "mic-3", label: "Microphone 3", detail: "Singer channel 3" },
   { key: "mic-4", label: "Microphone 4", detail: "Singer channel 4" },
   { key: "mic-5", label: "Microphone 5", detail: "Singer channel 5" },
-  { key: "headset", label: "Headset", detail: "Headset / bodypack channel" },
+  { key: "headset", label: "Headset", detail: "Pastor headset / bodypack channel" },
 ];
 
-function isSingerRole(teamName: string | null, _positionName: string | null): boolean {
-  // Planning Center's Sunday roster uses the Romanian team name "Voci".
-  // Include everyone scheduled in that team, across its Voci and Lider De Închinare positions.
-  return (teamName ?? "").trim().toLocaleLowerCase("ro") === "voci";
+function isOnVociTeam(teamName: string | null): boolean {
+  // Every person scheduled in Planning Center's Voci team is eligible for every wireless slot.
+  // Position (Voci or Lider De Închinare) does not restrict microphone choice.
+  return (teamName ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toLocaleLowerCase("ro") === "voci";
 }
 
 export function MicrophonesPage() {
@@ -44,7 +44,7 @@ export function MicrophonesPage() {
     if (!workspace) return [];
     const unique = new Map<string, PersonOption>();
     for (const person of workspace.assignments) {
-      if (!isSingerRole(person.teamName, person.positionName)) continue;
+      if (!isOnVociTeam(person.teamName)) continue;
       if (!unique.has(person.personId)) {
         unique.set(person.personId, {
           id: person.personId,
@@ -136,7 +136,7 @@ export function MicrophonesPage() {
         <div>
           <div className="eyebrow">WIRELESS PRODUCTION</div>
           <h1>Microphones</h1>
-          <p>Assign the six wireless channels to the people scheduled for each Sunday service.</p>
+          <p>Assign the five handheld microphones and the pastor’s headset to people scheduled in the Voci team for each Sunday service.</p>
         </div>
         <button className="button button-secondary" onClick={() => void loadPlans()} disabled={loading}>
           <RefreshCw size={15} /> Refresh services
@@ -147,7 +147,7 @@ export function MicrophonesPage() {
         <div>
           <div className="mic-section-kicker">SERVICE PLAN</div>
           <h2>Who is serving this Sunday?</h2>
-          <p>Choose a Planning Center plan to load its scheduled singer roster and saved microphone assignments.</p>
+          <p>Choose a Planning Center plan to load everyone scheduled in the Voci team and this Sunday’s saved microphone assignments.</p>
         </div>
         <label className="mic-plan-select">
           <span>Sunday service</span>
@@ -174,13 +174,13 @@ export function MicrophonesPage() {
       ) : (
         <>
           <div className="mic-roster-summary">
-            <div><span>ELIGIBLE SINGERS</span><strong>{candidates.length}</strong></div>
+            <div><span>PEOPLE IN VOCI</span><strong>{candidates.length}</strong></div>
             <p>{selectedService.title} · {selectedService.startsAt ? new Date(selectedService.startsAt).toLocaleDateString() : "Date not set"} · {workspace?.assignments.length ?? 0} people scheduled on this plan</p>
           </div>
           {candidates.length === 0 && (
             <div className="mic-empty-roster" role="status">
               <AlertCircle size={17} />
-              <div><strong>No singers identified on this service plan</strong><span>Only people scheduled to this Sunday plan are considered. Check that the Planning Center team positions are named with a singer/vocal role. The church-wide directory is never used as a fallback.</span></div>
+              <div><strong>No one from the Voci team is scheduled on this service</strong><span>Only people scheduled in the Voci team on this Sunday plan are shown. All positions within Voci are eligible for all six slots. The church-wide directory is never used as a fallback.</span></div>
             </div>
           )}
           <div className="mic-slot-grid">
