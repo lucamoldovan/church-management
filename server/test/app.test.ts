@@ -559,7 +559,7 @@ test("backup command creates a consistent database and pairing-secret backup", (
 
     const backupDatabase = openDatabase(join(backupDirectory, manifest.databaseFile));
     try {
-      assert.equal(backupDatabase.pragma("user_version", { simple: true }), 9);
+      assert.equal(backupDatabase.pragma("user_version", { simple: true }), 10);
     } finally {
       backupDatabase.close();
     }
