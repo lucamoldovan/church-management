@@ -104,8 +104,9 @@ export function parseSlxdFrame(frame: string): Partial<SlxdTelemetry> & { device
   }
 
   if (parts[0] !== "REP" || parts.length < 3) return {};
-  const channel = /^\d+$/.test(parts[1]) ? Number(parts[1]) : null;
-  const key = channel === null ? parts[1] : parts[2];
+  const channelToken = parts[1] ?? "";
+  const channel = /^\d+$/.test(channelToken) ? Number(channelToken) : null;
+  const key = channel === null ? (parts[1] ?? "") : (parts[2] ?? "");
   const valueStart = channel === null ? 2 : 3;
   const value = parts.slice(valueStart).join(" ").replace(/^\{/, "").replace(/\}$/, "").trim();
   const result: Partial<SlxdTelemetry> & { deviceId?: string } = {};
