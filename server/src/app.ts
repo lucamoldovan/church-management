@@ -1422,6 +1422,14 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       const composed = [first, last].filter((part): part is string => typeof part === "string" && part.trim().length > 0).join(" ");
       return String(composed || full || "Unnamed person").trim().slice(0, 160);
     };
+    const normalizeScheduleStatus = (value: unknown): string | null => {
+      if (typeof value !== "string" || !value.trim()) return null;
+      const status = value.trim().toLowerCase();
+      if (status === "c" || status === "confirmed") return "Confirmed";
+      if (status === "u" || status === "unconfirmed") return "Unconfirmed";
+      if (status === "d" || status === "declined") return "Declined";
+      return value.trim().slice(0, 60);
+    };
     const now = () => new Date().toISOString();
     const upsertPerson = (person: PcoResource | undefined, externalId: string, fallback?: unknown): string => {
       const attributes = person?.attributes ?? {};
@@ -1608,7 +1616,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
               const sa = info.resource.attributes ?? {};
               database.prepare("INSERT INTO service_plan_assignments (id, service_id, person_id, team_id, position_id, position_name, status, notes, plan_person_external_id, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
                 .run(assignmentId, localServiceId, info.personId, info.teamId, positionId, info.positionName,
-                  typeof sa.status === "string" ? sa.status : null, typeof sa.notes === "string" ? sa.notes : null,
+                  normalizeScheduleStatus(sa.status), typeof sa.notes === "string" ? sa.notes : null,
                   plan.id + ":" + scheduledId, JSON.stringify(info.resource), now());
               const timeRefs = [...relationshipMany(info.resource, "times"), ...relationshipMany(info.resource, "service_times")];
               for (const timeRef of timeRefs) {
