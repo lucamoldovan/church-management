@@ -14,13 +14,13 @@ The adapter uses the documented ASCII command-string format on TCP port 2202. Su
 - Channel: channel name, frequency, group/channel.
 - Transmitter: model/link indication, battery bars and reported battery runtime.
 - Audio: peak and RMS levels in dBFS.
-- RF: combined RSSI from the periodic sample and individual antenna A/B RSSI reports.
+- RF: combined RSSI from the periodic sample (live) and individual antenna A/B RSSI reports (last reported separately).
 
 Important protocol details:
 
 - Meter requests use `< SAMPLE 1 ALL audPeak audRms rfRssi >`; the documented response contains three values after the channel identifier.
 - The meter interval is set with `< SET 1 METER_RATE 01000 >` (one sample per second). The adapter sends `METER_RATE 00000` when it shuts down cleanly.
-- Individual antenna readings are requested with `< GET 1 RSSI 0 >`, which returns separate `REP 1 RSSI 1 ...` and `REP 1 RSSI 2 ...` reports.
+- Individual antenna readings are requested with `< GET 1 RSSI 0 >`, which returns separate `REP 1 RSSI 1 ...` and `REP 1 RSSI 2 ...` reports. The dashboard labels these as last-reported values; the combined RSSI in each SAMPLE packet is the live meter.
 - Shure's reported RF and audio values use a -120 offset to convert them to dBm and dBFS respectively.
 - The seven-character frequency value is converted to Hz before it is sent to the dashboard.
 - Battery bars range from 0–5; 255 means unknown. The displayed percentage is only an estimate (20% per bar), not a precise battery measurement.
