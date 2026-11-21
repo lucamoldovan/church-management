@@ -23,7 +23,7 @@ React + TypeScript + Vite. It contains one staff workspace with these sections:
 
 - Overview: staff, services, events, groups, NDI devices, discovered sources and media counts.
 - People: local read-only directory of Planning Center names and team memberships.
-- Services: local service records and Planning Center Services import.
+- Services: read-only Planning Center service plans, rundown items, scheduled people and team rosters.
 - Staff: internal accounts, role labels, department and activation status.
 - Events and Groups: basic local operational records.
 - ProPresenter: live presentation and current-slide information.
