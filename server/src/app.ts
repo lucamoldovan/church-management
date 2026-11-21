@@ -1329,8 +1329,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         LIMIT 1
       `).get(serviceId, row.personId) as { positionName: string | null; teamName: string | null } | undefined;
       if (!scheduled) return reply.code(400).send({ error: "Microphones can only be assigned to people scheduled on this service plan" });
-      const singerRole = /singer|vocal|choir|worship leader/i.test(scheduled.positionName ?? "") ||
-        /singer|vocal|choir/i.test(scheduled.teamName ?? "");
+      // This church's Planning Center Sunday roster identifies the worship vocal team as "Voci".
+      // Both "Voci" and "Lider De Închinare" positions within that team are eligible.
+      const singerRole = (scheduled.teamName ?? "").trim().toLocaleLowerCase("ro") === "voci";
       if (!singerRole) return reply.code(400).send({ error: "Select someone scheduled in a singer or vocal role on this service plan" });
       seenSlots.add(row.slotKey);
       seenPeople.add(row.personId);
