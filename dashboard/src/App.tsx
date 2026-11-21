@@ -34,15 +34,16 @@ import {
 } from "lucide-react";
 import { createDevicePairingCode, createInitialOperator, getAuthSession, getDevices, getPlaylists, getSources, getServerHealth, getSetupStatus, getChurchOverview, getMedia, login, logout, revokeDeviceCredential, removeRevokedDevice, updateDeviceConfig, type ConnectionState, type Device, type NdiSource, type PlaylistSummary, type Operator, type PairingCode, type ServerHealth } from "./api";
 import { MediaPage, PlaylistsPage, SourcesPage } from "./MediaPages";
-import { ChurchPage } from "./ChurchPages";
+import { ChurchPage, PeoplePage } from "./ChurchPages";
 import { MicrophonesPage } from "./MicrophonesPage";
 
-type Page = "overview" | "services" | "microphones" | "staff" | "events" | "groups" | "production" | "devices" | "sources" | "media" | "playlists" | "system";
+type Page = "overview" | "services" | "people" | "microphones" | "staff" | "events" | "groups" | "production" | "devices" | "sources" | "media" | "playlists" | "system";
 type AuthState = "checking" | "setup" | "login" | "authenticated" | "unavailable";
 
 const navigation: { id: Page; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "services", label: "Services", icon: CalendarDays },
+  { id: "people", label: "People", icon: UsersRound },
   { id: "microphones", label: "Microphones", icon: Mic },
   { id: "staff", label: "Staff", icon: Users },
   { id: "events", label: "Events", icon: CalendarDays },
@@ -256,6 +257,7 @@ function App() {
             />
           )}
           {page === "services" && <ChurchPage page="services" role={operator.role} />}
+          {page === "people" && <PeoplePage />}
           {page === "microphones" && <MicrophonesPage />}
           {page === "staff" && <ChurchPage page="staff" role={operator.role} />}
           {page === "events" && <ChurchPage page="events" role={operator.role} />}
