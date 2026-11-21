@@ -417,3 +417,23 @@ h1 { margin-bottom: 7px; color: #202329; font: 700 27px/1.2 'Manrope', sans-seri
 @media(max-width:640px){.mic-service-picker{grid-template-columns:1fr}.mic-slot-grid{grid-template-columns:1fr}.mic-hardware-banner{align-items:flex-start;flex-wrap:wrap}.mic-hardware-state{margin-left:52px}.mic-roster-summary{align-items:flex-start;flex-direction:column}.mic-save-row{align-items:stretch;flex-direction:column}}
 
 .people-search{display:grid;gap:7px;margin:4px 0 16px;color:var(--muted,#737986);font-size:12px;font-weight:600;max-width:460px}.people-search input{width:100%;min-height:40px;border:1px solid var(--border,#e2e5ea);border-radius:8px;padding:0 12px;background:var(--surface,#fff);color:var(--text,#20242c);font:inherit;font-weight:400;outline:none}.people-search input:focus{border-color:var(--accent,#68758a)}
+
+
+/* Shure SLX-D receiver inventory */
+.mic-hardware-banner small { display:block; margin-top:5px; color:#8a8f9b; font-size:11px; }
+.mic-hardware-state.is-online { color:#23845a; background:#e9f7ef; }
+.mic-hardware-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:14px 0 20px; }
+.mic-hardware-card { min-width:0; padding:17px; }
+.mic-hardware-card > header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; }
+.mic-hardware-card > header > div { min-width:0; display:grid; gap:4px; }
+.mic-hardware-card > header strong { font-size:14px; color:#202329; }
+.mic-hardware-card > header div span { color:#858b96; font-size:11px; overflow-wrap:anywhere; }
+.mic-live-pill,.mic-stale-pill { flex:none; border-radius:20px; padding:4px 8px; font-size:10px; font-weight:650; background:#e9f7ef; color:#23845a; }
+.mic-stale-pill { background:#fff2e5; color:#a5631b; }
+.mic-hardware-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 12px; }
+.mic-hardware-metrics > div { min-width:0; display:grid; gap:4px; }
+.mic-hardware-metrics > div > span { color:#9298a2; font-size:9px; font-weight:700; letter-spacing:.08em; }
+.mic-hardware-metrics strong { color:#272b32; font-size:12px; font-weight:650; overflow-wrap:anywhere; }
+.mic-hardware-metrics small { color:#858b96; font-size:10px; }
+.mic-hardware-diagnostic { margin:14px 0 0; padding-top:10px; border-top:1px solid #eceef1; color:#9a6828; font-size:11px; }
+@media (max-width:760px) { .mic-hardware-grid { grid-template-columns:1fr; } }
