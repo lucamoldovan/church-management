@@ -83,8 +83,6 @@ export function parseSlxdFrame(frame: string): Partial<SlxdTelemetry> & { device
         channel,
         audioPeakDbfs: slxdReportedDbfs(Number(parts[3])),
         audioRmsDbfs: slxdReportedDbfs(Number(parts[4])),
-        rfAntennaADbm: null,
-        rfAntennaBDbm: null,
         rfDbm: slxdReportedDbm(Number(parts[5])),
         lastSampleAt: new Date().toISOString(),
       };
