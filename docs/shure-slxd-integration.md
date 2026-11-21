@@ -121,3 +121,10 @@ Planning Center remains the source of truth. This phase is a read-only local cac
 - People manually added in Church Operations remain possible, but they must be marked as local-only and must not be pushed to Planning Center automatically.
 - Service plans, scheduled teams, scheduled people, item assignments, and microphone dropdown eligibility continue to come from the selected Planning Center service plan. The local directory cache must never replace or override a plan's actual Sunday roster.
 - No local team scheduling, service-plan editing, or migration to a Church Operations-owned planning system is part of this phase.
+
+
+## People directory implementation
+
+The Planning Center sync imports every record from the People API using paginated requests, then continues the existing Services sync for team memberships, positions, scheduled people and service plans. The local People page shows each person's name and the teams they serve on. The People API permission is checked separately in the integration status probe.
+
+Only Planning Center person ID and name fields are persisted in the people record. Photo URLs and raw People API payloads are not stored. Email, phone, household, birthdate, medical and other personal profile fields are not imported. Planning Center remains authoritative: the directory is a local read-only cache, while service plans and their scheduled rosters continue to come from Services. No changes are written back to Planning Center.
