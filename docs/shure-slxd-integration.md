@@ -61,14 +61,14 @@ The microphone controls live in their own top-level **Microphones** tab in Churc
 - Each slot has its own dropdown for the person using that receiver during the selected Sunday service.
 - The operator first selects a Planning Center service plan/date. The dropdown options come from the people actually scheduled to that plan through Planning Center Services' plan team schedule (PlanPerson / scheduled team members).
 - Do not use the church-wide People directory, team membership directory, song/item leader assignments, or item-specific assignments as the dropdown source.
-- The plan's scheduled people are the Sunday roster. Filter that roster to singer/vocal roles and use that same eligible singer list in the dropdown for all six slots, including the headset. Do not silently fall back to the global directory if the roster is empty.
+- The plan's scheduled people are the Sunday roster. Filter that roster to people belonging to the Planning Center team named `Voci`; include every position in that team (including `Voci` and `Lider De Închinare`) in all six dropdowns. Do not use the church-wide People directory as a fallback.
 - If the selected plan has no eligible scheduled singers, show an explicit empty state and leave the singer dropdowns unavailable.
 - Changing the selected Sunday loads that plan's roster and its saved microphone mapping. Assignments are local to that service plan/date and do not write to Planning Center.
 - Prevent assigning the same person to multiple microphone slots for the same service. Clearing a dropdown unassigns that slot.
 - A missing or stale assignment (person no longer scheduled on the selected plan) must be visibly flagged and require a new selection.
 - Receiver telemetry and microphone-to-receiver identity are separate from the Sunday person assignment. Stable Shure Device ID/serial identity must be used once discovery is implemented; DHCP IP changes must not break a receiver's identity.
 
-The first implementation adds the dedicated tab, six assignment slots, a service-plan selector, server-side validation against that plan's scheduled roster, and local persistence. Hardware discovery and live SLX-D telemetry remain a separate next phase and must not be presented as connected until verified with a physical receiver.
+The first implementation adds the dedicated tab, six assignment slots, a service-plan selector, server-side validation against that plan's scheduled `Voci` team roster, and local persistence. Hardware discovery and live SLX-D telemetry remain a separate next phase and must not be presented as connected until verified with a physical receiver.
 
 ## Dashboard
 
