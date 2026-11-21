@@ -253,13 +253,13 @@ function App() {
               onNavigate={navigate}
             />
           )}
-          {page === "services" && <ChurchPage page="services" role={operator.role} />}
+          {page === "services" && <ChurchPage page="services" role={operator.role} operatorId={operator.id} />}
           {page === "people" && <PeoplePage />}
           {page === "microphones" && <MicrophonesPage />}
-          {page === "staff" && <ChurchPage page="staff" role={operator.role} />}
-          {page === "events" && <ChurchPage page="events" role={operator.role} />}
-          {page === "groups" && <ChurchPage page="groups" role={operator.role} />}
-          {page === "production" && <ChurchPage page="production" role={operator.role} />}
+          {page === "staff" && <ChurchPage page="staff" role={operator.role} operatorId={operator.id} />}
+          {page === "events" && <ChurchPage page="events" role={operator.role} operatorId={operator.id} />}
+          {page === "groups" && <ChurchPage page="groups" role={operator.role} operatorId={operator.id} />}
+          {page === "production" && <ChurchPage page="production" role={operator.role} operatorId={operator.id} />}
           {page === "devices" && <DevicesPage />}
           {page === "sources" && <SourcesPage />}
           {page === "media" && <MediaPage />}
