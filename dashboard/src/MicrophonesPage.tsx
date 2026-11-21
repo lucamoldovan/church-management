@@ -198,7 +198,7 @@ export function MicrophonesPage() {
           <span>{hardware?.message ?? "Checking the local SLX-D monitor…"}</span>
           {hardware?.enabled && <small>{hardware.running ? `Polling ${hardware.configuredReceiverCount} configured receiver IPs on TCP ${hardware.port}` : "Monitor not running"}</small>}
         </div>
-        <span className={`mic-hardware-state ${hardware?.listening ? "is-online" : ""}`}>{hardware?.listening ? "Active" : hardware?.enabled ? "Unavailable" : "Disabled"}</span>
+        <span className={`mic-hardware-state ${hardware?.running ? "is-online" : ""}`}>{hardware?.running ? "Active" : hardware?.enabled ? "Unavailable" : "Disabled"}</span>
       </section>
       {hardware?.devices && hardware.devices.length > 0 && (
         <section className="mic-hardware-grid" aria-label="Discovered Shure SLX-D receivers">
