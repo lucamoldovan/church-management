@@ -32,6 +32,7 @@ function isOnVociTeam(teamName: string | null): boolean {
 export function MicrophonesPage() {
   const [services, setServices] = useState<ChurchService[]>([]);
   const [serviceId, setServiceId] = useState("");
+  const [serviceManuallySelected, setServiceManuallySelected] = useState(false);
   const [workspace, setWorkspace] = useState<ChurchServiceWorkspace | null>(null);
   const [saved, setSaved] = useState<MicrophoneAssignment[]>([]);
   const [draft, setDraft] = useState<Record<SlotKey, string>>({
@@ -68,7 +69,7 @@ export function MicrophonesPage() {
       const planningCenterPlans = result.services.filter((service) => service.source === "planning_center");
       setServices(planningCenterPlans);
       setServiceId((current) => {
-        if (current && planningCenterPlans.some((service) => service.id === current)) return current;
+        if (serviceManuallySelected && current && planningCenterPlans.some((service) => service.id === current)) return current;
         const now = new Date();
         const daysUntilSunday = (7 - now.getDay()) % 7;
         const targetSunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysUntilSunday);
@@ -181,7 +182,7 @@ export function MicrophonesPage() {
         </div>
         <label className="mic-plan-select">
           <span>Sunday service</span>
-          <select value={serviceId} onChange={(event) => setServiceId(event.target.value)} disabled={loading || services.length === 0}>
+          <select value={serviceId} onChange={(event) => { setServiceManuallySelected(true); setServiceId(event.target.value); }} disabled={loading || services.length === 0}>
             {services.length === 0 && <option value="">No service plans available</option>}
             {services.map((service) => <option key={service.id} value={service.id}>{serviceLabel(service)}</option>)}
           </select>
