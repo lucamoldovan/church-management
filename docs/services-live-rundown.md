@@ -126,7 +126,7 @@ The first implementation is now present on the feature branch:
 - Plan replacement is performed transactionally after the API snapshot has been fetched. Existing service items and their item assignments are replaced together so deleted items do not leave stale assignment rows.
 - The authenticated Services workspace endpoint returns the selected plan, ordered items, assigned teams, scheduled people/positions/normalized response statuses, team leaders, plan times, item assignments, and saved live state.
 - The authenticated team directory endpoint returns teams with leaders, positions, assigned members, and their schedule preferences.
-- The Services dashboard has a plan selector, live rundown, scheduled-team roster, service-time panel, and separate team-directory view. Local service creation remains available.
+- The Services dashboard has a plan selector, live rundown, scheduled-team roster, service-time panel, and separate team-directory view. Only Planning Center service plans are exposed; local service creation and schedule editing are intentionally unavailable.
 - The ProPresenter live endpoint can accept a selected service ID. It matches only an exact normalized active presentation name or exact normalized current-slide title against a song item. It never uses substring lyric matching. One unique match is highlighted; duplicate matches are reported as ambiguous and do not highlight any row. Unmatched and disconnected states are explicit.
 - The dashboard polls the selected service workspace and ProPresenter state every five seconds. This is shared server-backed state observed by each staff dashboard; it is polling, not a WebSocket push channel.
 
