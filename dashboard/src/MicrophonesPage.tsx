@@ -63,10 +63,11 @@ export function MicrophonesPage() {
     setError("");
     try {
       const result = await getChurchServices();
-      setServices(result.services);
-      setServiceId((current) => current && result.services.some((service) => service.id === current)
+      const planningCenterPlans = result.services.filter((service) => service.source === "planning_center");
+      setServices(planningCenterPlans);
+      setServiceId((current) => current && planningCenterPlans.some((service) => service.id === current)
         ? current
-        : result.services[0]?.id ?? "");
+        : planningCenterPlans[0]?.id ?? "");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load Planning Center services.");
     } finally {
