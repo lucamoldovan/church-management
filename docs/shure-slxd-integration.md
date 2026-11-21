@@ -107,3 +107,17 @@ Create a dedicated **Wireless** section showing:
 - [Wireless Workbench Quick Start](https://www.shure.com/en-US/docs/quickstart/wireless-workbench)
 - [Shure Wireless Workbench ports and protocols](https://service.shure.com/articles/en_US/Knowledge/wwb6-ports-and-protocol-information)
 - [Shure enterprise network troubleshooting checklist](https://service.shure.com/articles/en_US/Knowledge/enterprise-network-troubleshooting-checklist)
+
+
+## People directory synchronization (preparation phase)
+
+Planning Center remains the source of truth. This phase is a read-only local cache, not a migration of church administration away from Planning Center.
+
+- Import every person available to the connected Planning Center account using the People API, following pagination.
+- Store only the Planning Center person ID, display name (first/last or preferred display name when available), and team memberships needed by Church Operations. Do not import or persist email addresses, phone numbers, birthdates, medical notes, household data, or unrelated profile fields.
+- Resolve team membership through the Planning Center Services API and retain team names. Positions may be read when required to resolve membership, but the local directory's visible data is limited to names and teams.
+- Keep the Planning Center person ID as the stable external key. Re-sync updates names and team membership; it must not create duplicate local people.
+- Do not delete local records merely because they disappear from a single sync response. Handle archived/inactive/deleted status only when explicitly supported and verified by the relevant Planning Center API fields.
+- People manually added in Church Operations remain possible, but they must be marked as local-only and must not be pushed to Planning Center automatically.
+- Service plans, scheduled teams, scheduled people, item assignments, and microphone dropdown eligibility continue to come from the selected Planning Center service plan. The local directory cache must never replace or override a plan's actual Sunday roster.
+- No local team scheduling, service-plan editing, or migration to a Church Operations-owned planning system is part of this phase.
