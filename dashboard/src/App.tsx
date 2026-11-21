@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   Activity,
   ArrowRight,
-  AudioWaveform,
   CircleHelp,
   Check,
   Clipboard,
@@ -167,9 +166,8 @@ function App() {
 
       <aside className={`sidebar ${mobileNavOpen ? "sidebar-open" : ""}`}>
         <div className="brand">
-          <div className="brand-mark"><AudioWaveform size={21} strokeWidth={2.2} /></div>
           <div className="brand-copy">
-            <span className="brand-name">Church Ops</span>
+            <span className="brand-name">Kasapini Dashboard</span>
             <span className="brand-caption">OPERATIONS + MEDIA</span>
           </div>
           <button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => setMobileNavOpen(false)}>
@@ -178,9 +176,8 @@ function App() {
         </div>
 
         <div className="workspace-switcher">
-          <div className="workspace-avatar">V</div>
           <div className="workspace-copy">
-            <strong>Church workspace</strong>
+            <strong>Staff workspace</strong>
             <span>Staff network</span>
           </div>
         </div>
@@ -325,14 +322,13 @@ function AuthScreen({
     <main className="auth-shell">
       <div className="auth-card">
         <div className="auth-brand">
-          <div className="brand-mark"><AudioWaveform size={21} strokeWidth={2.2} /></div>
-          <div className="brand-copy"><span className="brand-name">Church Ops</span><span className="brand-caption">OPERATIONS + MEDIA</span></div>
+          <div className="brand-copy"><span className="brand-name">Kasapini Dashboard</span><span className="brand-caption">OPERATIONS + MEDIA</span></div>
         </div>
 
         {mode === "checking" && (
           <div className="auth-message">
             <LoaderCircle className="auth-spinner" size={25} />
-            <h1>Connecting to Church Operations</h1>
+            <h1>Connecting to Kasapini Dashboard</h1>
             <p>Checking your local workspace…</p>
           </div>
         )}
@@ -422,7 +418,7 @@ function AuthScreen({
           </>
         )}
       </div>
-      <div className="auth-background-mark">CHURCH OPS</div>
+      <div className="auth-background-mark">KASAPINI DASHBOARD</div>
     </main>
   );
 }
@@ -533,7 +529,7 @@ function Overview({
           <div className="network-visual">
             <div className="network-node network-node-server">
               <div className="network-node-icon"><Server size={22} /></div>
-              <div><strong>Church operations server</strong><span>{connection === "online" ? "Responding normally" : connection === "offline" ? "Cannot be reached" : "Checking connection"}</span></div>
+              <div><strong>Local application server</strong><span>{connection === "online" ? "Responding normally" : connection === "offline" ? "Cannot be reached" : "Checking connection"}</span></div>
               <span className={`node-dot ${connection}`} />
             </div>
             <div className="network-connector"><span /></div>
@@ -586,7 +582,7 @@ function Overview({
         </div>
       </section>
 
-      <footer className="page-footer"><span>VEYRA <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Local-first by design <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Local-first by design <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
@@ -857,7 +853,7 @@ function SystemPage({
   return (
     <>
       <section className="page-heading">
-        <div><div className="eyebrow">PLATFORM HEALTH</div><h1>System</h1><p>Health and diagnostics for your local Church Operations installation.</p></div>
+        <div><div className="eyebrow">PLATFORM HEALTH</div><h1>System</h1><p>Health and diagnostics for your local Kasapini Dashboard installation.</p></div>
         <span className={`pill ${connection === "online" ? "pill-success" : connection === "offline" ? "pill-danger" : "pill-neutral"}`}><span className="status-dot" />{connection === "online" ? "Operational" : connection === "offline" ? "Disconnected" : "Checking"}</span>
       </section>
       <section className="system-grid">
@@ -893,8 +889,8 @@ function SystemPage({
       <section className="panel system-info">
         <div className="panel-heading"><div><h2>Platform components</h2><p>Implementation status of the local platform</p></div><Command size={18} className="muted-icon" /></div>
         <div className="component-row"><div className="component-icon"><MonitorPlay size={17} /></div><div className="component-copy"><strong>NDI Receiver Engine</strong><span>Native C++ / NDI / SDL2</span></div><span className="component-status status-foundation">Foundation</span></div>
-        <div className="component-row"><div className="component-icon"><Server size={17} /></div><div className="component-copy"><strong>Church Ops Server</strong><span>TypeScript / Fastify</span></div><span className="component-status status-foundation">Foundation</span></div>
-        <div className="component-row"><div className="component-icon"><LayoutDashboard size={17} /></div><div className="component-copy"><strong>Church Ops Dashboard</strong><span>React / Vite</span></div><span className="component-status status-foundation">Foundation</span></div>
+        <div className="component-row"><div className="component-icon"><Server size={17} /></div><div className="component-copy"><strong>Local API Server</strong><span>TypeScript / Fastify</span></div><span className="component-status status-foundation">Foundation</span></div>
+        <div className="component-row"><div className="component-icon"><LayoutDashboard size={17} /></div><div className="component-copy"><strong>Kasapini Dashboard</strong><span>React / Vite</span></div><span className="component-status status-foundation">Foundation</span></div>
       </section>
       <footer className="page-footer"><span>VEYRA <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Local-first by design <ShieldCheck size={13} /></span></footer>
     </>
