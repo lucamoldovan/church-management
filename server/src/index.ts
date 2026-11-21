@@ -5,6 +5,7 @@ import { config } from "dotenv";
 config({ path: resolve(process.cwd(), "../.env") });
 import { isIP } from "node:net";
 import { buildApp } from "./app.js";
+import { ShureSlxdMonitor } from "./shure-slxd.js";
 
 const host = process.env.CHURCH_HOST?.trim() || process.env.VEYRA_HOST?.trim() || "127.0.0.1";
 const port = Number(process.env.CHURCH_PORT ?? process.env.VEYRA_PORT ?? "8787");
@@ -42,16 +43,27 @@ if (!isLoopbackHost(host) && !https) {
   );
 }
 
+const shureMonitor = new ShureSlxdMonitor({
+  enabled: process.env.SHURE_SLXD_ENABLED === "true",
+  host: process.env.SHURE_SLXD_HOST?.trim() || "0.0.0.0",
+  port: Number(process.env.SHURE_SLXD_PORT ?? "2202"),
+  allowedIps: (process.env.SHURE_SLXD_ALLOWED_IPS ?? "").split(",").map((ip) => ip.trim()).filter(Boolean),
+  meterRateMs: Number(process.env.SHURE_SLXD_METER_RATE_MS ?? "1000"),
+});
+
 const app = buildApp({
+  shureMonitor,
   dashboardDirectory: process.env.CHURCH_DASHBOARD_DIRECTORY ?? "../dashboard/dist",
   ...(https ? { https } : {}),
   secureCookies: Boolean(https) || process.env.VEYRA_COOKIE_SECURE === "true",
 });
 
 try {
+  await shureMonitor.start();
   await app.listen({ host, port });
 } catch (error) {
-  app.log.error(error, "Veyra server failed to start");
+  app.log.error(error, "Church Operations server failed to start");
+  await shureMonitor.close().catch(() => undefined);
   process.exitCode = 1;
 }
 
@@ -59,6 +71,7 @@ async function shutdown(signal: string): Promise<void> {
   app.log.info({ signal }, "Shutting down Veyra server");
   try {
     await app.close();
+    await shureMonitor.close();
   } catch (error) {
     app.log.error(error, "Error while closing Veyra server");
     process.exitCode = 1;
