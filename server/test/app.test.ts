@@ -1062,6 +1062,9 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
       document.data = [{ id: "type-1", type: "ServiceType", attributes: { name: "Sunday Service" } }];
     } else if (url.endsWith("/service_types/type-1/teams?per_page=100")) {
       document.data = [{ id: "team-1", type: "Team", attributes: { name: "Worship", sequence: 1 } }];
+    } else if (url.endsWith("/teams/team-1/team_leaders?include=people&per_page=100")) {
+      document.data = [{ id: "leader-1", type: "TeamLeader", relationships: { person: { data: { type: "Person", id: "person-2" } }, team: { data: { type: "Team", id: "team-1" } } } }];
+      document.included = [{ id: "person-2", type: "Person", attributes: { first_name: "Bob", last_name: "Teamlead" } }];
     } else if (url.endsWith("/teams/team-1/team_positions?per_page=100")) {
       document.data = [{ id: "position-1", type: "TeamPosition", attributes: { name: "Vocals", sequence: 1 }, relationships: { team: { data: { type: "Team", id: "team-1" } } } }];
     } else if (url.endsWith("/person_team_position_assignments?include=person&per_page=100")) {
@@ -1112,6 +1115,7 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     const workspace = await app.inject({ method: "GET", url: `/api/v1/church/services/${serviceId}/workspace`, headers });
     assert.equal(workspace.statusCode, 200, workspace.body);
     assert.equal(workspace.json().teams[0].name, "Worship");
+    assert.equal(workspace.json().teams[0].leaders[0], "Bob Teamlead");
     assert.equal(workspace.json().assignments[0].personName, "Alice Singer");
     assert.equal(workspace.json().assignments[0].positionName, "Vocals");
     assert.equal(workspace.json().assignments[0].status, "confirmed");
@@ -1122,6 +1126,7 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     const directory = await app.inject({ method: "GET", url: "/api/v1/church/teams", headers });
     assert.equal(directory.statusCode, 200);
     assert.equal(directory.json().teams[0].name, "Worship");
+    assert.equal(directory.json().teams[0].leaders[0], "Bob Teamlead");
     assert.equal(directory.json().teams[0].positions[0].name, "Vocals");
     assert.equal(directory.json().teams[0].positions[0].members[0].personName, "Alice Singer");
 
