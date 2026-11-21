@@ -373,7 +373,7 @@ export function createChurchGroup(input: { name: string; description?: string; l
 export function getPlanningCenterStatus(): Promise<{ configured: boolean; connected: boolean; message: string }> {
   return request("/api/v1/integrations/planning-center/status");
 }
-export function syncPlanningCenter(): Promise<{ imported: number; itemsImported: number; peopleImported: number; teamsImported: number; positionsImported: number; scheduledAssignmentsImported: number; itemAssignmentsImported: number; serviceTypes: number; syncedAt: string }> {
+export function syncPlanningCenter(): Promise<{ imported: number; itemsImported: number; peopleImported: number; peopleInDirectory?: number; teamsImported: number; positionsImported: number; scheduledAssignmentsImported: number; itemAssignmentsImported: number; serviceTypes: number; syncedAt: string }> {
   return request("/api/v1/integrations/planning-center/sync", { method: "POST" });
 }
 export interface ProPresenterLive {
