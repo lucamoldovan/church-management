@@ -11,7 +11,7 @@ The browser dashboard is the only management interface. NDI receiver software re
 Staff browsers -- HTTPS --> Local Church Operations server
 NDI receivers -- HTTPS/LAN --> Local Church Operations server
 ProPresenter computer -- HTTP/LAN --> Local Church Operations server
-Planning Center API -- HTTPS --> Local Church Operations server
+Planning Center Services + People APIs -- HTTPS --> Local Church Operations server
 
 The server owns authentication, staff permissions, church records, device credentials, media metadata and integration configuration. The React dashboard is served by the same Fastify origin in production. During development, Vite runs separately and proxies API requests to Fastify.
 
@@ -22,6 +22,7 @@ The server owns authentication, staff permissions, church records, device creden
 React + TypeScript + Vite. It contains one staff workspace with these sections:
 
 - Overview: staff, services, events, groups, NDI devices, discovered sources and media counts.
+- People: local read-only directory of Planning Center names and team memberships.
 - Services: local service records and Planning Center Services import.
 - Staff: internal accounts, role labels, department and activation status.
 - Events and Groups: basic local operational records.
@@ -47,7 +48,7 @@ NDI audio remains disabled. Receiver fallback behavior and device configuration 
 
 ### Integrations
 
-Planning Center is initially used as a read/sync source for future Services plans and their ordered service items. A single-church Personal Access Token is configured on the server, never in browser code. Imported records are stored locally. The long-term direction is to replace Planning Center with native service, people, group and volunteer modules.
+Planning Center Services and People APIs are read-only upstream sources. The server imports future service plans, ordered rundown items, scheduled people, team/position rosters, and the complete People directory. The local People directory stores only the Planning Center person ID, first/last/display name and team names; email, phone, photos, household details and other profile fields are discarded. A single-church Personal Access Token with both Services and People access is configured on the server, never in browser code. Planning Center remains the source of truth for plans and team scheduling; local copies support operational features and do not replace or modify upstream schedules. The long-term direction is to replace Planning Center only through a deliberate later phase.
 
 ProPresenter is queried by the local server for version, active presentation, current slide text and slide index using its documented HTTP endpoints. The connector reads live status and exposes a narrow, authenticated allowlist for previous cue, next cue, and clearing the slide layer. It does not accept arbitrary API paths or shell commands and does not assume a bearer token. The ProPresenter API can expose powerful control endpoints, so restrict its listener to trusted production-network hosts. The browser only talks to the Church Operations API and never directly accesses the production computer.
 
