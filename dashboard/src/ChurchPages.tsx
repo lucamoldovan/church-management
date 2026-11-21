@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Activity, CalendarDays, CircleAlert, LoaderCircle, Plus, RefreshCw, Users, UsersRound, RadioTower, ShieldCheck } from "lucide-react";
 import {
-  createChurchEvent, createChurchGroup, createChurchService, createChurchStaff,
+  createChurchEvent, createChurchGroup, createChurchStaff,
   getChurchEvents, getChurchGroups, getChurchServices, getChurchStaff,
   getPlanningCenterStatus, getProPresenterLive, getChurchServiceWorkspace, getChurchTeams, getChurchPeople,
   sendProPresenterCommand, syncPlanningCenter,
@@ -47,10 +47,11 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     try {
       if (page === "services") {
         const [result, status] = await Promise.all([getChurchServices(), getPlanningCenterStatus()]);
-        setServices(result.services); setPco(status);
-        if (!selectedServiceId && result.services[0]) setSelectedServiceId(result.services[0].id);
-        if (selectedServiceId && !result.services.some((service) => service.id === selectedServiceId)) {
-          setSelectedServiceId(result.services[0]?.id ?? "");
+        const planningCenterPlans = result.services.filter((service) => service.source === "planning_center");
+        setServices(planningCenterPlans); setPco(status);
+        if (!selectedServiceId && planningCenterPlans[0]) setSelectedServiceId(planningCenterPlans[0].id);
+        if (selectedServiceId && !planningCenterPlans.some((service) => service.id === selectedServiceId)) {
+          setSelectedServiceId(planningCenterPlans[0]?.id ?? "");
           setWorkspace(null);
         }
       } else if (page === "staff") {
@@ -116,10 +117,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     const data = new FormData(event.currentTarget);
     const value = (key: string) => String(data.get(key) ?? "").trim();
     try {
-      if (page === "services") {
-        await createChurchService({ title: value("title"), startsAt: localIso(value("startsAt")), endsAt: localIso(value("endsAt")), location: value("location") });
-        setSuccess("Service created.");
-      } else if (page === "events") {
+      if (page === "events") {
         await createChurchEvent({ title: value("title"), description: value("description"), startsAt: localIso(value("startsAt")), endsAt: localIso(value("endsAt")), location: value("location"), capacity: value("capacity") ? Number(value("capacity")) : undefined });
         setSuccess("Event created.");
       } else if (page === "groups") {
@@ -182,19 +180,11 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     const currentIndex = workspace?.items.findIndex((item) => item.id === currentItemId) ?? -1;
     const planAssignmentsForTeam = (teamId: string) => workspace?.assignments.filter((assignment) => assignment.teamId === teamId) ?? [];
     return <div>
-      <PageHeader eyebrow="SERVICE PLANNING" title="Services" description="A live Planning Center workspace for the rundown, teams and scheduled people." action={<div className="service-page-actions"><button className="button button-secondary" onClick={() => setShowForm((value) => !value)}><Plus size={14}/> New service</button>{role === "admin" && <button className="button button-dark" onClick={() => void sync()} disabled={busy || !pco?.connected}><RefreshCw size={14}/> Sync Planning Center</button>}</div>}/>
+      <PageHeader eyebrow="SERVICE PLANNING" title="Services" description="A read-only Planning Center workspace for the rundown, teams and scheduled people." action={role === "admin" ? <button className="button button-dark" onClick={() => void sync()} disabled={busy || !pco?.connected}><RefreshCw size={14}/> Sync Planning Center</button> : undefined}/>
       <div className="integration-strip">
         <div><span className={`integration-dot ${pco?.connected ? "online" : ""}`}/><div><strong>Planning Center Services</strong><small>{pco?.message ?? "Checking connection…"}</small></div></div>
-        <small>{workspace?.service.source === "planning_center" ? "Plan data imported from Planning Center" : "Local service plan"}</small>
+        <small>Planning Center is the source of truth · Read-only sync</small>
       </div>
-      {showForm && <form className="panel church-form" onSubmit={submit}>
-        <h2>Create a local service</h2>
-        <label>Title<input name="title" required maxLength={160}/></label>
-        <label>Starts<input name="startsAt" type="datetime-local"/></label>
-        <label>Ends<input name="endsAt" type="datetime-local"/></label>
-        <label>Location<input name="location"/></label>
-        <button className="button button-dark" disabled={busy}>Save service</button>
-      </form>}
       <Notice error={error} success={success}/>
       {loading ? <Loading/> : <>
         <section className="panel service-selector">
@@ -202,7 +192,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
           <select id="service-plan-select" value={selectedServiceId} onChange={(event) => { setSelectedServiceId(event.target.value); setWorkspace(null); setPropresenter(null); }}>
             {services.map((service) => <option value={service.id} key={service.id}>{service.title}{service.serviceTypeName ? ` · ${service.serviceTypeName}` : ""} · {dateLabel(service.startsAt)}</option>)}
           </select>
-          {!services.length && <Empty text="No services yet. Sync Planning Center or create a local service."/>}
+          {!services.length && <Empty text="No Planning Center service plans yet. Sync Planning Center to load the schedule."/>}
         </section>
         {workspace && <>
           <section className="panel service-live-banner">
