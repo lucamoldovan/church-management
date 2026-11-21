@@ -45,9 +45,8 @@ if (!isLoopbackHost(host) && !https) {
 
 const shureMonitor = new ShureSlxdMonitor({
   enabled: process.env.SHURE_SLXD_ENABLED === "true",
-  host: process.env.SHURE_SLXD_HOST?.trim() || "0.0.0.0",
+  receiverIps: (process.env.SHURE_SLXD_RECEIVER_IPS ?? "").split(",").map((ip) => ip.trim()).filter(Boolean),
   port: Number(process.env.SHURE_SLXD_PORT ?? "2202"),
-  allowedIps: (process.env.SHURE_SLXD_ALLOWED_IPS ?? "").split(",").map((ip) => ip.trim()).filter(Boolean),
   meterRateMs: Number(process.env.SHURE_SLXD_METER_RATE_MS ?? "1000"),
 });
 
