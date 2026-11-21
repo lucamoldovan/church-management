@@ -1357,6 +1357,35 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     return { saved: true, assignments };
   });
 
+  app.get("/api/v1/church/people", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const people = database.prepare(`
+      SELECT p.id, p.external_id AS externalId, p.display_name AS displayName
+      FROM service_people p
+      ORDER BY p.display_name COLLATE NOCASE
+    `).all() as Array<{ id: string; externalId: string; displayName: string }>;
+    const memberships = database.prepare(`
+      SELECT m.person_id AS personId, t.name AS teamName
+      FROM service_team_memberships m
+      JOIN service_positions pos ON pos.id = m.position_id
+      JOIN service_teams t ON t.id = pos.team_id
+      UNION
+      SELECT tl.person_id AS personId, t.name AS teamName
+      FROM service_team_leaders tl
+      JOIN service_teams t ON t.id = tl.team_id
+      ORDER BY teamName COLLATE NOCASE
+    `).all() as Array<{ personId: string; teamName: string }>;
+    return {
+      people: people.map((person) => ({
+        id: person.id,
+        externalId: person.externalId,
+        displayName: person.displayName,
+        teams: [...new Set(memberships.filter((membership) => membership.personId === person.id).map((membership) => membership.teamName))],
+      })),
+      total: people.length,
+    };
+  });
+
   app.get("/api/v1/church/teams", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
     const teams = database.prepare("SELECT id, external_id AS externalId, name, sequence, archived_at AS archivedAt FROM service_teams ORDER BY sequence, name COLLATE NOCASE").all() as Array<Record<string, unknown>>;
