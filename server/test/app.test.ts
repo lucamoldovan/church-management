@@ -1060,7 +1060,7 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     } else if (url.endsWith("/service_types?per_page=100&offset=100")) {
       document.data = [{ id: "type-2", type: "ServiceType", attributes: { name: "Midweek" } }];
     } else if (url.endsWith("/service_types/type-1/teams?per_page=100")) {
-      document.data = [{ id: "team-1", type: "Team", attributes: { name: "Worship", sequence: 1 } }];
+      document.data = [{ id: "team-1", type: "Team", attributes: { name: "Voci", sequence: 1 } }];
     } else if (url.endsWith("/teams/team-1/team_leaders?include=people&per_page=100")) {
       document.data = [{ id: "leader-1", type: "TeamLeader", relationships: { person: { data: { type: "Person", id: "person-2" } }, team: { data: { type: "Team", id: "team-1" } } } }];
       document.included = [{ id: "person-2", type: "Person", attributes: { first_name: "Bob", last_name: "Teamlead" } }];
@@ -1078,12 +1078,12 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
       document.data = [{ id: "plan-person-1", type: "PlanPerson", attributes: { name: "Alice Singer", team_position_name: "Vocals", status: "confirmed", notes: "Arrive early" }, relationships: { person: { data: { type: "Person", id: "person-1" } }, team: { data: { type: "Team", id: "team-1" } }, times: { data: [{ type: "PlanTime", id: "time-1" }] } } }];
       document.included = [
         { id: "person-1", type: "Person", attributes: { first_name: "Alice", last_name: "Singer" } },
-        { id: "team-1", type: "Team", attributes: { name: "Worship", sequence: 1 } },
+        { id: "team-1", type: "Team", attributes: { name: "Voci", sequence: 1 } },
       ];
     } else if (url.endsWith("/plan_times?per_page=100")) {
       document.data = [{ id: "time-1", type: "PlanTime", attributes: { name: "Sunday 10:00", starts_at: "2026-11-22T10:00:00Z", ends_at: "2026-11-22T11:30:00Z", time_type: "service" } }];
     } else if (url.endsWith("/signup_teams?per_page=100")) {
-      document.data = [{ id: "team-1", type: "Team", attributes: { name: "Worship", sequence: 1 } }];
+      document.data = [{ id: "team-1", type: "Team", attributes: { name: "Voci", sequence: 1 } }];
     } else if (url.includes("/item_assignments?per_page=100")) {
       document.data = [
         { id: "item-assignment-person", type: "ItemAssignment", attributes: { assignable_type: "Person" }, relationships: { assignable: { data: { type: "Person", id: "person-1" } } } },
