@@ -294,7 +294,7 @@ export interface ChurchServiceItem {
   arrangementExternalId?: string | null; servicePosition?: string | null;
   assignments?: Array<{ id: string; itemId: string; assignableType: string; assignableExternalId: string; displayName: string | null }>;
 }
-export interface ServicePlanTeam { id: string; externalId: string; name: string; sequence: number | null; }
+export interface ServicePlanTeam { id: string; externalId: string; name: string; sequence: number | null; leaders?: string[]; }
 export interface ServicePlanAssignment {
   id: string; personId: string; personName: string; teamId: string | null; teamName: string | null;
   positionId: string | null; positionName: string | null; status: string | null; notes: string | null; serviceTimes: string | null;
@@ -310,7 +310,7 @@ export interface ChurchServiceWorkspace {
   assignments: ServicePlanAssignment[]; times: ServicePlanTime[]; live: ServiceLiveState | null;
 }
 export interface ChurchTeamDirectory {
-  id: string; externalId: string; name: string; sequence: number | null; archivedAt: string | null;
+  id: string; externalId: string; name: string; sequence: number | null; archivedAt: string | null; leaders?: string[];
   positions: Array<{ id: string; externalId: string; teamId: string; name: string; sequence: number | null;
     members: Array<{ id: string; positionId: string; personId: string; personName: string; schedulePreference: string | null }> }>;
 }
