@@ -362,7 +362,8 @@ export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "
       // Older syncs stored whole Planning Center person payloads. Retain only names and IDs.
       database.exec("UPDATE service_people SET photo_url = NULL, raw_json = '{}'");
       database.pragma("user_version = 10");
-    }  });
+    }
+  });
 
   try {
     migrate();
