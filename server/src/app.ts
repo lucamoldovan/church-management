@@ -1331,7 +1331,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       if (!scheduled) return reply.code(400).send({ error: "Microphones can only be assigned to people scheduled on this service plan" });
       // Every person scheduled in the Planning Center "Voci" team is eligible for every wireless slot.
       // Position names (Voci and Lider De Închinare) do not restrict microphone choice.
-      const teamName = (scheduled.teamName ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toLocaleLowerCase("ro");
+      const teamName = (scheduled.teamName ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("ro");
       if (teamName !== "voci") {
         return reply.code(400).send({ error: "Select someone scheduled in the Voci team on this service plan" });
       }
