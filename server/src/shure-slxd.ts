@@ -199,7 +199,7 @@ export class ShureSlxdMonitor {
         "< GET MODEL >", "< GET DEVICE_ID >", "< GET RF_BAND >", "< GET FW_VER >",
         `< GET ${channel} ALL >`, `< GET ${channel} TX_MODEL >`,
         `< GET ${channel} TX_BATT_BARS >`, `< GET ${channel} TX_BATT_MINS >`,
-        `< GET ${channel} RSSI >`,
+        `< GET ${channel} RSSI 0 >`,
         `< SET ${channel} METER_RATE ${String(this.options.meterRateMs ?? 1000).padStart(5, "0")} >`,
         `< SAMPLE ${channel} ALL audPeak audRms rfRssi >`,
       ];
