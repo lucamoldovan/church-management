@@ -328,14 +328,16 @@ export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "
         CREATE TABLE IF NOT EXISTS service_live_state (
           service_id TEXT PRIMARY KEY REFERENCES church_services(id) ON DELETE CASCADE, matched_item_id TEXT REFERENCES church_service_items(id) ON DELETE SET NULL, match_method TEXT, presentation_name TEXT, current_slide_text TEXT, current_slide_uuid TEXT, connected INTEGER NOT NULL DEFAULT 0, observed_at TEXT, stale_at TEXT, message TEXT
         );
-        ALTER TABLE church_services ADD COLUMN service_type_external_id TEXT;
-        ALTER TABLE church_services ADD COLUMN service_type_name TEXT;
-        ALTER TABLE church_service_items ADD COLUMN song_external_id TEXT;
-        ALTER TABLE church_service_items ADD COLUMN arrangement_external_id TEXT;
-        ALTER TABLE church_service_items ADD COLUMN service_position TEXT;
         CREATE INDEX IF NOT EXISTS church_service_items_song_idx ON church_service_items(song_external_id);
         CREATE INDEX IF NOT EXISTS service_live_state_observed_idx ON service_live_state(observed_at);
       `);
+      const churchServiceColumns = new Set((database.pragma("table_info(church_services)") as Array<{ name: string }>).map((column) => column.name));
+      if (!churchServiceColumns.has("service_type_external_id")) database.exec("ALTER TABLE church_services ADD COLUMN service_type_external_id TEXT");
+      if (!churchServiceColumns.has("service_type_name")) database.exec("ALTER TABLE church_services ADD COLUMN service_type_name TEXT");
+      const churchServiceItemColumns = new Set((database.pragma("table_info(church_service_items)") as Array<{ name: string }>).map((column) => column.name));
+      if (!churchServiceItemColumns.has("song_external_id")) database.exec("ALTER TABLE church_service_items ADD COLUMN song_external_id TEXT");
+      if (!churchServiceItemColumns.has("arrangement_external_id")) database.exec("ALTER TABLE church_service_items ADD COLUMN arrangement_external_id TEXT");
+      if (!churchServiceItemColumns.has("service_position")) database.exec("ALTER TABLE church_service_items ADD COLUMN service_position TEXT");
       database.pragma("user_version = 8");
     }
   });
