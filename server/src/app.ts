@@ -1198,6 +1198,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     if (password.length < 12 || password.length > 256) return reply.code(400).send({ error: "Password must be at least 12 characters" });
     if (!displayName || displayName.length > 100) return reply.code(400).send({ error: "A display name is required" });
     if (!["admin", "staff", "production", "leader"].includes(role)) return reply.code(400).send({ error: "Invalid staff role" });
+    if (department && department.length > 80) return reply.code(400).send({ error: "Department must be 80 characters or fewer" });
     const id = randomUUID();
     const now = new Date().toISOString();
     try {
@@ -1219,7 +1220,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const role = typeof body.role === "string" ? body.role : null;
     const active = typeof body.active === "boolean" ? (body.active ? 1 : 0) : null;
     const department = typeof body.department === "string" ? body.department.trim() : undefined;
-    if (role && !["admin", "staff", "production", "leader"].includes(role)) return reply.code(400).send({ error: "Invalid staff role" });
+    if (role !== null && !["admin", "staff", "production", "leader"].includes(role)) return reply.code(400).send({ error: "Invalid staff role" });
+    if (department !== undefined && department.length > 80) return reply.code(400).send({ error: "Department must be 80 characters or fewer" });
 
     const removesAdminAccess = (role !== null ? role !== "admin" : current.role !== "admin") ||
       (active !== null ? active !== 1 : current.active !== 1);
@@ -1420,10 +1422,26 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const body = request.body ?? {};
     const title = typeof body.title === "string" ? body.title.trim() : "";
     if (!title || title.length > 160) return reply.code(400).send({ error: "Event title is required (maximum 160 characters)" });
+    const description = typeof body.description === "string" ? body.description.trim() : null;
+    const location = typeof body.location === "string" ? body.location.trim() : null;
+    const startsAtInput = typeof body.startsAt === "string" && body.startsAt.trim() ? body.startsAt.trim() : null;
+    const endsAtInput = typeof body.endsAt === "string" && body.endsAt.trim() ? body.endsAt.trim() : null;
+    const startsAtMs = startsAtInput ? Date.parse(startsAtInput) : null;
+    const endsAtMs = endsAtInput ? Date.parse(endsAtInput) : null;
+    if (description && description.length > 2000) return reply.code(400).send({ error: "Event description must be 2,000 characters or fewer" });
+    if (location && location.length > 160) return reply.code(400).send({ error: "Event location must be 160 characters or fewer" });
+    if (startsAtInput && !Number.isFinite(startsAtMs)) return reply.code(400).send({ error: "Event start date is invalid" });
+    if (endsAtInput && !Number.isFinite(endsAtMs)) return reply.code(400).send({ error: "Event end date is invalid" });
+    if (endsAtMs !== null && startsAtMs === null) return reply.code(400).send({ error: "An event end date requires a start date" });
+    if (startsAtMs !== null && endsAtMs !== null && endsAtMs <= startsAtMs) return reply.code(400).send({ error: "Event end date must be after its start date" });
+    const capacity = body.capacity === undefined || body.capacity === null ? null : body.capacity;
+    if (capacity !== null && (typeof capacity !== "number" || !Number.isSafeInteger(capacity) || capacity < 1 || capacity > 1000000)) {
+      return reply.code(400).send({ error: "Event capacity must be a positive whole number" });
+    }
     const id = randomUUID();
     const now = new Date().toISOString();
     database.prepare("INSERT INTO church_events (id, title, description, starts_at, ends_at, location, capacity, status, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'planned', 'local', ?, ?)")
-      .run(id, title, typeof body.description === "string" ? body.description : null, typeof body.startsAt === "string" ? body.startsAt : null, typeof body.endsAt === "string" ? body.endsAt : null, typeof body.location === "string" ? body.location : null, typeof body.capacity === "number" && Number.isInteger(body.capacity) ? body.capacity : null, now, now);
+      .run(id, title, description, startsAtMs === null ? null : new Date(startsAtMs).toISOString(), endsAtMs === null ? null : new Date(endsAtMs).toISOString(), location, capacity, now, now);
     return reply.code(201).send({ id, title, status: "planned", source: "local" });
   });
 
@@ -1444,10 +1462,20 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const body = request.body ?? {};
     const name = typeof body.name === "string" ? body.name.trim() : "";
     if (!name || name.length > 120) return reply.code(400).send({ error: "Group name is required (maximum 120 characters)" });
+    const description = typeof body.description === "string" ? body.description.trim() : null;
+    const leader = typeof body.leader === "string" ? body.leader.trim() : null;
+    const meetingDay = typeof body.meetingDay === "string" ? body.meetingDay.trim() : null;
+    const meetingTime = typeof body.meetingTime === "string" ? body.meetingTime.trim() : null;
+    const location = typeof body.location === "string" ? body.location.trim() : null;
+    if (description && description.length > 2000) return reply.code(400).send({ error: "Group description must be 2,000 characters or fewer" });
+    if (leader && leader.length > 160) return reply.code(400).send({ error: "Group leader must be 160 characters or fewer" });
+    if (meetingDay && meetingDay.length > 40) return reply.code(400).send({ error: "Meeting day must be 40 characters or fewer" });
+    if (meetingTime && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(meetingTime)) return reply.code(400).send({ error: "Meeting time must use HH:MM" });
+    if (location && location.length > 160) return reply.code(400).send({ error: "Group location must be 160 characters or fewer" });
     const id = randomUUID();
     const now = new Date().toISOString();
     database.prepare("INSERT INTO church_groups (id, name, description, leader, meeting_day, meeting_time, location, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)")
-      .run(id, name, typeof body.description === "string" ? body.description : null, typeof body.leader === "string" ? body.leader : null, typeof body.meetingDay === "string" ? body.meetingDay : null, typeof body.meetingTime === "string" ? body.meetingTime : null, typeof body.location === "string" ? body.location : null, now, now);
+      .run(id, name, description, leader, meetingDay, meetingTime, location, now, now);
     return reply.code(201).send({ id, name, active: true, memberCount: 0 });
   });
 
