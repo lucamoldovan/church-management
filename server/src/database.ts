@@ -304,6 +304,11 @@ export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "
         CREATE TABLE IF NOT EXISTS service_team_memberships (
           id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES service_people(id) ON DELETE CASCADE, position_id TEXT NOT NULL REFERENCES service_positions(id) ON DELETE CASCADE, schedule_preference TEXT, raw_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL, UNIQUE(person_id, position_id)
         );
+        CREATE TABLE IF NOT EXISTS service_team_leaders (
+          id TEXT PRIMARY KEY, external_id TEXT NOT NULL UNIQUE, team_id TEXT NOT NULL REFERENCES service_teams(id) ON DELETE CASCADE,
+          person_id TEXT NOT NULL REFERENCES service_people(id) ON DELETE CASCADE, raw_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL,
+          UNIQUE(team_id, person_id)
+        );
         CREATE TABLE IF NOT EXISTS service_plan_teams (
           service_id TEXT NOT NULL REFERENCES church_services(id) ON DELETE CASCADE, team_id TEXT NOT NULL REFERENCES service_teams(id) ON DELETE CASCADE, position INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(service_id, team_id)
         );
