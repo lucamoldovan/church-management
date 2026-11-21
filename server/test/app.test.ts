@@ -670,6 +670,31 @@ test("database initializes a versioned schema", () => {
 });
 
 
+test("schema 10 removes previously cached Planning Center profile fields", () => {
+  const directory = mkdtempSync(join(tmpdir(), "veyra-people-privacy-"));
+  const databasePath = join(directory, "veyra.sqlite");
+  try {
+    const legacy = openDatabase(databasePath);
+    legacy.prepare("INSERT INTO service_people (id, external_id, display_name, first_name, last_name, photo_url, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run("person-local", "pco-123", "Anna Singer", "Anna", "Singer", "https://example.test/photo.jpg",
+        JSON.stringify({ email: "private@example.com", phone_number: "123456789" }), "2026-11-21T00:00:00.000Z");
+    legacy.pragma("user_version = 9");
+    legacy.close();
+
+    const migrated = openDatabase(databasePath);
+    try {
+      const person = migrated.prepare("SELECT display_name, photo_url, raw_json FROM service_people WHERE id = ?")
+        .get("person-local") as { display_name: string; photo_url: string | null; raw_json: string };
+      assert.deepEqual(person, { display_name: "Anna Singer", photo_url: null, raw_json: "{}" });
+      assert.equal(migrated.pragma("user_version", { simple: true }), 10);
+    } finally {
+      migrated.close();
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("database upgrades a populated version-one schema without losing devices", () => {
   const directory = mkdtempSync(join(tmpdir(), "veyra-migration-"));
   const databasePath = join(directory, "veyra.sqlite");
