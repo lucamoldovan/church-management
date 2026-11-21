@@ -62,8 +62,7 @@ export function MicrophonesPage() {
 
   const candidates = useMemo(
     () => scheduledCandidates.filter((person) => {
-      const assignment = workspace?.assignments.find((row) => row.personId === person.id);
-      return isOnVociTeam(assignment?.teamName ?? null);
+      return workspace?.assignments.some((row) => row.personId === person.id && isOnVociTeam(row.teamName)) ?? false;
     }),
     [scheduledCandidates, workspace],
   );
