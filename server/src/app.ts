@@ -1237,7 +1237,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get("/api/v1/church/services", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
     const services = database.prepare(`
-      SELECT s.id, s.title, s.starts_at AS startsAt, s.ends_at AS endsAt, s.status, s.location, s.notes, s.source, s.external_id AS externalId,
+      SELECT s.id, s.title, s.starts_at AS startsAt, s.ends_at AS endsAt, s.status, s.location, s.notes, s.source, s.external_id AS externalId, s.service_type_name AS serviceTypeName,
              (SELECT COUNT(*) FROM church_service_items i WHERE i.service_id = s.id) AS itemCount
       FROM church_services s ORDER BY s.starts_at IS NULL, s.starts_at ASC LIMIT 100
     `).all();
@@ -1258,7 +1258,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.get<{ Params: { serviceId: string } }>("/api/v1/church/services/:serviceId/workspace", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
-    const service = database.prepare("SELECT id, title, starts_at AS startsAt, ends_at AS endsAt, status, location, notes, source, external_id AS externalId FROM church_services WHERE id = ?").get(request.params.serviceId);
+    const service = database.prepare("SELECT id, title, starts_at AS startsAt, ends_at AS endsAt, status, location, notes, source, external_id AS externalId, service_type_name AS serviceTypeName FROM church_services WHERE id = ?").get(request.params.serviceId);
     if (!service) return reply.code(404).send({ error: "Service not found" });
     const items = database.prepare("SELECT id, position, title, item_type AS itemType, duration_seconds AS durationSeconds, assigned_to AS assignedTo, notes, song_external_id AS songExternalId, arrangement_external_id AS arrangementExternalId, service_position AS servicePosition FROM church_service_items WHERE service_id = ? ORDER BY position ASC, title COLLATE NOCASE").all(request.params.serviceId) as Array<Record<string, unknown>>;
     const itemAssignments = database.prepare("SELECT ia.id, ia.item_id AS itemId, ia.assignable_type AS assignableType, ia.assignable_external_id AS assignableExternalId, COALESCE(p.display_name, pos.name, ia.display_name) AS displayName FROM service_item_assignments ia LEFT JOIN service_people p ON p.id = ia.person_id LEFT JOIN service_positions pos ON pos.id = ia.position_id JOIN church_service_items i ON i.id = ia.item_id WHERE i.service_id = ? ORDER BY displayName COLLATE NOCASE").all(request.params.serviceId);
@@ -1460,7 +1460,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       let positionsImported = 0;
       let scheduledAssignmentsImported = 0;
       let itemAssignmentsImported = 0;
-      const maxPlans = 250;
       for (const type of typeResult.data) {
         const typeId = type.id;
         const typeTeams = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/teams?per_page=100");
@@ -1498,7 +1497,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         for (const team of typeTeams.data) await loadTeam(team);
         const plansResult = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/plans?filter=future&per_page=100");
         for (const plan of plansResult.data) {
-          if (plansProcessed >= maxPlans) break;
           const planPath = "/service_types/" + encodeURIComponent(typeId) + "/plans/" + encodeURIComponent(plan.id);
           const [itemsResult, peopleResult, timesResult, signupTeamsResult] = await Promise.all([
             fetchAll(apiBase + planPath + "/items?include=song,arrangement&per_page=100"),
@@ -1557,8 +1555,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
             const startsAt = typeof planAttrs.sort_date === "string" ? planAttrs.sort_date : null;
             const existing = database.prepare("SELECT id FROM church_services WHERE external_id = ?").get(plan.id) as { id: string } | undefined;
             const serviceId = existing?.id ?? randomUUID();
-            database.prepare("INSERT INTO church_services (id, title, starts_at, status, source, external_id, raw_json, service_type_external_id, created_at, updated_at) VALUES (?, ?, ?, 'planned', 'planning_center', ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET title=excluded.title, starts_at=excluded.starts_at, raw_json=excluded.raw_json, service_type_external_id=excluded.service_type_external_id, updated_at=excluded.updated_at")
-              .run(serviceId, title, startsAt, plan.id, JSON.stringify(plan), typeId, now(), now());
+            database.prepare("undefined")
+              .run(serviceId, title, startsAt, plan.id, JSON.stringify(plan), typeId, String(type.attributes?.name ?? "Service").slice(0, 160), now(), now());
             const service = database.prepare("SELECT id FROM church_services WHERE external_id = ?").get(plan.id) as { id: string };
             const localServiceId = service.id;
             database.prepare("DELETE FROM service_plan_teams WHERE service_id = ?").run(localServiceId);
@@ -1641,7 +1639,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           transaction();
           plansProcessed++;
         }
-        if (plansProcessed >= maxPlans) break;
       }
       return {
         imported: plansProcessed, itemsImported, peopleImported: database.prepare("SELECT COUNT(*) AS count FROM service_people").get() as { count: number }.count,
