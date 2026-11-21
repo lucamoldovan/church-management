@@ -30,7 +30,7 @@ test("health endpoint reports the local server status", async () => {
     assert.equal(response.headers["x-content-type-options"], "nosniff");
     assert.deepEqual(response.json(), {
       status: "ok",
-      service: "veyra-server",
+      service: "kasapini-dashboard-server",
       version: "0.1.0",
     });
   } finally {
