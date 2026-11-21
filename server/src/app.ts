@@ -1329,10 +1329,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         LIMIT 1
       `).get(serviceId, row.personId) as { positionName: string | null; teamName: string | null } | undefined;
       if (!scheduled) return reply.code(400).send({ error: "Microphones can only be assigned to people scheduled on this service plan" });
-      // This church's Planning Center Sunday roster identifies the worship vocal team as "Voci".
-      // Both "Voci" and "Lider De Închinare" positions within that team are eligible.
-      const singerRole = (scheduled.teamName ?? "").trim().toLocaleLowerCase("ro") === "voci";
-      if (!singerRole) return reply.code(400).send({ error: "Select someone scheduled in a singer or vocal role on this service plan" });
+      // Every person scheduled in the Planning Center "Voci" team is eligible for every wireless slot.
+      // Position names (Voci and Lider De Închinare) do not restrict microphone choice.
+      const teamName = (scheduled.teamName ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toLocaleLowerCase("ro");
+      if (teamName !== "voci") {
+        return reply.code(400).send({ error: "Select someone scheduled in the Voci team on this service plan" });
+      }
       seenSlots.add(row.slotKey);
       seenPeople.add(row.personId);
       normalized.push({ slotKey: row.slotKey, personId: row.personId });
