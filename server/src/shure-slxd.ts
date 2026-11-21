@@ -1,4 +1,4 @@
-import { createServer, isIP, type Server, type Socket } from "node:net";
+import { createConnection, isIP, type Socket } from "node:net";
 
 export interface SlxdTelemetry {
   deviceId: string;
@@ -31,9 +31,8 @@ type DeviceState = SlxdTelemetry & { socket: Socket; frameBuffer: string };
 
 export interface ShureSlxdOptions {
   enabled: boolean;
-  host: string;
+  receiverIps: string[];
   port: number;
-  allowedIps: string[];
   meterRateMs?: number;
 }
 
@@ -79,34 +78,25 @@ export function parseSlxdFrame(frame: string): Partial<SlxdTelemetry> & { device
   if (parts[0] === "SAMPLE") {
     const channel = Number(parts[1]);
     if (!Number.isInteger(channel) || channel < 1 || channel > 2) return {};
-    // SLX-D v2 sample: SAMPLE ch ALL qual audBitmap audPeak audRms rfAntStats rfBitmapA rfRssiA rfBitmapB rfRssiB
     if (parts.length >= 12 && parts[2] === "ALL") {
-      const peak = Number(parts[5]);
-      const rms = Number(parts[6]);
-      const rssiA = Number(parts[9]);
-      const rssiB = Number(parts[11]);
       return {
         channel,
-        audioPeakDbfs: slxdReportedDbfs(peak),
-        audioRmsDbfs: slxdReportedDbfs(rms),
-        rfAntennaADbm: slxdReportedDbm(rssiA),
-        rfAntennaBDbm: slxdReportedDbm(rssiB),
+        audioPeakDbfs: slxdReportedDbfs(Number(parts[5])),
+        audioRmsDbfs: slxdReportedDbfs(Number(parts[6])),
+        rfAntennaADbm: slxdReportedDbm(Number(parts[9])),
+        rfAntennaBDbm: slxdReportedDbm(Number(parts[11])),
         rfDbm: null,
         lastSampleAt: new Date().toISOString(),
       };
     }
-    // Compact legacy sample: SAMPLE ch ALL audPeak audRms rfRssi
     if (parts.length >= 6 && parts[2] === "ALL") {
-      const peak = Number(parts[3]);
-      const rms = Number(parts[4]);
-      const rssi = slxdReportedDbm(Number(parts[5]));
       return {
         channel,
-        audioPeakDbfs: slxdReportedDbfs(peak),
-        audioRmsDbfs: slxdReportedDbfs(rms),
+        audioPeakDbfs: slxdReportedDbfs(Number(parts[3])),
+        audioRmsDbfs: slxdReportedDbfs(Number(parts[4])),
         rfAntennaADbm: null,
         rfAntennaBDbm: null,
-        rfDbm: rssi,
+        rfDbm: slxdReportedDbm(Number(parts[5])),
         lastSampleAt: new Date().toISOString(),
       };
     }
@@ -117,8 +107,7 @@ export function parseSlxdFrame(frame: string): Partial<SlxdTelemetry> & { device
   const channel = /^\d+$/.test(parts[1]) ? Number(parts[1]) : null;
   const key = channel === null ? parts[1] : parts[2];
   const valueStart = channel === null ? 2 : 3;
-  const rawValue = parts.slice(valueStart).join(" ").replace(/^\{/, "").replace(/\}$/, "").trim();
-  const value = rawValue;
+  const value = parts.slice(valueStart).join(" ").replace(/^\{/, "").replace(/\}$/, "").trim();
   const result: Partial<SlxdTelemetry> & { deviceId?: string } = {};
   if (channel !== null) result.channel = channel;
 
@@ -158,62 +147,72 @@ export function parseSlxdFrame(frame: string): Partial<SlxdTelemetry> & { device
   return result;
 }
 
-function normalizeAddress(address: string): string {
-  return address.startsWith("::ffff:") ? address.slice(7) : address;
-}
-
 function blankDevice(remoteAddress: string, socket: Socket): DeviceState {
   return {
-    deviceId: `pending:${remoteAddress}:${Date.now()}`,
+    deviceId: `pending:${remoteAddress}`,
     model: null, firmware: null, rfBand: null, channelName: null, frequencyHz: null, groupChannel: null,
     transmitterModel: null, transmitterConnected: null, batteryBars: null, batteryPercentEstimate: null,
     batteryRuntimeMinutes: null, batteryRuntimeState: "unknown", rfAntennaADbm: null, rfAntennaBDbm: null,
-    rfDbm: null, audioPeakDbfs: null, audioRmsDbfs: null, connected: true, lastSeenAt: new Date().toISOString(),
-    lastSampleAt: null, remoteAddress, channel: 1, diagnostic: "Waiting for receiver identification",
+    rfDbm: null, audioPeakDbfs: null, audioRmsDbfs: null, connected: false, lastSeenAt: new Date().toISOString(),
+    lastSampleAt: null, remoteAddress, channel: 1, diagnostic: "Connecting to receiver…",
     socket, frameBuffer: "",
   };
 }
 
 export class ShureSlxdMonitor {
-  private server: Server | null = null;
   private readonly devices = new Map<string, DeviceState>();
-  private readonly allowedIps: Set<string>;
+  private reconnectTimer: ReturnType<typeof setInterval> | null = null;
+  private started = false;
+  private stopping = false;
+  private readonly receiverIps: string[];
 
   constructor(private readonly options: ShureSlxdOptions) {
-    this.allowedIps = new Set(options.allowedIps.map(normalizeAddress));
+    this.receiverIps = [...new Set(options.receiverIps.map((ip) => ip.trim()).filter(Boolean))];
   }
 
   async start(): Promise<void> {
-    if (!this.options.enabled || this.server) return;
-    if (!this.allowedIps.size) throw new Error("SHURE_SLXD_ALLOWED_IPS must contain the receiver IP addresses before enabling SLX-D monitoring");
-    if (this.allowedIps.size > 6 || [...this.allowedIps].some((ip) => isIP(ip) === 0)) throw new Error("SHURE_SLXD_ALLOWED_IPS must contain up to six valid receiver IP addresses");
+    if (!this.options.enabled || this.started) return;
+    if (!this.receiverIps.length || this.receiverIps.length > 6 || this.receiverIps.some((ip) => isIP(ip) === 0)) {
+      throw new Error("SHURE_SLXD_RECEIVER_IPS must contain between one and six valid receiver IP addresses");
+    }
     if (!Number.isInteger(this.options.port) || this.options.port < 1 || this.options.port > 65535) throw new Error("SHURE_SLXD_PORT must be between 1 and 65535");
-    if (isIP(this.options.host) === 0) throw new Error("SHURE_SLXD_HOST must be an explicit IP address");
     const meterRate = this.options.meterRateMs ?? 1000;
     if (!Number.isInteger(meterRate) || meterRate < 1000 || meterRate > 60000) throw new Error("SHURE_SLXD_METER_RATE_MS must be between 1000 and 60000");
 
-    this.server = createServer((socket) => this.accept(socket));
-    await new Promise<void>((resolve, reject) => {
-      const server = this.server!;
-      const onError = (error: Error) => { server.off("listening", onListening); reject(error); };
-      const onListening = () => { server.off("error", onError); resolve(); };
-      server.once("error", onError);
-      server.once("listening", onListening);
-      server.listen(this.options.port, this.options.host);
-    });
+    this.stopping = false;
+    this.started = true;
+    for (const ip of this.receiverIps) this.connectReceiver(ip);
+    this.reconnectTimer = setInterval(() => {
+      for (const ip of this.receiverIps) {
+        const device = this.devices.get(ip);
+        if (!device || (!device.connected && !device.socket.connecting && device.socket.destroyed)) this.connectReceiver(ip);
+      }
+    }, 5000);
   }
 
-  private accept(socket: Socket): void {
-    const remoteAddress = normalizeAddress(socket.remoteAddress ?? "unknown");
-    const activeDevices = [...this.devices.values()].filter((device) => device.connected && !device.socket.destroyed);
-    if (!this.allowedIps.has(remoteAddress) || activeDevices.length >= 6 || activeDevices.some((device) => device.remoteAddress === remoteAddress)) {
-      socket.destroy();
-      return;
-    }
-    const state = blankDevice(remoteAddress, socket);
-    this.devices.set(state.deviceId, state);
+  private connectReceiver(ip: string): void {
+    if (this.stopping) return;
+    const current = this.devices.get(ip);
+    if (current && (current.connected || current.socket.connecting || !current.socket.destroyed)) return;
+
+    const socket = createConnection({ host: ip, port: this.options.port });
+    const state = blankDevice(ip, socket);
+    this.devices.set(ip, state);
     socket.setEncoding("ascii");
     socket.setTimeout(15000);
+    socket.on("connect", () => {
+      state.connected = true;
+      state.diagnostic = "Connected; waiting for receiver telemetry";
+      const channel = 1;
+      const commands = [
+        "< GET MODEL >", "< GET DEVICE_ID >", "< GET RF_BAND >", "< GET FW_VER >",
+        `< GET ${channel} ALL >`, `< GET ${channel} TX_MODEL >`,
+        `< GET ${channel} TX_BATT_BARS >`, `< GET ${channel} TX_BATT_MINS >`,
+        `< SET ${channel} METER_RATE ${String(this.options.meterRateMs ?? 1000).padStart(5, "0")} >`,
+        `< SAMPLE ${channel} ALL qual audBitmap audPeak audRms rfAntStats rfBitmapA rfRssiA rfBitmapB rfRssiB >`,
+      ];
+      socket.write(commands.join(""));
+    });
     socket.on("data", (chunk: string) => {
       state.frameBuffer += chunk;
       const extracted = extractSlxdFrames(state.frameBuffer);
@@ -224,70 +223,54 @@ export class ShureSlxdMonitor {
     socket.on("error", (error) => { state.diagnostic = error.message.slice(0, 180); });
     socket.on("close", () => {
       state.connected = false;
-      state.diagnostic = state.diagnostic ?? "Receiver disconnected; last readings are stale";
       state.lastSeenAt = new Date().toISOString();
+      state.diagnostic = state.diagnostic ?? "Receiver disconnected; automatic reconnect is enabled";
     });
-
-    // Only read commands and the non-operational meter sampling interval are sent.
-    const channel = 1;
-    const commands = [
-      "< GET MODEL >", "< GET DEVICE_ID >", "< GET RF_BAND >", "< GET FW_VER >",
-      `< GET ${channel} ALL >`, `< GET ${channel} TX_MODEL >`,
-      `< GET ${channel} TX_BATT_BARS >`, `< GET ${channel} TX_BATT_MINS >`,
-      `< SET ${channel} METER_RATE ${String(this.options.meterRateMs ?? 1000).padStart(5, "0")} >`,
-      `< SAMPLE ${channel} ALL qual audBitmap audPeak audRms rfAntStats rfBitmapA rfRssiA rfBitmapB rfRssiB >`,
-    ];
-    for (const command of commands) socket.write(command);
   }
 
   private handleFrame(state: DeviceState, frame: string): void {
     const parsed = parseSlxdFrame(frame);
     if (!Object.keys(parsed).length) return;
     if (parsed.deviceId) {
-      const oldId = state.deviceId;
-      const existing = this.devices.get(parsed.deviceId);
-      if (existing && existing !== state && existing.connected) {
-        state.diagnostic = "Duplicate Device ID connection rejected";
+      const duplicate = [...this.devices.values()].find((device) => device !== state && device.deviceId === parsed.deviceId && device.connected);
+      if (duplicate) {
+        state.diagnostic = "Duplicate Shure Device ID detected on another configured IP";
         state.socket.destroy();
         return;
       }
-      this.devices.delete(oldId);
       state.deviceId = parsed.deviceId;
-      this.devices.set(state.deviceId, state);
     }
     Object.assign(state, parsed);
     state.lastSeenAt = new Date().toISOString();
-    if (state.model && state.deviceId && !state.deviceId.startsWith("pending:")) {
-      state.diagnostic = null;
-    }
+    if (state.model && state.deviceId && !state.deviceId.startsWith("pending:")) state.diagnostic = null;
   }
 
-  status(): { enabled: boolean; listening: boolean; host: string | null; port: number | null; allowedReceiverCount: number; devices: SlxdTelemetry[]; message: string } {
+  status(): { enabled: boolean; listening: boolean; host: null; port: number | null; configuredReceiverCount: number; devices: SlxdTelemetry[]; message: string } {
     const devices = [...this.devices.values()].map(({ socket: _socket, frameBuffer: _frameBuffer, ...device }) => ({
       ...device,
-      // A disconnected receiver is never represented as live, even if it has cached readings.
       connected: device.connected && !device.socket.destroyed,
     })).sort((a, b) => a.deviceId.localeCompare(b.deviceId));
+    const connected = devices.filter((device) => device.connected).length;
     return {
       enabled: this.options.enabled,
-      listening: Boolean(this.server?.listening),
-      host: this.options.enabled ? this.options.host : null,
+      listening: this.started,
+      host: null,
       port: this.options.enabled ? this.options.port : null,
-      allowedReceiverCount: this.allowedIps.size,
+      configuredReceiverCount: this.receiverIps.length,
       devices,
-      message: !this.options.enabled ? "SLX-D monitoring is disabled. Enable it after configuring the receiver controller connection and allowed IP addresses."
-        : !this.server?.listening ? "SLX-D listener is not running."
-        : devices.length ? "Receiving SLX-D telemetry."
-        : "Waiting for an allowed SLX-D receiver to connect to this controller.",
+      message: !this.options.enabled ? "SLX-D monitoring is disabled. Configure receiver IP addresses before enabling it."
+        : !this.started ? "SLX-D monitor is not running."
+        : connected ? `Connected to ${connected} of ${this.receiverIps.length} configured SLX-D receivers.`
+        : `Trying to connect to ${this.receiverIps.length} configured SLX-D receivers on TCP ${this.options.port}.`,
     };
   }
 
   async close(): Promise<void> {
+    this.stopping = true;
+    this.started = false;
+    if (this.reconnectTimer) clearInterval(this.reconnectTimer);
+    this.reconnectTimer = null;
     for (const device of this.devices.values()) device.socket.destroy();
     this.devices.clear();
-    if (!this.server?.listening) { this.server = null; return; }
-    const server = this.server;
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    this.server = null;
   }
 }
