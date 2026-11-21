@@ -196,11 +196,19 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     const currentIndex = workspace?.items.findIndex((item) => item.id === currentItemId) ?? -1;
     const planAssignmentsForTeam = (teamId: string) => workspace?.assignments.filter((assignment) => assignment.teamId === teamId) ?? [];
     return <div>
-      <PageHeader eyebrow="SERVICE PLANNING" title="Services" description="A live Planning Center workspace for the rundown, teams and scheduled people." action={role === "admin" ? <button className="button button-secondary" onClick={() => void sync()} disabled={busy || !pco?.connected}><RefreshCw size={14}/> Sync Planning Center</button> : undefined}/>
+      <PageHeader eyebrow="SERVICE PLANNING" title="Services" description="A live Planning Center workspace for the rundown, teams and scheduled people." action={<div className="service-page-actions"><button className="button button-secondary" onClick={() => setShowForm((value) => !value)}><Plus size={14}/> New service</button>{role === "admin" && <button className="button button-dark" onClick={() => void sync()} disabled={busy || !pco?.connected}><RefreshCw size={14}/> Sync Planning Center</button>}</div>}/>
       <div className="integration-strip">
         <div><span className={`integration-dot ${pco?.connected ? "online" : ""}`}/><div><strong>Planning Center Services</strong><small>{pco?.message ?? "Checking connection…"}</small></div></div>
         <small>{workspace?.service.source === "planning_center" ? "Plan data imported from Planning Center" : "Local service plan"}</small>
       </div>
+      {showForm && <form className="panel church-form" onSubmit={submit}>
+        <h2>Create a local service</h2>
+        <label>Title<input name="title" required maxLength={160}/></label>
+        <label>Starts<input name="startsAt" type="datetime-local"/></label>
+        <label>Ends<input name="endsAt" type="datetime-local"/></label>
+        <label>Location<input name="location"/></label>
+        <button className="button button-dark" disabled={busy}>Save service</button>
+      </form>}
       <Notice error={error} success={success}/>
       {loading ? <Loading/> : <>
         <section className="panel service-selector">
