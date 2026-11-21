@@ -1,5 +1,5 @@
 [Unit]
-Description=Church Operations local staff platform
+Description=Kasapini Dashboard local staff platform
 After=network-online.target
 Wants=network-online.target
 
