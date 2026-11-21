@@ -5,6 +5,8 @@ import {
   getChurchServiceWorkspace,
   getMicrophoneAssignments,
   saveMicrophoneAssignments,
+  getShureSlxdStatus,
+  type ShureSlxdStatus,
   type ChurchService,
   type ChurchServiceWorkspace,
   type MicrophoneAssignment,
@@ -40,6 +42,7 @@ export function MicrophonesPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [hardware, setHardware] = useState<ShureSlxdStatus | null>(null);
 
   const candidates = useMemo<PersonOption[]>(() => {
     if (!workspace) return [];
@@ -64,9 +67,22 @@ export function MicrophonesPage() {
       const result = await getChurchServices();
       const planningCenterPlans = result.services.filter((service) => service.source === "planning_center");
       setServices(planningCenterPlans);
-      setServiceId((current) => current && planningCenterPlans.some((service) => service.id === current)
-        ? current
-        : planningCenterPlans[0]?.id ?? "");
+      setServiceId((current) => {
+        if (current && planningCenterPlans.some((service) => service.id === current)) return current;
+        const now = new Date();
+        const daysUntilSunday = (7 - now.getDay()) % 7;
+        const targetSunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysUntilSunday);
+        const dateKey = (date: Date) => [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+        const sundayPlans = planningCenterPlans.filter((service) => service.startsAt && new Date(service.startsAt).getDay() === 0);
+        const sameSunday = sundayPlans.find((service) => dateKey(new Date(service.startsAt!)) === dateKey(targetSunday));
+        if (sameSunday) return sameSunday.id;
+        const upcoming = sundayPlans.filter((service) => new Date(service.startsAt!) >= targetSunday)
+          .sort((a, b) => new Date(a.startsAt!).getTime() - new Date(b.startsAt!).getTime());
+        if (upcoming[0]) return upcoming[0].id;
+        const previous = sundayPlans.filter((service) => new Date(service.startsAt!) < targetSunday)
+          .sort((a, b) => new Date(b.startsAt!).getTime() - new Date(a.startsAt!).getTime());
+        return previous[0]?.id ?? planningCenterPlans[0]?.id ?? "";
+      });
       // Refreshing the plan list must also reload the selected plan roster and saved assignments.
       setRefreshVersion((version) => version + 1);
     } catch (loadError) {
@@ -77,6 +93,17 @@ export function MicrophonesPage() {
   };
 
   useEffect(() => { void loadPlans(); }, []);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      void getShureSlxdStatus().then((status) => { if (active) setHardware(status); })
+        .catch(() => { if (active) setHardware(null); });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 2000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, []);
 
   useEffect(() => {
     if (!serviceId) {
@@ -166,9 +193,38 @@ export function MicrophonesPage() {
 
       <section className="mic-hardware-banner">
         <div className="mic-hardware-icon"><Radio size={19} /></div>
-        <div><strong>SLX-D receiver monitoring</strong><span>Hardware discovery is not enabled yet. Receiver battery, RF and audio readings will appear here after the first physical receiver test.</span></div>
-        <span className="mic-hardware-state">Setup pending</span>
+        <div>
+          <strong>SLX-D receiver monitoring</strong>
+          <span>{hardware?.message ?? "Checking the local SLX-D monitor…"}</span>
+          {hardware?.enabled && <small>{hardware.listening ? `Listening on ${hardware.host}:${hardware.port} · ${hardware.allowedReceiverCount} allowed receiver IPs` : "Listener not running"}</small>}
+        </div>
+        <span className={`mic-hardware-state ${hardware?.listening ? "is-online" : ""}`}>{hardware?.listening ? "Listening" : hardware?.enabled ? "Unavailable" : "Disabled"}</span>
       </section>
+      {hardware?.devices && hardware.devices.length > 0 && (
+        <section className="mic-hardware-grid" aria-label="Discovered Shure SLX-D receivers">
+          {hardware.devices.map((device) => {
+            const batteryLabel = device.batteryBars === null ? "Unknown" : `${device.batteryBars}/5 bars · ~${device.batteryPercentEstimate}%`;
+            const runtimeLabel = device.batteryRuntimeState === "available" && device.batteryRuntimeMinutes !== null
+              ? `${Math.floor(device.batteryRuntimeMinutes / 60)}h ${device.batteryRuntimeMinutes % 60}m`
+              : device.batteryRuntimeState === "calculating" ? "Calculating" : device.batteryRuntimeState === "communication_warning" ? "Battery data warning" : "Unavailable";
+            const age = Math.max(0, Math.round((Date.now() - new Date(device.lastSeenAt).getTime()) / 1000));
+            return (
+              <article className="panel mic-hardware-card" key={device.deviceId}>
+                <header><div><strong>{device.channelName || device.deviceId}</strong><span>{device.model || "SLX-D receiver"} · {device.deviceId}</span></div><span className={device.connected ? "mic-live-pill" : "mic-stale-pill"}>{device.connected ? "Connected" : "Stale"}</span></header>
+                <div className="mic-hardware-metrics">
+                  <div><span>TRANSMITTER</span><strong>{device.transmitterConnected ? device.transmitterModel : "No link"}</strong></div>
+                  <div><span>AA BATTERY</span><strong>{batteryLabel}</strong><small>{runtimeLabel}</small></div>
+                  <div><span>RF ANTENNA A / B</span><strong>{device.rfAntennaADbm === null ? "—" : `${device.rfAntennaADbm} dBm`} / {device.rfAntennaBDbm === null ? "—" : `${device.rfAntennaBDbm} dBm`}</strong></div>
+                  <div><span>AUDIO PEAK / RMS</span><strong>{device.audioPeakDbfs === null ? "—" : `${device.audioPeakDbfs} dBFS`} / {device.audioRmsDbfs === null ? "—" : `${device.audioRmsDbfs} dBFS`}</strong></div>
+                  <div><span>FREQUENCY / BAND</span><strong>{device.frequencyHz === null ? "—" : `${(device.frequencyHz / 1000).toFixed(3)} MHz`} · {device.rfBand || "Unknown band"}</strong></div>
+                  <div><span>LAST CONTACT</span><strong>{device.connected ? "Live" : `${age}s ago`}</strong><small>{device.remoteAddress}</small></div>
+                </div>
+                {device.diagnostic && <p className="mic-hardware-diagnostic">{device.diagnostic}</p>}
+              </article>
+            );
+          })}
+        </section>
+      )}
 
       {loading ? (
         <section className="panel mic-empty"><span className="mic-loading" /> Loading service roster…</section>
@@ -198,7 +254,7 @@ export function MicrophonesPage() {
                     <span className="mic-slot-number">{slot.key === "headset" ? "H" : String(index + 1).padStart(2, "0")}</span>
                   </div>
                   <div className="mic-slot-title"><h2>{slot.label}</h2><span>{slot.detail}</span></div>
-                  <div className="mic-slot-telemetry"><span className="mic-offline-dot" /> Receiver not yet discovered</div>
+                  <div className="mic-slot-telemetry"><span className="mic-offline-dot" /> Receiver telemetry is shown in the hardware inventory above</div>
                   <label className="mic-person-select">
                     <span><UserRound size={14} /> Assigned person</span>
                     <select
