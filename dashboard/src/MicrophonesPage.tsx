@@ -201,7 +201,7 @@ export function MicrophonesPage() {
                     <span><UserRound size={14} /> Assigned person</span>
                     <select
                       value={draft[slot.key]}
-                      disabled={candidates.length === 0}
+                      disabled={candidates.length === 0 && !draft[slot.key]}
                       onChange={(event) => {
                         setNotice("");
                         setDraft((current) => ({ ...current, [slot.key]: event.target.value }));
@@ -224,7 +224,7 @@ export function MicrophonesPage() {
           {duplicateSelection && <div className="inline-error" role="alert">A person can only be assigned to one microphone for this service.</div>}
           <div className="mic-save-row">
             <span>Assignments are saved locally for this service only. Planning Center is not modified.</span>
-            <button className="button button-dark" onClick={() => void save()} disabled={saving || !dirty || duplicateSelection || candidates.length === 0}>
+            <button className="button button-dark" onClick={() => void save()} disabled={saving || !dirty || duplicateSelection}>
               {saving ? "Saving…" : "Save microphone assignments"}
             </button>
           </div>
