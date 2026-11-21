@@ -1555,7 +1555,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
             const startsAt = typeof planAttrs.sort_date === "string" ? planAttrs.sort_date : null;
             const existing = database.prepare("SELECT id FROM church_services WHERE external_id = ?").get(plan.id) as { id: string } | undefined;
             const serviceId = existing?.id ?? randomUUID();
-            database.prepare("undefined")
+            database.prepare("INSERT INTO church_services (id, title, starts_at, status, source, external_id, raw_json, service_type_external_id, service_type_name, created_at, updated_at) VALUES (?, ?, ?, 'planned', 'planning_center', ?, ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET title=excluded.title, starts_at=excluded.starts_at, raw_json=excluded.raw_json, service_type_external_id=excluded.service_type_external_id, service_type_name=excluded.service_type_name, updated_at=excluded.updated_at")
               .run(serviceId, title, startsAt, plan.id, JSON.stringify(plan), typeId, String(type.attributes?.name ?? "Service").slice(0, 160), now(), now());
             const service = database.prepare("SELECT id FROM church_services WHERE external_id = ?").get(plan.id) as { id: string };
             const localServiceId = service.id;
