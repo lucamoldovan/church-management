@@ -1114,10 +1114,10 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     const serviceId = services.json().services[0].id as string;
     const workspace = await app.inject({ method: "GET", url: `/api/v1/church/services/${serviceId}/workspace`, headers });
     assert.equal(workspace.statusCode, 200, workspace.body);
-    assert.equal(workspace.json().teams[0].name, "Worship");
+    assert.equal(workspace.json().teams[0].name, "Voci");
     assert.equal(workspace.json().teams[0].leaders[0], "Bob Teamlead");
     assert.equal(workspace.json().assignments[0].personName, "Alice Singer");
-    assert.equal(workspace.json().assignments[0].positionName, "Vocals");
+    assert.equal(workspace.json().assignments[0].positionName, "Voci");
     assert.equal(workspace.json().assignments[0].status, "Confirmed");
     assert.equal(workspace.json().times[0].name, "Sunday 10:00");
     assert.equal(workspace.json().items[0].songExternalId, "song-1");
