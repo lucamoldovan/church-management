@@ -19,6 +19,7 @@ import {
   LockKeyhole,
   LogOut,
   Menu,
+  Mic,
   Monitor,
   MonitorPlay,
   Network,
@@ -34,13 +35,15 @@ import {
 import { createDevicePairingCode, createInitialOperator, getAuthSession, getDevices, getPlaylists, getSources, getServerHealth, getSetupStatus, getChurchOverview, getMedia, login, logout, revokeDeviceCredential, removeRevokedDevice, updateDeviceConfig, type ConnectionState, type Device, type NdiSource, type PlaylistSummary, type Operator, type PairingCode, type ServerHealth } from "./api";
 import { MediaPage, PlaylistsPage, SourcesPage } from "./MediaPages";
 import { ChurchPage } from "./ChurchPages";
+import { MicrophonesPage } from "./MicrophonesPage";
 
-type Page = "overview" | "services" | "staff" | "events" | "groups" | "production" | "devices" | "sources" | "media" | "playlists" | "system";
+type Page = "overview" | "services" | "microphones" | "staff" | "events" | "groups" | "production" | "devices" | "sources" | "media" | "playlists" | "system";
 type AuthState = "checking" | "setup" | "login" | "authenticated" | "unavailable";
 
 const navigation: { id: Page; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "services", label: "Services", icon: CalendarDays },
+  { id: "microphones", label: "Microphones", icon: Mic },
   { id: "staff", label: "Staff", icon: Users },
   { id: "events", label: "Events", icon: CalendarDays },
   { id: "groups", label: "Groups", icon: UsersRound },
@@ -253,6 +256,7 @@ function App() {
             />
           )}
           {page === "services" && <ChurchPage page="services" role={operator.role} />}
+          {page === "microphones" && <MicrophonesPage />}
           {page === "staff" && <ChurchPage page="staff" role={operator.role} />}
           {page === "events" && <ChurchPage page="events" role={operator.role} />}
           {page === "groups" && <ChurchPage page="groups" role={operator.role} />}
