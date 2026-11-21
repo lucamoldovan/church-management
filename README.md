@@ -1,4 +1,4 @@
-# Church Operations
+# Kasapini Dashboard
 
 A staff-only church operations and media platform. The dashboard, API, database and NDI receiver control plane are designed to run on infrastructure owned by the church.
 
@@ -9,9 +9,9 @@ A staff-only church operations and media platform. The dashboard, API, database 
 - **Database:** SQLite via better-sqlite3. Stored locally with restrictive filesystem permissions.
 - **NDI screens:** Native Linux receiver based on the existing Veyra NDI receiver engine and control-plane protocol.
 - **ProPresenter:** Server-side live status plus allowlisted Previous cue, Next cue and Clear slide controls for administrator/production staff.
-- **Planning Center:** Current source of truth for people, team memberships, service plans and scheduled assignments. Church Operations keeps a local read-only working copy; replacing Planning Center is not part of the current phase.
+- **Planning Center:** Current source of truth for people, team memberships, service plans and scheduled assignments. Kasapini Dashboard keeps a local read-only working copy; replacing Planning Center is not part of the current phase.
 
-There are no Cloudflare Workers, D1, R2, OpenNext, Supabase or hosted application dependencies in this branch. The only external network connections are optional integrations configured by the church (currently Planning Center and the ProPresenter machine on the LAN).
+There are no Cloudflare Workers, D1, R2, OpenNext, Supabase or hosted application dependencies in this branch. External connections are limited to integrations explicitly configured by the church: Planning Center, ProPresenter on the production LAN, and the optional Shure SLX-D receiver monitor.
 
 ## Local development
 
@@ -24,7 +24,7 @@ npm run dev
 
 The API runs on `http://127.0.0.1:8787` and the Vite dashboard on `http://127.0.0.1:5173`. The Vite server proxies `/api` requests to the local API.
 
-The first launch prints a one-time setup key in the API terminal. Use it to create the first administrator account in the dashboard. Additional staff accounts can then be created from **Staff**.
+The first launch prints a one-time setup key in the API terminal. Use it to create the first administrator account in Kasapini Dashboard. Additional staff accounts can then be created from **Staff**.
 
 ## Single-server deployment
 
@@ -53,7 +53,7 @@ Set these values in the local server environment (never in browser code):
 - `PLANNING_CENTER_SECRET`
 - `PROPRESENTER_URL` (for example, the ProPresenter machine's LAN address and configured API port)
 
-Planning Center uses a Personal Access Token for this single-church server integration. Credentials are kept server-side. The current sync imports the paginated People directory (names and Planning Center IDs only), Services teams and positions, team memberships, and future service plans with their ordered items, scheduled people, service times and item assignments. Planning Center remains authoritative; the local copy is used by Church Operations and is never written back to Planning Center.
+Planning Center uses a Personal Access Token for this single-church server integration. Credentials are kept server-side. The current sync imports the paginated People directory (names and Planning Center IDs only), Services teams and positions, team memberships, and future service plans with their ordered items, scheduled people, service times and item assignments. Planning Center remains authoritative; the local copy is used by Kasapini Dashboard and is never written back to Planning Center. The optional Shure SLX-D monitor is disabled by default and remains subject to a physical receiver test before it is enabled.
 
 ## NDI receivers
 
