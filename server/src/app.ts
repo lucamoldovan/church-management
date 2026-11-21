@@ -1511,12 +1511,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       const name = displayName(person, fallback);
       const id = database.prepare("SELECT id FROM service_people WHERE external_id = ?").get(externalId) as { id: string } | undefined;
       const localId = id?.id ?? randomUUID();
-      database.prepare("INSERT INTO service_people (id, external_id, display_name, first_name, last_name, photo_url, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET display_name=excluded.display_name, first_name=excluded.first_name, last_name=excluded.last_name, photo_url=excluded.photo_url, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
+      database.prepare("INSERT INTO service_people (id, external_id, display_name, first_name, last_name, photo_url, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, NULL, '{}', ?) ON CONFLICT(external_id) DO UPDATE SET display_name=excluded.display_name, first_name=excluded.first_name, last_name=excluded.last_name, photo_url=NULL, raw_json='{}', updated_at=excluded.updated_at")
         .run(localId, externalId, name,
-          typeof attributes.first_name === "string" ? attributes.first_name : null,
-          typeof attributes.last_name === "string" ? attributes.last_name : null,
-          typeof attributes.photo_thumbnail === "string" ? attributes.photo_thumbnail : null,
-          JSON.stringify(person ?? { attributes: { name } }), now());
+          typeof attributes.first_name === "string" ? attributes.first_name.slice(0, 80) : null,
+          typeof attributes.last_name === "string" ? attributes.last_name.slice(0, 80) : null,
+          now());
       return localId;
     };
     const upsertTeam = (team: PcoResource): string => {
