@@ -28,6 +28,9 @@ test("health endpoint reports the local server status", async () => {
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["cache-control"], "no-store");
     assert.equal(response.headers["x-content-type-options"], "nosniff");
+    assert.equal(response.headers["x-frame-options"], "DENY");
+    assert.match(response.headers["content-security-policy"], /frame-ancestors 'none'/);
+    assert.equal(response.headers["permissions-policy"], "camera=(), microphone=(), geolocation=()");
     assert.deepEqual(response.json(), {
       status: "ok",
       service: "kasapini-dashboard-server",
