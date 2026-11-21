@@ -928,14 +928,20 @@ test("Planning Center sync imports service plans and replaces changed service or
   globalThis.fetch = async (input) => {
     const url = String(input);
     let data: unknown[] = [];
-    if (url.endsWith("/service_types?per_page=100")) {
+    let links: { next?: string | null } | undefined;
+    if (url.includes("/people/v2/people") && !url.includes("offset=100")) {
+      data = [{ id: "person-a", type: "Person", attributes: { first_name: "Anna", last_name: "Singer", email: "private@example.com", phone_number: "123456789" } }];
+      links = { next: "/people/v2/people?per_page=100&offset=100" };
+    } else if (url.includes("/people/v2/people?per_page=100&offset=100")) {
+      data = [{ id: "person-b", type: "Person", attributes: { first_name: "Mihai", last_name: "Vocal", email: "private2@example.com" } }];
+    } else if (url.endsWith("/service_types?per_page=100")) {
       data = [{ id: "type-1", attributes: { name: "Sunday Service" } }];
     } else if (url.includes("/service_types/type-1/plans?filter=future")) {
       data = [{ id: "plan-1", attributes: { title: "Sunday Worship", sort_date: "2026-11-22T10:00:00Z" } }];
     } else if (url.includes("/service_types/type-1/plans/plan-1/items")) {
       data = currentItems;
     }
-    return new Response(JSON.stringify({ data }), {
+    return new Response(JSON.stringify({ data, links }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -957,6 +963,14 @@ test("Planning Center sync imports service plans and replaces changed service or
     assert.equal(firstSync.statusCode, 200);
     assert.equal(firstSync.json().imported, 1);
     assert.equal(firstSync.json().itemsImported, 2);
+    assert.equal(firstSync.json().peopleImported, 2);
+
+    const directory = await app.inject({ method: "GET", url: "/api/v1/church/people", headers: { cookie } });
+    assert.equal(directory.statusCode, 200);
+    assert.equal(directory.json().total, 2);
+    assert.deepEqual(directory.json().people.map((person: { displayName: string }) => person.displayName), ["Anna Singer", "Mihai Vocal"]);
+    assert.equal(JSON.stringify(directory.json()).includes("private@example.com"), false);
+    assert.equal(JSON.stringify(directory.json()).includes("123456789"), false);
 
     const services = await app.inject({
       method: "GET", url: "/api/v1/church/services", headers: { cookie },
