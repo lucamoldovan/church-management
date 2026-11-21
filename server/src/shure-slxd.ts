@@ -248,7 +248,7 @@ export class ShureSlxdMonitor {
   status(): { enabled: boolean; running: boolean; host: null; port: number | null; configuredReceiverCount: number; devices: SlxdTelemetry[]; message: string } {
     const devices = [...this.devices.values()].map(({ socket: _socket, frameBuffer: _frameBuffer, ...device }) => ({
       ...device,
-      connected: device.connected && !device.socket.destroyed,
+      connected: device.connected && !_socket.destroyed,
     })).sort((a, b) => a.deviceId.localeCompare(b.deviceId));
     const connected = devices.filter((device) => device.connected).length;
     return {
