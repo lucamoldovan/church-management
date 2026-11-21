@@ -7,6 +7,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writ
 import { dirname, join, resolve } from "node:path";
 import { openDatabase, type VeyraDatabase } from "./database.js";
 import { createSession, hashPassword, SESSION_COOKIE, SESSION_TTL, hashSessionToken, verifyPassword } from "./security.js";
+import type { ShureSlxdMonitor } from "./shure-slxd.js";
 
 interface BuildAppOptions {
   databasePath?: string;
@@ -18,6 +19,7 @@ interface BuildAppOptions {
   dashboardDirectory?: string;
   https?: { key: Buffer; cert: Buffer; minVersion: "TLSv1.2" };
   secureCookies?: boolean;
+  shureMonitor?: ShureSlxdMonitor;
 }
 
 interface SetupBody {
@@ -1268,6 +1270,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       teams: teams.map((team) => ({ ...team, leaders: teamLeaders.filter((leader) => leader.teamId === team.id).map((leader) => leader.personName) })),
       assignments, times, live,
     };
+  });
+
+  app.get("/api/v1/integrations/shure-slxd/status", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    return options.shureMonitor?.status() ?? { enabled: false, listening: false, host: null, port: null, allowedReceiverCount: 0, devices: [], message: "SLX-D monitoring is not configured." };
   });
 
   app.get<{ Params: { serviceId: string } }>("/api/v1/church/services/:serviceId/microphones", async (request, reply) => {
