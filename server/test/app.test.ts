@@ -8,9 +8,9 @@ import { join } from "node:path";
 import { buildApp } from "../src/app.js";
 import { openDatabase } from "../src/database.js";
 
-function createTestApp() {
+function createTestApp(databasePath = ":memory:") {
   return buildApp({
-    databasePath: ":memory:",
+    databasePath,
     setupKey: "test-setup-key",
     pairingSecret: "test-pairing-secret-with-at-least-32-bytes",
   });
