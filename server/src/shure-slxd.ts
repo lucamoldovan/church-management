@@ -113,7 +113,7 @@ export function parseSlxdFrame(frame: string): Partial<SlxdTelemetry> & { device
 
   switch (key) {
     case "MODEL": result.model = value || null; break;
-    case "DEVICE_ID": result.deviceId = value || undefined; break;
+    case "DEVICE_ID": if (value) result.deviceId = value; break;
     case "RF_BAND": result.rfBand = value || null; break;
     case "FW_VER": result.firmware = value || null; break;
     case "CHAN_NAME": result.channelName = value || null; break;
