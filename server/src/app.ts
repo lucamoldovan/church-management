@@ -1472,6 +1472,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       let positionsImported = 0;
       let scheduledAssignmentsImported = 0;
       let itemAssignmentsImported = 0;
+      const membershipSnapshot = new Map<string, { id: string; personId: string; positionId: string; schedulePreference: string | null; rawJson: string }>();
+      const teamLeaderSnapshot = new Map<string, { id: string; externalId: string; teamId: string; personId: string; rawJson: string }>();
       for (const type of typeResult.data) {
         const typeId = type.id;
         const typeTeams = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/teams?per_page=100");
@@ -1488,7 +1490,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           teamLocalIds.set(team.id, teamLocalId);
           const leaders = await fetchAll(apiBase + "/teams/" + encodeURIComponent(team.id) + "/team_leaders?include=people&per_page=100");
           for (const included of leaders.included) if (included.type === "Person") personResources.set(included.id, included);
-          database.prepare("DELETE FROM service_team_leaders WHERE team_id = ?").run(teamLocalId);
           for (const leader of leaders.data) {
             const personRef = relationship(leader, "person");
             if (!personRef) continue;
@@ -1498,8 +1499,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
               if (person) personResources.set(person.id, person);
             }
             const personId = upsertPerson(personResources.get(personRef.id), personRef.id);
-            database.prepare("INSERT INTO service_team_leaders (id, external_id, team_id, person_id, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET team_id=excluded.team_id, person_id=excluded.person_id, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
-              .run(randomUUID(), leader.id, teamLocalId, personId, JSON.stringify(leader), now());
+            teamLeaderSnapshot.set(teamLocalId + ":" + personId, {
+              id: randomUUID(), externalId: leader.id, teamId: teamLocalId, personId, rawJson: JSON.stringify(leader),
+            });
           }
           const positions = await fetchAll(apiBase + "/teams/" + encodeURIComponent(team.id) + "/team_positions?per_page=100");
           for (const position of positions.data) {
@@ -1513,11 +1515,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
               const personRef = relationship(membership, "person");
               if (!personRef) continue;
               const personId = upsertPerson(personResources.get(personRef.id), personRef.id);
-              const membershipId = randomUUID();
               const ma = membership.attributes ?? {};
-              database.prepare("INSERT INTO service_team_memberships (id, person_id, position_id, schedule_preference, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(person_id, position_id) DO UPDATE SET schedule_preference=excluded.schedule_preference, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
-                .run(membershipId, personId, localPositionId,
-                  typeof ma.schedule_preference === "string" ? ma.schedule_preference : null, JSON.stringify(membership), now());
+              membershipSnapshot.set(personId + ":" + localPositionId, {
+                id: randomUUID(), personId, positionId: localPositionId,
+                schedulePreference: typeof ma.schedule_preference === "string" ? ma.schedule_preference : null,
+                rawJson: JSON.stringify(membership),
+              });
             }
           }
         };
@@ -1667,6 +1670,19 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           plansProcessed++;
         }
       }
+      const replaceTeamDirectoryAssignments = database.transaction(() => {
+        database.prepare("DELETE FROM service_team_memberships").run();
+        database.prepare("DELETE FROM service_team_leaders").run();
+        const insertMembership = database.prepare("INSERT INTO service_team_memberships (id, person_id, position_id, schedule_preference, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
+        for (const membership of membershipSnapshot.values()) {
+          insertMembership.run(membership.id, membership.personId, membership.positionId, membership.schedulePreference, membership.rawJson, now());
+        }
+        const insertLeader = database.prepare("INSERT INTO service_team_leaders (id, external_id, team_id, person_id, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
+        for (const leader of teamLeaderSnapshot.values()) {
+          insertLeader.run(leader.id, leader.externalId, leader.teamId, leader.personId, leader.rawJson, now());
+        }
+      });
+      replaceTeamDirectoryAssignments();
       return {
         imported: plansProcessed, itemsImported, peopleImported: (database.prepare("SELECT COUNT(*) AS count FROM service_people").get() as { count: number }).count,
         teamsImported: (database.prepare("SELECT COUNT(*) AS count FROM service_teams").get() as { count: number }).count,
