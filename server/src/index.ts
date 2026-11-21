@@ -38,7 +38,7 @@ const https = certificatePath && privateKeyPath
 
 if (!isLoopbackHost(host) && !https) {
   throw new Error(
-    "Refusing to bind Veyra to a non-loopback interface without TLS. " +
+    "Refusing to bind Kasapini Dashboard to a non-loopback interface without TLS. " +
     "Configure CHURCH_TLS_CERT_PATH and CHURCH_TLS_KEY_PATH.",
   );
 }
@@ -72,7 +72,7 @@ async function shutdown(signal: string): Promise<void> {
     await app.close();
     await shureMonitor.close();
   } catch (error) {
-    app.log.error(error, "Error while closing Veyra server");
+    app.log.error(error, "Error while closing Kasapini Dashboard server");
     process.exitCode = 1;
   }
 }
