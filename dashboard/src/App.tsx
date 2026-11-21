@@ -836,7 +836,7 @@ function DevicesPage() {
         )}
       </section>
 
-      <footer className="page-footer"><span>VEYRA <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Receiver status from local heartbeats <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Receiver status from local heartbeats <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
@@ -892,7 +892,7 @@ function SystemPage({
         <div className="component-row"><div className="component-icon"><Server size={17} /></div><div className="component-copy"><strong>Local API Server</strong><span>TypeScript / Fastify</span></div><span className="component-status status-foundation">Foundation</span></div>
         <div className="component-row"><div className="component-icon"><LayoutDashboard size={17} /></div><div className="component-copy"><strong>Kasapini Dashboard</strong><span>React / Vite</span></div><span className="component-status status-foundation">Foundation</span></div>
       </section>
-      <footer className="page-footer"><span>VEYRA <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Local-first by design <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>Local-first by design <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
