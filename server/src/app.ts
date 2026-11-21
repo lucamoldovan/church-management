@@ -1462,11 +1462,16 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const secret = process.env.PLANNING_CENTER_SECRET?.trim();
     if (!appId || !secret) return { configured: false, connected: false, message: "Set PLANNING_CENTER_APP_ID and PLANNING_CENTER_SECRET on the local server." };
     try {
-      const response = await fetch("https://api.planningcenteronline.com/services/v2/service_types?per_page=1", {
-        headers: { Authorization: "Basic " + Buffer.from(`${appId}:${secret}`).toString("base64"), Accept: "application/json", "User-Agent": "Church Operations (https://github.com/lucamoldovan/church-management)" },
-        signal: AbortSignal.timeout(5000),
-      });
-      return { configured: true, connected: response.ok, statusCode: response.status, message: response.ok ? "Planning Center Services API reachable." : "Planning Center rejected the credentials or request." };
+      const authHeaders = { Authorization: "Basic " + Buffer.from(appId + ":" + secret).toString("base64"), Accept: "application/json", "User-Agent": "Church Operations (https://github.com/lucamoldovan/church-management)" };
+      const [servicesResponse, peopleResponse] = await Promise.all([
+        fetch("https://api.planningcenteronline.com/services/v2/service_types?per_page=1", { headers: authHeaders, signal: AbortSignal.timeout(5000) }),
+        fetch("https://api.planningcenteronline.com/people/v2/people?per_page=1", { headers: authHeaders, signal: AbortSignal.timeout(5000) }),
+      ]);
+      const connected = servicesResponse.ok && peopleResponse.ok;
+      return { configured: true, connected, servicesConnected: servicesResponse.ok, peopleConnected: peopleResponse.ok,
+        message: connected ? "Planning Center Services and People APIs reachable." :
+          !peopleResponse.ok ? "Planning Center People API access is missing or was rejected. Check People permissions." :
+          "Planning Center Services API access is missing or was rejected." };
     } catch {
       return { configured: true, connected: false, message: "Planning Center could not be reached from the local server." };
     }
