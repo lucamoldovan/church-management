@@ -1320,19 +1320,17 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         return reply.code(400).send({ error: "Each saved assignment must have a scheduled person" });
       }
       if (seenPeople.has(row.personId)) return reply.code(409).send({ error: "A person can only be assigned to one microphone for this service" });
-      const scheduled = database.prepare(`
-        SELECT COALESCE(pos.name, a.position_name) AS positionName, t.name AS teamName
+      const scheduledInVoci = database.prepare(`
+        SELECT 1 AS found
         FROM service_plan_assignments a
-        LEFT JOIN service_teams t ON t.id = a.team_id
-        LEFT JOIN service_positions pos ON pos.id = a.position_id
-        WHERE a.service_id = ? AND a.person_id = ?
+        INNER JOIN service_teams t ON t.id = a.team_id
+        WHERE a.service_id = ? AND a.person_id = ? AND lower(trim(t.name)) = 'voci'
         LIMIT 1
-      `).get(serviceId, row.personId) as { positionName: string | null; teamName: string | null } | undefined;
-      if (!scheduled) return reply.code(400).send({ error: "Microphones can only be assigned to people scheduled on this service plan" });
-      // Every person scheduled in the Planning Center "Voci" team is eligible for every wireless slot.
-      // Position names (Voci and Lider De Închinare) do not restrict microphone choice.
-      const teamName = (scheduled.teamName ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("ro");
-      if (teamName !== "voci") {
+      `).get(serviceId, row.personId);
+      if (!scheduledInVoci) {
+        const scheduled = database.prepare("SELECT 1 AS found FROM service_plan_assignments WHERE service_id = ? AND person_id = ? LIMIT 1")
+          .get(serviceId, row.personId);
+        if (!scheduled) return reply.code(400).send({ error: "Microphones can only be assigned to people scheduled on this service plan" });
         return reply.code(400).send({ error: "Select someone scheduled in the Voci team on this service plan" });
       }
       seenSlots.add(row.slotKey);
