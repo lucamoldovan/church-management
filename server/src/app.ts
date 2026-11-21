@@ -1282,6 +1282,70 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     };
   });
 
+  app.get<{ Params: { serviceId: string } }>("/api/v1/church/services/:serviceId/microphones", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const service = database.prepare("SELECT id FROM church_services WHERE id = ?").get(request.params.serviceId);
+    if (!service) return reply.code(404).send({ error: "Service not found" });
+    const assignments = database.prepare(`
+      SELECT m.slot_key AS slotKey, m.person_id AS personId, p.display_name AS personName, m.updated_at AS updatedAt
+      FROM service_microphone_assignments m
+      JOIN service_people p ON p.id = m.person_id
+      WHERE m.service_id = ?
+      ORDER BY CASE m.slot_key WHEN 'mic-1' THEN 1 WHEN 'mic-2' THEN 2 WHEN 'mic-3' THEN 3 WHEN 'mic-4' THEN 4 WHEN 'mic-5' THEN 5 ELSE 6 END
+    `).all(request.params.serviceId);
+    return { assignments };
+  });
+
+  app.put<{ Params: { serviceId: string }; Body: { assignments?: unknown } }>("/api/v1/church/services/:serviceId/microphones", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const serviceId = request.params.serviceId;
+    if (!database.prepare("SELECT id FROM church_services WHERE id = ?").get(serviceId)) {
+      return reply.code(404).send({ error: "Service not found" });
+    }
+    const body = request.body ?? {};
+    if (!Array.isArray(body.assignments) || body.assignments.length > 6) {
+      return reply.code(400).send({ error: "Provide up to six microphone assignments" });
+    }
+    const allowedSlots = new Set(["mic-1", "mic-2", "mic-3", "mic-4", "mic-5", "headset"]);
+    const seenSlots = new Set<string>();
+    const seenPeople = new Set<string>();
+    const normalized: Array<{ slotKey: string; personId: string }> = [];
+    for (const value of body.assignments) {
+      if (!value || typeof value !== "object") return reply.code(400).send({ error: "Invalid microphone assignment" });
+      const row = value as Record<string, unknown>;
+      if (typeof row.slotKey !== "string" || !allowedSlots.has(row.slotKey) || seenSlots.has(row.slotKey)) {
+        return reply.code(400).send({ error: "Invalid or duplicate microphone slot" });
+      }
+      if (typeof row.personId !== "string" || !row.personId.trim()) {
+        return reply.code(400).send({ error: "Each saved assignment must have a scheduled person" });
+      }
+      if (seenPeople.has(row.personId)) return reply.code(409).send({ error: "A person can only be assigned to one microphone for this service" });
+      const scheduled = database.prepare("SELECT 1 AS found FROM service_plan_assignments WHERE service_id = ? AND person_id = ? LIMIT 1").get(serviceId, row.personId);
+      if (!scheduled) return reply.code(400).send({ error: "Microphones can only be assigned to people scheduled on this service plan" });
+      seenSlots.add(row.slotKey);
+      seenPeople.add(row.personId);
+      normalized.push({ slotKey: row.slotKey, personId: row.personId });
+    }
+    const now = new Date().toISOString();
+    const save = database.transaction(() => {
+      database.prepare("DELETE FROM service_microphone_assignments WHERE service_id = ?").run(serviceId);
+      const insert = database.prepare("INSERT INTO service_microphone_assignments (id, service_id, slot_key, person_id, updated_at) VALUES (?, ?, ?, ?, ?)");
+      for (const assignment of normalized) insert.run(randomUUID(), serviceId, assignment.slotKey, assignment.personId, now);
+    });
+    try {
+      save();
+    } catch (error) {
+      request.log.error({ err: error }, "Could not save microphone assignments");
+      return reply.code(500).send({ error: "Could not save microphone assignments" });
+    }
+    const assignments = database.prepare(`
+      SELECT m.slot_key AS slotKey, m.person_id AS personId, p.display_name AS personName, m.updated_at AS updatedAt
+      FROM service_microphone_assignments m JOIN service_people p ON p.id = m.person_id
+      WHERE m.service_id = ?
+    `).all(serviceId);
+    return { saved: true, assignments };
+  });
+
   app.get("/api/v1/church/teams", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
     const teams = database.prepare("SELECT id, external_id AS externalId, name, sequence, archived_at AS archivedAt FROM service_teams ORDER BY sequence, name COLLATE NOCASE").all() as Array<Record<string, unknown>>;
