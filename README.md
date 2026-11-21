@@ -9,7 +9,7 @@ A staff-only church operations and media platform. The dashboard, API, database 
 - **Database:** SQLite via better-sqlite3. Stored locally with restrictive filesystem permissions.
 - **NDI screens:** Native Linux receiver based on the existing Veyra NDI receiver engine and control-plane protocol.
 - **ProPresenter:** Server-side live status plus allowlisted Previous cue, Next cue and Clear slide controls for administrator/production staff.
-- **Planning Center:** Initial read/sync source for service plans. The local database is the future source of truth.
+- **Planning Center:** Current source of truth for people, team memberships, service plans and scheduled assignments. Church Operations keeps a local read-only working copy; replacing Planning Center is not part of the current phase.
 
 There are no Cloudflare Workers, D1, R2, OpenNext, Supabase or hosted application dependencies in this branch. The only external network connections are optional integrations configured by the church (currently Planning Center and the ProPresenter machine on the LAN).
 
@@ -53,7 +53,7 @@ Set these values in the local server environment (never in browser code):
 - `PLANNING_CENTER_SECRET`
 - `PROPRESENTER_URL` (for example, the ProPresenter machine's LAN address and configured API port)
 
-Planning Center uses a Personal Access Token for this single-church server integration. Credentials are kept server-side. The current sync imports up to 25 future Services plans per run, including their ordered service items; it does not yet replace Planning Center's people, groups or volunteer scheduling modules.
+Planning Center uses a Personal Access Token for this single-church server integration. Credentials are kept server-side. The current sync imports the paginated People directory (names and Planning Center IDs only), Services teams and positions, team memberships, and future service plans with their ordered items, scheduled people, service times and item assignments. Planning Center remains authoritative; the local copy is used by Church Operations and is never written back to Planning Center.
 
 ## NDI receivers
 
