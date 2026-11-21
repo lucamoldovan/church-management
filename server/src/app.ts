@@ -1447,6 +1447,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           }
           const positionResources = new Map<string, PcoResource>();
           const positionLocalIds = new Map<string, string>();
+          const positionTeamExternalIds = new Map<string, string>();
+          const personResources = new Map<string, PcoResource>();
           const teamLocalIds = new Map<string, string>();
           const scheduledTeamIds = new Set<string>(signupTeamsResult.data.map((team) => team.id));
           const positionMemberships = new Map<string, PcoResource[]>();
@@ -1460,13 +1462,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
             const positions = await fetchAll(apiBase + "/teams/" + encodeURIComponent(team.id) + "/team_positions?per_page=100");
             for (const position of positions.data) {
               positionResources.set(position.id, position);
+              positionTeamExternalIds.set(position.id, team.id);
               positionLocalIds.set(position.id, upsertPosition(position, teamLocalId));
               const memberships = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/team_positions/" + encodeURIComponent(position.id) + "/person_team_position_assignments?include=person&per_page=100");
               positionMemberships.set(position.id, memberships.data);
               for (const included of memberships.included) if (included.type === "Person") personResources.set(included.id, included);
             }
           }
-          const personResources = new Map<string, PcoResource>();
           for (const included of planIncluded.values()) if (included.type === "Person") personResources.set(included.id, included);
           const planPeople = new Map<string, { resource: PcoResource; personId: string; teamId: string | null; positionName: string | null }>();
           for (const scheduled of peopleResult.data) {
@@ -1537,7 +1539,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
               const personRef = relationship(info.resource, "person");
               const teamRef = relationship(info.resource, "team");
               const position = [...positionResources.values()].find((candidate) =>
-                relationship(candidate, "team")?.id === teamRef?.id &&
+                positionTeamExternalIds.get(candidate.id) === teamRef?.id &&
                 String(attr(candidate, "name") ?? "").toLowerCase() === (info.positionName ?? "").toLowerCase());
               const positionId = position ? positionLocalIds.get(position.id) ?? null : null;
               const assignmentId = randomUUID();
