@@ -1173,7 +1173,7 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
 
     const directory = await app.inject({ method: "GET", url: "/api/v1/church/teams", headers });
     assert.equal(directory.statusCode, 200);
-    assert.equal(directory.json().teams[0].name, "Worship");
+    assert.equal(directory.json().teams[0].name, "Voci");
     assert.equal(directory.json().teams[0].leaders[0], "Bob Teamlead");
     assert.equal(directory.json().teams[0].positions[0].name, "Vocals");
     assert.equal(directory.json().teams[0].positions[0].members[0].personName, "Alice Singer");
