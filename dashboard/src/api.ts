@@ -314,6 +314,15 @@ export interface ChurchTeamDirectory {
   positions: Array<{ id: string; externalId: string; teamId: string; name: string; sequence: number | null;
     members: Array<{ id: string; positionId: string; personId: string; personName: string; schedulePreference: string | null }> }>;
 }
+export interface ChurchPerson {
+  id: string;
+  externalId: string;
+  displayName: string;
+  teams: string[];
+}
+export function getChurchPeople(signal?: AbortSignal): Promise<{ people: ChurchPerson[]; total: number }> {
+  return request("/api/v1/church/people", { signal });
+}
 export interface ChurchStaff {
   id: string; username: string; displayName: string; role: string; department: string | null; active: number; createdAt: string;
 }
