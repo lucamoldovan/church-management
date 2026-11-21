@@ -113,9 +113,14 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
   }, [page, serviceView]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); setBusy(true); setError(""); setSuccess("");
-    const data = new FormData(event.currentTarget);
-    const value = (key: string) => String(data.get(key) ?? "").trim();
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const value = (key: string) => {
+      const raw = String(data.get(key) ?? "");
+      return key === "password" ? raw : raw.trim();
+    };
+    setBusy(true); setError(""); setSuccess("");
     try {
       if (page === "events") {
         await createChurchEvent({ title: value("title"), description: value("description"), startsAt: localIso(value("startsAt")), endsAt: localIso(value("endsAt")), location: value("location"), capacity: value("capacity") ? Number(value("capacity")) : undefined });
@@ -127,7 +132,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
         await createChurchStaff({ username: value("username"), displayName: value("displayName"), password: value("password"), role: value("role"), department: value("department") });
         setSuccess("Staff account created.");
       }
-      setShowForm(false); event.currentTarget.reset(); await refresh();
+      form.reset(); setShowForm(false); await refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Could not save this record."); }
     finally { setBusy(false); }
   };
