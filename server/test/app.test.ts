@@ -1145,7 +1145,8 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     assert.equal(lyricOnly.json().rundownMatch.itemId, null);
 
     const updatedWorkspace = await app.inject({ method: "GET", url: `/api/v1/church/services/${serviceId}/workspace`, headers });
-    assert.equal(updatedWorkspace.json().live.matchedItemId, workspace.json().items[0].id);
+    assert.equal(updatedWorkspace.json().live.matchedItemId, null);
+    assert.equal(updatedWorkspace.json().live.message.includes("does not exactly match"), true);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalAppId === undefined) delete process.env.PLANNING_CENTER_APP_ID;
