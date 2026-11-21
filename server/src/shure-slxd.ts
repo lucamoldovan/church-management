@@ -78,17 +78,6 @@ export function parseSlxdFrame(frame: string): Partial<SlxdTelemetry> & { device
   if (parts[0] === "SAMPLE") {
     const channel = Number(parts[1]);
     if (!Number.isInteger(channel) || channel < 1 || channel > 2) return {};
-    if (parts.length >= 12 && parts[2] === "ALL") {
-      return {
-        channel,
-        audioPeakDbfs: slxdReportedDbfs(Number(parts[5])),
-        audioRmsDbfs: slxdReportedDbfs(Number(parts[6])),
-        rfAntennaADbm: slxdReportedDbm(Number(parts[9])),
-        rfAntennaBDbm: slxdReportedDbm(Number(parts[11])),
-        rfDbm: null,
-        lastSampleAt: new Date().toISOString(),
-      };
-    }
     if (parts.length >= 6 && parts[2] === "ALL") {
       return {
         channel,
@@ -119,7 +108,7 @@ export function parseSlxdFrame(frame: string): Partial<SlxdTelemetry> & { device
     case "RF_BAND": result.rfBand = value || null; break;
     case "FW_VER": result.firmware = value || null; break;
     case "CHAN_NAME": result.channelName = value || null; break;
-    case "FREQUENCY": result.frequencyHz = /^\d{7}$/.test(value) ? Number(value) : null; break;
+    case "FREQUENCY": result.frequencyHz = /^\d{7}$/.test(value) ? Number(value) * 1000 : null; break;
     case "GROUP_CHANNEL": result.groupChannel = value.replace(/\s+/g, "") || null; break;
     case "TX_MODEL":
       result.transmitterModel = value === "UNKNOWN" ? null : value || null;
@@ -210,8 +199,9 @@ export class ShureSlxdMonitor {
         "< GET MODEL >", "< GET DEVICE_ID >", "< GET RF_BAND >", "< GET FW_VER >",
         `< GET ${channel} ALL >`, `< GET ${channel} TX_MODEL >`,
         `< GET ${channel} TX_BATT_BARS >`, `< GET ${channel} TX_BATT_MINS >`,
+        `< GET ${channel} RSSI >`,
         `< SET ${channel} METER_RATE ${String(this.options.meterRateMs ?? 1000).padStart(5, "0")} >`,
-        `< SAMPLE ${channel} ALL qual audBitmap audPeak audRms rfAntStats rfBitmapA rfRssiA rfBitmapB rfRssiB >`,
+        `< SAMPLE ${channel} ALL audPeak audRms rfRssi >`,
       ];
       socket.write(commands.join(""));
     });
