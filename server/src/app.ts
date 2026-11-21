@@ -1228,6 +1228,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const active = typeof body.active === "boolean" ? (body.active ? 1 : 0) : null;
     const department = typeof body.department === "string" ? body.department.trim() : undefined;
     if (role !== null && !["admin", "staff", "production", "leader"].includes(role)) return reply.code(400).send({ error: "Invalid staff role" });
+    if (role !== null && actor.id === current.id && role !== current.role) return reply.code(400).send({ error: "You cannot change your own role" });
     if (department !== undefined && department.length > 80) return reply.code(400).send({ error: "Department must be 80 characters or fewer" });
 
     const removesAdminAccess = (role !== null ? role !== "admin" : current.role !== "admin") ||
