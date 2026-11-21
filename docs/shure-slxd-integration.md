@@ -18,7 +18,7 @@ Add a local, read-only Shure monitoring integration to Church Operations for six
 - Third-party command strings use TCP port 2202.
 - Third-party control is blocked by default on SLX-D; enable it at **Advanced Settings → Controller Access → Allow**.
 - Shure says to use only one controller per system to avoid command conflicts. Church Operations must therefore coordinate with Wireless Workbench: do not run two competing third-party command-string controllers simultaneously.
-- The SLX-D guide describes the receiver as the TCP client. The exact discovery/connection direction and how the receiver locates the controller must be validated with one physical receiver before enabling the production transport. Do not assume that a simple outbound TCP scan of receiver IPs is correct.
+- Shure's support guidance clarifies that the control system must open the TCP connection to the receiver; the receiver does not send command strings to an arbitrary controller destination. Church Operations therefore connects outbound to each configured receiver IP on TCP port 2202. Do not run a broad subnet scan; configure the six receiver IPs explicitly, preferably with DHCP reservations.
 - Shure's Wireless Workbench network guidance uses DHCP and network discovery. Shure's enterprise network guidance identifies Shure Discovery multicast at 239.255.254.253:8427 and Bonjour/mDNS at 224.0.0.251:5353. Discovery must be tested on the church switch; multicast filtering/VLAN boundaries can prevent it.
 - A receiver's DHCP address and its identity are separate concerns. Use its Shure Device ID/serial/model as stable identity, not its current IP address.
 
@@ -48,8 +48,8 @@ Metering:
 
 1. Implement an isolated Shure adapter; do not mix socket/protocol logic into route handlers.
 2. Start with a diagnostic mode that reports discovery packets and device identities without changing receiver settings.
-3. Verify the exact SLX-D discovery path and TCP control direction on one receiver. Shure's receiver-client note and command-string controller documentation must be reconciled by a real connection test.
-4. Prefer automatic discovery on the local subnet. Keep a manual IP/host override as a fallback, but key saved device records by stable hardware identity.
+3. Configure the receiver's Controller Access setting to Allow, then verify an outbound TCP connection from Church Operations to one receiver on port 2202.
+4. Configure up to six receiver IP addresses explicitly. Use each Shure Device ID as stable identity; do not rely on DHCP IP addresses for long-term assignments.
 5. Enforce one controller per receiver/system. Do not compete with Wireless Workbench; provide a clear warning if another controller appears to be active or the receiver rejects/does not answer commands.
 6. Do not bind a network listener to all interfaces unless explicitly configured. Restrict the control service to the intended LAN interface and document firewall requirements.
 
@@ -72,7 +72,7 @@ The first implementation adds the dedicated tab, six assignment slots, automatic
 
 The initial read-only telemetry adapter is now implemented: a TCP controller listener on port 2202, strict source-IP allowlisting, SLX-D ASCII frame parsing, device ID/model/firmware/RF band/channel/frequency, transmitter model/link state, AA battery bars (with explicitly approximate percentage), reported runtime states, both antenna RSSI values, and audio peak/RMS meters. The dashboard polls the authenticated status endpoint and labels disconnected devices as stale. Protocol parsing and conversion tests run in CI.
 
-The listener is disabled by default. It requires `SHURE_SLXD_ENABLED=true`, an explicit `SHURE_SLXD_ALLOWED_IPS` allowlist, and a configured controller bind address. The SLX-D receiver is the TCP client and must be configured to connect to the Church Operations server on port 2202. This connection path, the receiver menu for setting the controller destination, and all telemetry values still require a physical one-receiver test. No RF frequency, transmitter, or audio gain settings are changed. The only SET command configures the telemetry meter interval (`METER_RATE`).
+The monitor is disabled by default. It requires `SHURE_SLXD_ENABLED=true` and `SHURE_SLXD_RECEIVER_IPS` containing the receiver IP addresses (comma-separated). Church Operations initiates outbound TCP connections to each receiver on port 2202; no inbound listener is opened on the server. This connection path, the receiver menu for setting the controller destination, and all telemetry values still require a physical one-receiver test. No RF frequency, transmitter, or audio gain settings are changed. The only SET command configures the telemetry meter interval (`METER_RATE`).
 
 ## Dashboard
 
