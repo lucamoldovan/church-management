@@ -1262,7 +1262,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     if (!service) return reply.code(404).send({ error: "Service not found" });
     const items = database.prepare("SELECT id, position, title, item_type AS itemType, duration_seconds AS durationSeconds, assigned_to AS assignedTo, notes, song_external_id AS songExternalId, arrangement_external_id AS arrangementExternalId, service_position AS servicePosition FROM church_service_items WHERE service_id = ? ORDER BY position ASC, title COLLATE NOCASE").all(request.params.serviceId) as Array<Record<string, unknown>>;
     const itemAssignments = database.prepare("SELECT ia.id, ia.item_id AS itemId, ia.assignable_type AS assignableType, ia.assignable_external_id AS assignableExternalId, COALESCE(p.display_name, pos.name, ia.display_name) AS displayName FROM service_item_assignments ia LEFT JOIN service_people p ON p.id = ia.person_id LEFT JOIN service_positions pos ON pos.id = ia.position_id JOIN church_service_items i ON i.id = ia.item_id WHERE i.service_id = ? ORDER BY displayName COLLATE NOCASE").all(request.params.serviceId);
-    const teams = database.prepare("SELECT t.id, t.external_id AS externalId, t.name, t.sequence FROM service_plan_teams pt JOIN service_teams t ON t.id = pt.team_id WHERE pt.service_id = ? ORDER BY pt.position, t.sequence, t.name COLLATE NOCASE").all(request.params.serviceId);
+    const teams = database.prepare("SELECT t.id, t.external_id AS externalId, t.name, t.sequence FROM service_plan_teams pt JOIN service_teams t ON t.id = pt.team_id WHERE pt.service_id = ? ORDER BY pt.position, t.sequence, t.name COLLATE NOCASE").all(request.params.serviceId) as Array<Record<string, unknown>>;
+    const teamLeaders = database.prepare("SELECT tl.team_id AS teamId, p.display_name AS personName FROM service_team_leaders tl JOIN service_people p ON p.id = tl.person_id ORDER BY p.display_name COLLATE NOCASE").all() as Array<{ teamId: string; personName: string }>;
     const assignments = database.prepare("SELECT a.id, a.person_id AS personId, p.display_name AS personName, a.team_id AS teamId, t.name AS teamName, a.position_id AS positionId, COALESCE(pos.name, a.position_name) AS positionName, a.status, a.notes, (SELECT group_concat(pt.name, ', ') FROM service_assignment_times sat JOIN service_plan_times pt ON pt.id = sat.plan_time_id WHERE sat.assignment_id = a.id) AS serviceTimes FROM service_plan_assignments a JOIN service_people p ON p.id = a.person_id LEFT JOIN service_teams t ON t.id = a.team_id LEFT JOIN service_positions pos ON pos.id = a.position_id WHERE a.service_id = ? ORDER BY t.sequence, t.name COLLATE NOCASE, COALESCE(pos.sequence, 9999), positionName COLLATE NOCASE, p.display_name COLLATE NOCASE").all(request.params.serviceId);
     const times = database.prepare("SELECT id, external_id AS externalId, name, starts_at AS startsAt, ends_at AS endsAt, time_type AS timeType FROM service_plan_times WHERE service_id = ? ORDER BY starts_at, name").all(request.params.serviceId);
     const live = database.prepare("SELECT matched_item_id AS matchedItemId, match_method AS matchMethod, presentation_name AS presentationName, current_slide_text AS currentSlideText, current_slide_uuid AS currentSlideUuid, connected, observed_at AS observedAt, stale_at AS staleAt, message FROM service_live_state WHERE service_id = ?").get(request.params.serviceId) ?? null;
@@ -1276,7 +1277,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     return {
       service,
       items: items.map((item) => ({ ...item, assignments: assignmentsByItem.get(String(item.id)) ?? [] })),
-      teams, assignments, times, live,
+      teams: teams.map((team) => ({ ...team, leaders: teamLeaders.filter((leader) => leader.teamId === team.id).map((leader) => leader.personName) })),
+      assignments, times, live,
     };
   });
 
@@ -1284,9 +1286,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     if (!requireOperator(request, reply)) return;
     const teams = database.prepare("SELECT id, external_id AS externalId, name, sequence, archived_at AS archivedAt FROM service_teams ORDER BY sequence, name COLLATE NOCASE").all() as Array<Record<string, unknown>>;
     const positions = database.prepare("SELECT id, external_id AS externalId, team_id AS teamId, name, sequence FROM service_positions ORDER BY sequence, name COLLATE NOCASE").all() as Array<Record<string, unknown>>;
+    const leaders = database.prepare("SELECT tl.team_id AS teamId, p.display_name AS personName FROM service_team_leaders tl JOIN service_people p ON p.id = tl.person_id ORDER BY p.display_name COLLATE NOCASE").all() as Array<{ teamId: string; personName: string }>;
     const members = database.prepare("SELECT m.id, m.position_id AS positionId, p.id AS personId, p.display_name AS personName, m.schedule_preference AS schedulePreference FROM service_team_memberships m JOIN service_people p ON p.id = m.person_id ORDER BY p.display_name COLLATE NOCASE").all() as Array<Record<string, unknown>>;
     return { teams: teams.map((team) => ({
       ...team,
+      leaders: leaders.filter((leader) => leader.teamId === team.id).map((leader) => leader.personName),
       positions: positions.filter((position) => position.teamId === team.id).map((position) => ({
         ...position,
         members: members.filter((member) => member.positionId === position.id),
