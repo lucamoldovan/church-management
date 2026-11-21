@@ -910,6 +910,10 @@ test("production operators can send only allowlisted ProPresenter commands", asy
     globalThis.fetch = originalFetch;
     if (originalUrl === undefined) delete process.env.PROPRESENTER_URL;
     else process.env.PROPRESENTER_URL = originalUrl;
+    if (originalAppId === undefined) delete process.env.PLANNING_CENTER_APP_ID;
+    else process.env.PLANNING_CENTER_APP_ID = originalAppId;
+    if (originalSecret === undefined) delete process.env.PLANNING_CENTER_SECRET;
+    else process.env.PLANNING_CENTER_SECRET = originalSecret;
     await app.close();
   }
 });
@@ -994,6 +998,8 @@ test("ProPresenter live status reads the documented nested slide index and slide
   const app = createTestApp();
   const originalFetch = globalThis.fetch;
   const originalUrl = process.env.PROPRESENTER_URL;
+  const originalAppId = process.env.PLANNING_CENTER_APP_ID;
+  const originalSecret = process.env.PLANNING_CENTER_SECRET;
   process.env.PROPRESENTER_URL = "http://127.0.0.1:1025";
   globalThis.fetch = async (input) => {
     const url = String(input);
@@ -1047,6 +1053,10 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
 
   globalThis.fetch = async (input) => {
     const url = String(input);
+    if (url === "http://127.0.0.1:1025/version") return new Response(JSON.stringify({ version: "17.0.0" }), { headers: { "content-type": "application/json" } });
+    if (url === "http://127.0.0.1:1025/v1/presentation/active") return new Response(JSON.stringify({ presentation: { name: "Amazing Grace" } }), { headers: { "content-type": "application/json" } });
+    if (url === "http://127.0.0.1:1025/v1/status/slide") return new Response(JSON.stringify({ current: { text: "Amazing grace, how sweet the sound", uuid: "slide-uuid" } }), { headers: { "content-type": "application/json" } });
+    if (url === "http://127.0.0.1:1025/v1/presentation/slide_index") return new Response(JSON.stringify({ presentation: { index: 2 } }), { headers: { "content-type": "application/json" } });
     let document: { data?: unknown; included?: unknown[]; links?: { next?: string | null } } = { data: [] };
     if (url.endsWith("/service_types?per_page=100")) {
       document.data = [{ id: "type-1", type: "ServiceType", attributes: { name: "Sunday Service" } }];
@@ -1077,18 +1087,8 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
         { id: "item-assignment-person", type: "ItemAssignment", attributes: { assignable_type: "Person" }, relationships: { assignable: { data: { type: "Person", id: "person-1" } } } },
         { id: "item-assignment-position", type: "ItemAssignment", attributes: { assignable_type: "TeamPosition" }, relationships: { assignable: { data: { type: "TeamPosition", id: "position-1" } } } },
       ];
-    } else if (url === "http://127.0.0.1:1025/version") {
-      document = { data: { version: "17.0.0" } };
-    } else if (url === "http://127.0.0.1:1025/v1/presentation/active") {
-      document = { data: { presentation: { name: "Amazing Grace" } } };
-    } else if (url === "http://127.0.0.1:1025/v1/status/slide") {
-      document = { data: { current: { text: "Amazing grace, how sweet the sound", uuid: "slide-uuid" } } };
-    } else if (url === "http://127.0.0.1:1025/v1/presentation/slide_index") {
-      document = { data: { presentation: { index: 2 } } };
     }
-    const payload = document.data && !Array.isArray(document.data) && "data" in (document.data as object)
-      ? document.data : document;
-    return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify(document), { status: 200, headers: { "content-type": "application/json" } });
   };
 
   try {
@@ -1167,10 +1167,6 @@ test("ProPresenter does not guess when a song title is duplicated in the rundown
       username: "admin", password: "a-very-long-test-password",
     }});
     const cookie = String(login.headers["set-cookie"]).split(";")[0];
-    const service = await app.inject({ method: "POST", url: "/api/v1/church/services", headers: { cookie }, payload: { title: "Sunday" } });
-    const serviceId = service.json().id as string;
-    const originalAppId = process.env.PLANNING_CENTER_APP_ID;
-    const originalSecret = process.env.PLANNING_CENTER_SECRET;
     process.env.PLANNING_CENTER_APP_ID = "test-client";
     process.env.PLANNING_CENTER_SECRET = "test-secret";
     globalThis.fetch = async (input) => {
@@ -1186,6 +1182,8 @@ test("ProPresenter does not guess when a song title is duplicated in the rundown
     };
     const sync = await app.inject({ method: "POST", url: "/api/v1/integrations/planning-center/sync", headers: { cookie } });
     assert.equal(sync.statusCode, 200, sync.body);
+    const importedServices = await app.inject({ method: "GET", url: "/api/v1/church/services", headers: { cookie } });
+    const importedServiceId = importedServices.json().services[0].id as string;
     globalThis.fetch = async (input) => {
       const url = String(input);
       const payload = url.endsWith("/version") ? { version: "17.0.0" }
@@ -1194,7 +1192,7 @@ test("ProPresenter does not guess when a song title is duplicated in the rundown
         : { presentation: { index: 1 } };
       return new Response(JSON.stringify(payload));
     };
-    const live = await app.inject({ method: "GET", url: `/api/v1/integrations/propresenter/live?serviceId=${serviceId}`, headers: { cookie } });
+    const live = await app.inject({ method: "GET", url: `/api/v1/integrations/propresenter/live?serviceId=${importedServiceId}`, headers: { cookie } });
     assert.equal(live.json().rundownMatch.status, "ambiguous");
     assert.equal(live.json().rundownMatch.itemId, null);
     if (originalAppId === undefined) delete process.env.PLANNING_CENTER_APP_ID;
