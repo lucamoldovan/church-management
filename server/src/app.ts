@@ -1421,7 +1421,17 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.get("/api/v1/church/events", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
-    const events = database.prepare("SELECT id, title, description, starts_at AS startsAt, ends_at AS endsAt, location, capacity, status, source FROM church_events ORDER BY starts_at IS NULL, starts_at ASC LIMIT 100").all();
+    const now = new Date().toISOString();
+    const events = database.prepare(`
+      SELECT id, title, description, starts_at AS startsAt, ends_at AS endsAt, location, capacity, status, source
+      FROM church_events
+      ORDER BY
+        CASE WHEN starts_at IS NULL THEN 2 WHEN starts_at >= ? THEN 0 ELSE 1 END,
+        CASE WHEN starts_at >= ? THEN starts_at END ASC,
+        CASE WHEN starts_at < ? THEN starts_at END DESC,
+        title COLLATE NOCASE
+      LIMIT 100
+    `).all(now, now, now);
     return { events };
   });
 
