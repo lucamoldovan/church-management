@@ -1274,7 +1274,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.get("/api/v1/integrations/shure-slxd/status", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
-    return options.shureMonitor?.status() ?? { enabled: false, listening: false, host: null, port: null, allowedReceiverCount: 0, devices: [], message: "SLX-D monitoring is not configured." };
+    return options.shureMonitor?.status() ?? { enabled: false, listening: false, host: null, port: null, configuredReceiverCount: 0, devices: [], message: "SLX-D monitoring is not configured." };
   });
 
   app.get<{ Params: { serviceId: string } }>("/api/v1/church/services/:serviceId/microphones", async (request, reply) => {
