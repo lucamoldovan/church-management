@@ -1123,6 +1123,40 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     assert.equal(workspace.json().items[0].songExternalId, "song-1");
     assert.equal(workspace.json().items[0].assignments.length, 2);
 
+    const emptyMicAssignments = await app.inject({
+      method: "GET", url: `/api/v1/church/services/${serviceId}/microphones`, headers,
+    });
+    assert.equal(emptyMicAssignments.statusCode, 200);
+    assert.deepEqual(emptyMicAssignments.json().assignments, []);
+
+    const saveMicAssignments = await app.inject({
+      method: "PUT",
+      url: `/api/v1/church/services/${serviceId}/microphones`,
+      headers,
+      payload: { assignments: [{ slotKey: "mic-1", personId: workspace.json().assignments[0].personId }] },
+    });
+    assert.equal(saveMicAssignments.statusCode, 200, saveMicAssignments.body);
+    assert.equal(saveMicAssignments.json().assignments[0].personName, "Alice Singer");
+
+    const duplicateMicPerson = await app.inject({
+      method: "PUT",
+      url: `/api/v1/church/services/${serviceId}/microphones`,
+      headers,
+      payload: { assignments: [
+        { slotKey: "mic-1", personId: workspace.json().assignments[0].personId },
+        { slotKey: "headset", personId: workspace.json().assignments[0].personId },
+      ] },
+    });
+    assert.equal(duplicateMicPerson.statusCode, 409);
+
+    const unscheduledMicPerson = await app.inject({
+      method: "PUT",
+      url: `/api/v1/church/services/${serviceId}/microphones`,
+      headers,
+      payload: { assignments: [{ slotKey: "mic-1", personId: "not-scheduled" }] },
+    });
+    assert.equal(unscheduledMicPerson.statusCode, 400);
+
     const directory = await app.inject({ method: "GET", url: "/api/v1/church/teams", headers });
     assert.equal(directory.statusCode, 200);
     assert.equal(directory.json().teams[0].name, "Worship");
