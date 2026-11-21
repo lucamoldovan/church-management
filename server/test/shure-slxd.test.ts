@@ -70,7 +70,7 @@ test("SLX-D legacy metering and standalone RSSI reports are handled", () => {
 
 test("malformed and unrelated SLX-D frames do not create telemetry", () => {
   assert.deepEqual(parseSlxdFrame("not a command"), {});
-  assert.deepEqual(parseSlxdFrame("REP 8 TX_BATT_BARS 004"), { channel: 8 });
+  assert.deepEqual(parseSlxdFrame("REP 8 TX_BATT_BARS 004"), {});
   assert.deepEqual(parseSlxdFrame("SAMPLE x ALL 005 000 045 062"), {});
 });
 
