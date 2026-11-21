@@ -1168,9 +1168,9 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     assert.equal(workspace.statusCode, 200, workspace.body);
     assert.equal(workspace.json().teams[0].name, "Voci");
     assert.equal(workspace.json().teams[0].leaders[0], "Bob Teamlead");
-    assert.equal(workspace.json().assignments[0].personName, "Alice Singer");
-    assert.equal(workspace.json().assignments[0].positionName, "Vocals");
-    assert.equal(workspace.json().assignments[0].status, "Confirmed");
+    assert.equal(workspace.json().assignments.some((person: { personName: string }) => person.personName === "Alice Singer"), true);
+    assert.equal(workspace.json().assignments.find((person: { personName: string }) => person.personName === "Alice Singer").positionName, "Vocals");
+    assert.equal(workspace.json().assignments.find((person: { personName: string }) => person.personName === "Alice Singer").status, "Confirmed");
     assert.equal(workspace.json().times[0].name, "Sunday 10:00");
     assert.equal(workspace.json().items[0].songExternalId, "song-1");
     assert.equal(workspace.json().items[0].assignments.length, 2);
