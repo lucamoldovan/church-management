@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createServer } from "node:net";
 import {
   extractSlxdFrames,
   normalizeSlxdBatteryBars,
@@ -92,4 +93,61 @@ test("SLX-D monitor validates explicit receiver addresses", async () => {
   const monitor = new ShureSlxdMonitor({ enabled: true, receiverIps: ["not-an-ip"], port: 2202 });
   await assert.rejects(() => monitor.start(), /valid receiver IP addresses/);
   await monitor.close();
+});
+
+test("SLX-D monitor connects outbound and collects receiver telemetry", async () => {
+  const receiver = createServer((socket) => {
+    socket.setEncoding("ascii");
+    let replied = false;
+    socket.on("data", () => {
+      if (replied) return;
+      replied = true;
+      socket.write(
+        "< REP MODEL {SLXD4                  } >" +
+        "< REP DEVICE_ID {SLXD4A12} >" +
+        "< REP RF_BAND {G55     } >" +
+        "< REP FW_VER {2.0.15.2             } >" +
+        "< REP 1 CHAN_NAME {Lead Vox                    } >" +
+        "< REP 1 FREQUENCY 0602125 >" +
+        "< REP 1 TX_MODEL SLXD2 >" +
+        "< REP 1 TX_BATT_BARS 004 >" +
+        "< REP 1 TX_BATT_MINS 00125 >" +
+        "< SAMPLE 1 ALL 005 000 045 062 BB 31 099 31 085 >",
+      );
+    });
+  });
+  await new Promise<void>((resolve) => receiver.listen(0, "127.0.0.1", resolve));
+  const address = receiver.address();
+  assert.ok(address && typeof address !== "string");
+  const monitor = new ShureSlxdMonitor({
+    enabled: true,
+    receiverIps: ["127.0.0.1"],
+    port: address.port,
+    meterRateMs: 1000,
+  });
+  try {
+    await monitor.start();
+    let device = monitor.status().devices[0];
+    for (let attempt = 0; attempt < 100 && (!device || device.deviceId !== "SLXD4A12"); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      device = monitor.status().devices[0];
+    }
+    assert.ok(device);
+    assert.equal(device.deviceId, "SLXD4A12");
+    assert.equal(device.model, "SLXD4");
+    assert.equal(device.rfBand, "G55");
+    assert.equal(device.channelName, "Lead Vox");
+    assert.equal(device.frequencyHz, 602125);
+    assert.equal(device.transmitterConnected, true);
+    assert.equal(device.batteryBars, 4);
+    assert.equal(device.batteryPercentEstimate, 80);
+    assert.equal(device.batteryRuntimeMinutes, 125);
+    assert.equal(device.audioPeakDbfs, -75);
+    assert.equal(device.audioRmsDbfs, -58);
+    assert.equal(device.rfAntennaADbm, -21);
+    assert.equal(device.rfAntennaBDbm, -35);
+  } finally {
+    await monitor.close();
+    await new Promise<void>((resolve, reject) => receiver.close((error) => error ? reject(error) : resolve()));
+  }
 });
