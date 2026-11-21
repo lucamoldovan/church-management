@@ -122,10 +122,10 @@ Use database migrations, foreign keys, unique external-ID constraints, and trans
 The first implementation is now present on the feature branch:
 
 - Schema version 8 adds provider-independent people, teams, positions, team-position memberships, plan-team links, plan times, plan-person assignments, item assignments, and per-plan live state.
-- The Planning Center importer follows JSON:API pagination (with a 100-page safety limit per collection), imports future plans across service types, imports service-type teams and positions, imports people assigned to positions, and imports plan-specific scheduled people, times, and item-level Person/TeamPosition assignments.
+- The Planning Center importer follows JSON:API pagination (with a 100-page safety limit per collection), imports future plans across service types, imports service-type teams and positions, imports people assigned to positions, team leaders, and imports plan-specific scheduled people, times, and item-level Person/TeamPosition assignments.
 - Plan replacement is performed transactionally after the API snapshot has been fetched. Existing service items and their item assignments are replaced together so deleted items do not leave stale assignment rows.
-- The authenticated Services workspace endpoint returns the selected plan, ordered items, assigned teams, scheduled people/positions/statuses, plan times, item assignments, and saved live state.
-- The authenticated team directory endpoint returns teams with positions and assigned members.
+- The authenticated Services workspace endpoint returns the selected plan, ordered items, assigned teams, scheduled people/positions/normalized response statuses, team leaders, plan times, item assignments, and saved live state.
+- The authenticated team directory endpoint returns teams with leaders, positions, assigned members, and their schedule preferences.
 - The Services dashboard has a plan selector, live rundown, scheduled-team roster, service-time panel, and separate team-directory view. Local service creation remains available.
 - The ProPresenter live endpoint can accept a selected service ID. It matches only an exact normalized active presentation name or exact normalized current-slide title against a song item. It never uses substring lyric matching. One unique match is highlighted; duplicate matches are reported as ambiguous and do not highlight any row. Unmatched and disconnected states are explicit.
 - The dashboard polls the selected service workspace and ProPresenter state every five seconds. This is shared server-backed state observed by each staff dashboard; it is polling, not a WebSocket push channel.
