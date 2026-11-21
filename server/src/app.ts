@@ -1463,7 +1463,38 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       for (const type of typeResult.data) {
         const typeId = type.id;
         const typeTeams = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/teams?per_page=100");
-        const teamResources = new Map<string, PcoResource>(typeTeams.data.map((team) => [team.id, team]));
+        const teamResources = new Map<string, PcoResource>();
+        const teamLocalIds = new Map<string, string>();
+        const positionResources = new Map<string, PcoResource>();
+        const positionLocalIds = new Map<string, string>();
+        const positionTeamExternalIds = new Map<string, string>();
+        const personResources = new Map<string, PcoResource>();
+        const loadTeam = async (team: PcoResource) => {
+          if (teamResources.has(team.id)) return;
+          teamResources.set(team.id, team);
+          const teamLocalId = upsertTeam(team);
+          teamLocalIds.set(team.id, teamLocalId);
+          const positions = await fetchAll(apiBase + "/teams/" + encodeURIComponent(team.id) + "/team_positions?per_page=100");
+          for (const position of positions.data) {
+            positionResources.set(position.id, position);
+            positionTeamExternalIds.set(position.id, team.id);
+            const localPositionId = upsertPosition(position, teamLocalId);
+            positionLocalIds.set(position.id, localPositionId);
+            const memberships = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/team_positions/" + encodeURIComponent(position.id) + "/person_team_position_assignments?include=person&per_page=100");
+            for (const included of memberships.included) if (included.type === "Person") personResources.set(included.id, included);
+            for (const membership of memberships.data) {
+              const personRef = relationship(membership, "person");
+              if (!personRef) continue;
+              const personId = upsertPerson(personResources.get(personRef.id), personRef.id);
+              const membershipId = randomUUID();
+              const ma = membership.attributes ?? {};
+              database.prepare("INSERT INTO service_team_memberships (id, person_id, position_id, schedule_preference, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(person_id, position_id) DO UPDATE SET schedule_preference=excluded.schedule_preference, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
+                .run(membershipId, personId, localPositionId,
+                  typeof ma.schedule_preference === "string" ? ma.schedule_preference : null, JSON.stringify(membership), now());
+            }
+          }
+        };
+        for (const team of typeTeams.data) await loadTeam(team);
         const plansResult = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/plans?filter=future&per_page=100");
         for (const plan of plansResult.data) {
           if (plansProcessed >= maxPlans) break;
@@ -1475,37 +1506,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
             fetchAll(apiBase + planPath + "/signup_teams?per_page=100"),
           ]);
           const planIncluded = includedIndex([...itemsResult.included, ...peopleResult.included, ...timesResult.included, ...signupTeamsResult.included]);
-          for (const team of signupTeamsResult.data) teamResources.set(team.id, team);
+          for (const team of signupTeamsResult.data) await loadTeam(team);
           for (const scheduled of peopleResult.data) {
             const teamRef = relationship(scheduled, "team");
             if (teamRef && !teamResources.has(teamRef.id)) {
               const fromIncluded = planIncluded.get("Team:" + teamRef.id);
-              if (fromIncluded) teamResources.set(teamRef.id, fromIncluded);
+              if (fromIncluded) await loadTeam(fromIncluded);
             }
           }
-          const positionResources = new Map<string, PcoResource>();
-          const positionLocalIds = new Map<string, string>();
-          const positionTeamExternalIds = new Map<string, string>();
-          const personResources = new Map<string, PcoResource>();
-          const teamLocalIds = new Map<string, string>();
           const scheduledTeamIds = new Set<string>(signupTeamsResult.data.map((team) => team.id));
-          const positionMemberships = new Map<string, PcoResource[]>();
           for (const scheduled of peopleResult.data) {
             const teamRef = relationship(scheduled, "team");
             if (teamRef) scheduledTeamIds.add(teamRef.id);
-          }
-          for (const team of teamResources.values()) {
-            const teamLocalId = upsertTeam(team);
-            teamLocalIds.set(team.id, teamLocalId);
-            const positions = await fetchAll(apiBase + "/teams/" + encodeURIComponent(team.id) + "/team_positions?per_page=100");
-            for (const position of positions.data) {
-              positionResources.set(position.id, position);
-              positionTeamExternalIds.set(position.id, team.id);
-              positionLocalIds.set(position.id, upsertPosition(position, teamLocalId));
-              const memberships = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/team_positions/" + encodeURIComponent(position.id) + "/person_team_position_assignments?include=person&per_page=100");
-              positionMemberships.set(position.id, memberships.data);
-              for (const included of memberships.included) if (included.type === "Person") personResources.set(included.id, included);
-            }
           }
           for (const included of planIncluded.values()) if (included.type === "Person") personResources.set(included.id, included);
           const planPeople = new Map<string, { resource: PcoResource; personId: string; teamId: string | null; positionName: string | null }>();
@@ -1549,20 +1561,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
             for (const team of teamResources.values()) {
               const teamId = teamLocalIds.get(team.id);
               if (teamId && scheduledTeamIds.has(team.id)) database.prepare("INSERT INTO service_plan_teams (service_id, team_id, position) VALUES (?, ?, ?)").run(localServiceId, teamId, teamOrder++);
-            }
-            for (const [positionExternalId, memberships] of positionMemberships) {
-              const positionId = positionLocalIds.get(positionExternalId);
-              if (!positionId) continue;
-              for (const membership of memberships) {
-                const personRef = relationship(membership, "person");
-                if (!personRef) continue;
-                const personId = upsertPerson(personResources.get(personRef.id), personRef.id);
-                const membershipId = randomUUID();
-                const ma = membership.attributes ?? {};
-                database.prepare("INSERT INTO service_team_memberships (id, person_id, position_id, schedule_preference, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(person_id, position_id) DO UPDATE SET schedule_preference=excluded.schedule_preference, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
-                  .run(membershipId, personId, positionId,
-                    typeof ma.schedule_preference === "string" ? ma.schedule_preference : null, JSON.stringify(membership), now());
-              }
             }
             const timeIds = new Map<string, string>();
             for (const time of timesResult.data) {
