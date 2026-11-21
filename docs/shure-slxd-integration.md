@@ -62,7 +62,12 @@ Assignments are operator-managed and persistent; no automatic assignment in the 
 - Allow an operator to change a receiver's person assignment at any time.
 - Allow unassigned receivers.
 - Prevent one receiver from being assigned to two active people at once, and prevent one person from occupying multiple singer slots unless the operator explicitly changes the assignment.
-- Use imported Planning Center people as the initial selectable directory when available; keep the receiver-to-person mapping local and do not write it back to Planning Center.
+- **Never show the full church-wide people directory in the microphone assignment selector.**
+- The operator selects a service plan and a song/rundown item first. The selectable people are only the singers assigned/scheduled to that specific song/item in the selected Planning Center plan (using that item's Planning Center item assignments and the relevant singer/team-position assignments).
+- If the song has no eligible singer assignments, show an empty state such as “No singers assigned to this song”; do not fall back to all church singers or all Planning Center people.
+- The operator manually maps each eligible singer to one available receiver/channel. The assignment is scoped to the selected service plan and song/item, not a global permanent person-to-microphone mapping.
+- Support up to five singer slots for a song, plus the separate headset receiver/role. If fewer than five singers are assigned to that song, show only those eligible people.
+- Keep the receiver-to-person/song mapping local and do not write it back to Planning Center.
 - Preserve assignments when a receiver's DHCP IP changes by keying them to Shure hardware identity.
 - Keep role labels configurable (e.g. Singer 1–5, Headset).
 
