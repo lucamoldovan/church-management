@@ -68,7 +68,11 @@ The microphone controls live in their own top-level **Microphones** tab in Churc
 - A missing or stale assignment (person no longer scheduled on the selected plan) must be visibly flagged and require a new selection.
 - Receiver telemetry and microphone-to-receiver identity are separate from the Sunday person assignment. Stable Shure Device ID/serial identity must be used once discovery is implemented; DHCP IP changes must not break a receiver's identity.
 
-The first implementation adds the dedicated tab, six assignment slots, a service-plan selector, server-side validation against that plan's scheduled `Voci` team roster, and local persistence. Hardware discovery and live SLX-D telemetry remain a separate next phase and must not be presented as connected until verified with a physical receiver.
+The first implementation adds the dedicated tab, six assignment slots, automatic selection of the nearest upcoming Sunday plan (or today's plan when today is Sunday), a manual plan selector, server-side validation against that plan's scheduled `Voci` team roster, and local persistence. The selected Sunday is matched using the browser's local calendar date.
+
+The initial read-only telemetry adapter is now implemented: a TCP controller listener on port 2202, strict source-IP allowlisting, SLX-D ASCII frame parsing, device ID/model/firmware/RF band/channel/frequency, transmitter model/link state, AA battery bars (with explicitly approximate percentage), reported runtime states, both antenna RSSI values, and audio peak/RMS meters. The dashboard polls the authenticated status endpoint and labels disconnected devices as stale. Protocol parsing and conversion tests run in CI.
+
+The listener is disabled by default. It requires `SHURE_SLXD_ENABLED=true`, an explicit `SHURE_SLXD_ALLOWED_IPS` allowlist, and a configured controller bind address. The SLX-D receiver is the TCP client and must be configured to connect to the Church Operations server on port 2202. This connection path, the receiver menu for setting the controller destination, and all telemetry values still require a physical one-receiver test. No RF frequency, transmitter, or audio gain settings are changed. The only SET command configures the telemetry meter interval (`METER_RATE`).
 
 ## Dashboard
 
