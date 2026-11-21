@@ -1240,11 +1240,19 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.get("/api/v1/church/services", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
+    const now = new Date().toISOString();
     const services = database.prepare(`
       SELECT s.id, s.title, s.starts_at AS startsAt, s.ends_at AS endsAt, s.status, s.location, s.notes, s.source, s.external_id AS externalId, s.service_type_name AS serviceTypeName,
              (SELECT COUNT(*) FROM church_service_items i WHERE i.service_id = s.id) AS itemCount
-      FROM church_services s WHERE s.source = 'planning_center' ORDER BY s.starts_at IS NULL, s.starts_at ASC LIMIT 100
-    `).all();
+      FROM church_services s
+      WHERE s.source = 'planning_center'
+      ORDER BY
+        CASE WHEN s.starts_at IS NULL THEN 2 WHEN s.starts_at >= ? THEN 0 ELSE 1 END,
+        CASE WHEN s.starts_at >= ? THEN s.starts_at END ASC,
+        CASE WHEN s.starts_at < ? THEN s.starts_at END DESC,
+        s.title COLLATE NOCASE
+      LIMIT 100
+    `).all(now, now, now);
     return { services };
   });
 
