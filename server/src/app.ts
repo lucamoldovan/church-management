@@ -1239,21 +1239,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const services = database.prepare(`
       SELECT s.id, s.title, s.starts_at AS startsAt, s.ends_at AS endsAt, s.status, s.location, s.notes, s.source, s.external_id AS externalId, s.service_type_name AS serviceTypeName,
              (SELECT COUNT(*) FROM church_service_items i WHERE i.service_id = s.id) AS itemCount
-      FROM church_services s ORDER BY s.starts_at IS NULL, s.starts_at ASC LIMIT 100
+      FROM church_services s WHERE s.source = 'planning_center' ORDER BY s.starts_at IS NULL, s.starts_at ASC LIMIT 100
     `).all();
     return { services };
-  });
-
-  app.post<{ Body: Record<string, unknown> }>("/api/v1/church/services", async (request, reply) => {
-    if (!requireOperator(request, reply)) return;
-    const body = request.body ?? {};
-    const title = typeof body.title === "string" ? body.title.trim() : "";
-    if (!title || title.length > 160) return reply.code(400).send({ error: "Service title is required (maximum 160 characters)" });
-    const id = randomUUID();
-    const now = new Date().toISOString();
-    database.prepare("INSERT INTO church_services (id, title, starts_at, ends_at, status, location, notes, source, created_at, updated_at) VALUES (?, ?, ?, ?, 'planned', ?, ?, 'local', ?, ?)")
-      .run(id, title, typeof body.startsAt === "string" ? body.startsAt : null, typeof body.endsAt === "string" ? body.endsAt : null, typeof body.location === "string" ? body.location : null, typeof body.notes === "string" ? body.notes : null, now, now);
-    return reply.code(201).send({ id, title, startsAt: body.startsAt ?? null, endsAt: body.endsAt ?? null, status: "planned", source: "local" });
   });
 
   app.get<{ Params: { serviceId: string } }>("/api/v1/church/services/:serviceId/workspace", async (request, reply) => {
