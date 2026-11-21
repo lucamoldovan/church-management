@@ -324,6 +324,7 @@ export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "
           service_id TEXT PRIMARY KEY REFERENCES church_services(id) ON DELETE CASCADE, matched_item_id TEXT REFERENCES church_service_items(id) ON DELETE SET NULL, match_method TEXT, presentation_name TEXT, current_slide_text TEXT, current_slide_uuid TEXT, connected INTEGER NOT NULL DEFAULT 0, observed_at TEXT, stale_at TEXT, message TEXT
         );
         ALTER TABLE church_services ADD COLUMN service_type_external_id TEXT;
+        ALTER TABLE church_services ADD COLUMN service_type_name TEXT;
         ALTER TABLE church_service_items ADD COLUMN song_external_id TEXT;
         ALTER TABLE church_service_items ADD COLUMN arrangement_external_id TEXT;
         ALTER TABLE church_service_items ADD COLUMN service_position TEXT;
