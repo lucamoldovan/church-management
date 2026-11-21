@@ -1569,13 +1569,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     try {
       // Import the full People directory. Only names and Planning Center IDs are persisted.
       const peopleDirectory = await fetchAll("https://api.planningcenteronline.com/people/v2/people?per_page=100", "/people/v2/", 500);
-      const peopleImported = peopleDirectory.data.length;
+      let peopleImported = peopleDirectory.data.length;
       for (const person of peopleDirectory.data) upsertPerson(person, person.id);
 
       const typeResult = await fetchAll(apiBase + "/service_types?per_page=100");
       let plansProcessed = 0;
       let itemsImported = 0;
-      let peopleImported = 0;
       let teamsImported = 0;
       let positionsImported = 0;
       let scheduledAssignmentsImported = 0;
