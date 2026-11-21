@@ -25,7 +25,9 @@ jobs:
           node-version: 22
           package-manager-cache: false
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --no-fund
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
       - name: Build dashboard and API
         run: npm run build
       - name: Run API tests
