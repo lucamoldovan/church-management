@@ -895,6 +895,30 @@ test("church staff, services, events and groups stay behind staff authentication
     });
     assert.equal(invalidStaffRole.statusCode, 400);
 
+    const secondAdmin = await app.inject({
+      method: "POST",
+      url: "/api/v1/church/staff",
+      headers,
+      payload: { username: "admin-two", displayName: "Second Admin", password: "another-long-test-password", role: "admin" },
+    });
+    assert.equal(secondAdmin.statusCode, 201);
+
+    const selfDeactivate = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/church/staff/${adminId}`,
+      headers,
+      payload: { active: false },
+    });
+    assert.equal(selfDeactivate.statusCode, 400);
+
+    const disableSecondAdmin = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/church/staff/${secondAdmin.json().id}`,
+      headers,
+      payload: { active: false },
+    });
+    assert.equal(disableSecondAdmin.statusCode, 200);
+
     const disableLastAdmin = await app.inject({
       method: "PATCH",
       url: `/api/v1/church/staff/${adminId}`,
