@@ -559,7 +559,7 @@ test("backup command creates a consistent database and pairing-secret backup", (
 
     const backupDatabase = openDatabase(join(backupDirectory, manifest.databaseFile));
     try {
-      assert.equal(backupDatabase.pragma("user_version", { simple: true }), 7);
+      assert.equal(backupDatabase.pragma("user_version", { simple: true }), 8);
     } finally {
       backupDatabase.close();
     }
@@ -656,13 +656,13 @@ test("database initializes a versioned schema", () => {
   const database = openDatabase(":memory:");
 
   try {
-    assert.equal(database.pragma("user_version", { simple: true }), 7);
+    assert.equal(database.pragma("user_version", { simple: true }), 8);
     const tables = database.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
     ).all() as Array<{ name: string }>;
     assert.deepEqual(
       tables.map((table) => table.name),
-      ["church_events", "church_group_members", "church_groups", "church_service_items", "church_services", "devices", "media_assets", "operators", "pairing_codes", "playlist_items", "playlists", "propresenter_state", "sessions"],
+      ["church_events", "church_group_members", "church_groups", "church_service_items", "church_services", "devices", "media_assets", "operators", "pairing_codes", "playlist_items", "playlists", "propresenter_state", "service_assignment_times", "service_item_assignments", "service_live_state", "service_people", "service_plan_assignments", "service_plan_teams", "service_plan_times", "service_positions", "service_team_leaders", "service_team_memberships", "service_teams", "sessions"],
     );
   } finally {
     database.close();
@@ -715,7 +715,7 @@ test("database upgrades a populated version-one schema without losing devices", 
 
     const migrated = openDatabase(databasePath);
     try {
-      assert.equal(migrated.pragma("user_version", { simple: true }), 7);
+      assert.equal(migrated.pragma("user_version", { simple: true }), 8);
       const device = migrated.prepare(
         "SELECT id, name, credential_revoked_at, discovered_sources_json FROM devices WHERE id = ?",
       ).get("device-1") as { id: string; name: string; credential_revoked_at: string | null; discovered_sources_json: string };
@@ -994,6 +994,8 @@ test("ProPresenter live status reads the documented nested slide index and slide
   const app = createTestApp();
   const originalFetch = globalThis.fetch;
   const originalUrl = process.env.PROPRESENTER_URL;
+  const originalAppId = process.env.PLANNING_CENTER_APP_ID;
+  const originalSecret = process.env.PLANNING_CENTER_SECRET;
   process.env.PROPRESENTER_URL = "http://127.0.0.1:1025";
   globalThis.fetch = async (input) => {
     const url = String(input);
@@ -1030,6 +1032,197 @@ test("ProPresenter live status reads the documented nested slide index and slide
     globalThis.fetch = originalFetch;
     if (originalUrl === undefined) delete process.env.PROPRESENTER_URL;
     else process.env.PROPRESENTER_URL = originalUrl;
+    await app.close();
+  }
+});
+
+
+test("Planning Center sync imports teams, positions, people, scheduled roles, service times and item assignments", async () => {
+  const app = createTestApp();
+  const originalFetch = globalThis.fetch;
+  const originalAppId = process.env.PLANNING_CENTER_APP_ID;
+  const originalSecret = process.env.PLANNING_CENTER_SECRET;
+  const originalProPresenterUrl = process.env.PROPRESENTER_URL;
+  process.env.PLANNING_CENTER_APP_ID = "test-client";
+  process.env.PLANNING_CENTER_SECRET = "test-secret";
+  process.env.PROPRESENTER_URL = "http://127.0.0.1:1025";
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url === "http://127.0.0.1:1025/version") return new Response(JSON.stringify({ version: "17.0.0" }), { headers: { "content-type": "application/json" } });
+    if (url === "http://127.0.0.1:1025/v1/presentation/active") return new Response(JSON.stringify({ presentation: { name: "Amazing Grace" } }), { headers: { "content-type": "application/json" } });
+    if (url === "http://127.0.0.1:1025/v1/status/slide") return new Response(JSON.stringify({ current: { text: "Amazing grace, how sweet the sound", uuid: "slide-uuid" } }), { headers: { "content-type": "application/json" } });
+    if (url === "http://127.0.0.1:1025/v1/presentation/slide_index") return new Response(JSON.stringify({ presentation: { index: 2 } }), { headers: { "content-type": "application/json" } });
+    let document: { data?: unknown; included?: unknown[]; links?: { next?: string | null } } = { data: [] };
+    if (url.endsWith("/service_types?per_page=100")) {
+      document.data = [{ id: "type-1", type: "ServiceType", attributes: { name: "Sunday Service" } }];
+      document.links = { next: "/services/v2/service_types?per_page=100&offset=100" };
+    } else if (url.endsWith("/service_types?per_page=100&offset=100")) {
+      document.data = [{ id: "type-2", type: "ServiceType", attributes: { name: "Midweek" } }];
+    } else if (url.endsWith("/service_types/type-1/teams?per_page=100")) {
+      document.data = [{ id: "team-1", type: "Team", attributes: { name: "Worship", sequence: 1 } }];
+    } else if (url.endsWith("/teams/team-1/team_leaders?include=people&per_page=100")) {
+      document.data = [{ id: "leader-1", type: "TeamLeader", relationships: { person: { data: { type: "Person", id: "person-2" } }, team: { data: { type: "Team", id: "team-1" } } } }];
+      document.included = [{ id: "person-2", type: "Person", attributes: { first_name: "Bob", last_name: "Teamlead" } }];
+    } else if (url.endsWith("/teams/team-1/team_positions?per_page=100")) {
+      document.data = [{ id: "position-1", type: "TeamPosition", attributes: { name: "Vocals", sequence: 1 }, relationships: { team: { data: { type: "Team", id: "team-1" } } } }];
+    } else if (url.endsWith("/person_team_position_assignments?include=person&per_page=100")) {
+      document.data = [{ id: "membership-1", type: "PersonTeamPositionAssignment", attributes: { schedule_preference: "Every week" }, relationships: { person: { data: { type: "Person", id: "person-1" } } } }];
+      document.included = [{ id: "person-1", type: "Person", attributes: { first_name: "Alice", last_name: "Singer" } }];
+    } else if (url.endsWith("/service_types/type-1/plans?filter=future&per_page=100")) {
+      document.data = [{ id: "plan-1", type: "Plan", attributes: { title: "Sunday Worship", sort_date: "2026-11-22T10:00:00Z" } }];
+    } else if (url.endsWith("/items?include=song,arrangement&per_page=100")) {
+      document.data = [{ id: "item-1", type: "Item", attributes: { title: "Amazing Grace", sequence: 1, item_type: "song", length: 240, description: "Start softly" }, relationships: { song: { data: { type: "Song", id: "song-1" } } } }];
+      document.included = [{ id: "song-1", type: "Song", attributes: { title: "Amazing Grace" } }];
+    } else if (url.endsWith("/team_members?include=person,team&per_page=100")) {
+      document.data = [{ id: "plan-person-1", type: "PlanPerson", attributes: { name: "Alice Singer", team_position_name: "Vocals", status: "confirmed", notes: "Arrive early" }, relationships: { person: { data: { type: "Person", id: "person-1" } }, team: { data: { type: "Team", id: "team-1" } }, times: { data: [{ type: "PlanTime", id: "time-1" }] } } }];
+      document.included = [
+        { id: "person-1", type: "Person", attributes: { first_name: "Alice", last_name: "Singer" } },
+        { id: "team-1", type: "Team", attributes: { name: "Worship", sequence: 1 } },
+      ];
+    } else if (url.endsWith("/plan_times?per_page=100")) {
+      document.data = [{ id: "time-1", type: "PlanTime", attributes: { name: "Sunday 10:00", starts_at: "2026-11-22T10:00:00Z", ends_at: "2026-11-22T11:30:00Z", time_type: "service" } }];
+    } else if (url.endsWith("/signup_teams?per_page=100")) {
+      document.data = [{ id: "team-1", type: "Team", attributes: { name: "Worship", sequence: 1 } }];
+    } else if (url.includes("/item_assignments?per_page=100")) {
+      document.data = [
+        { id: "item-assignment-person", type: "ItemAssignment", attributes: { assignable_type: "Person" }, relationships: { assignable: { data: { type: "Person", id: "person-1" } } } },
+        { id: "item-assignment-position", type: "ItemAssignment", attributes: { assignable_type: "TeamPosition" }, relationships: { assignable: { data: { type: "TeamPosition", id: "position-1" } } } },
+      ];
+    }
+    return new Response(JSON.stringify(document), { status: 200, headers: { "content-type": "application/json" } });
+  };
+
+  try {
+    await app.inject({ method: "POST", url: "/api/v1/setup", payload: {
+      setupKey: "test-setup-key", username: "admin", password: "a-very-long-test-password",
+    }});
+    const login = await app.inject({ method: "POST", url: "/api/v1/auth/session", payload: {
+      username: "admin", password: "a-very-long-test-password",
+    }});
+    const cookie = String(login.headers["set-cookie"]).split(";")[0];
+    const headers = { cookie };
+
+    const sync = await app.inject({ method: "POST", url: "/api/v1/integrations/planning-center/sync", headers });
+    assert.equal(sync.statusCode, 200, sync.body);
+    assert.equal(sync.json().imported, 1);
+    assert.equal(sync.json().serviceTypes, 2);
+    assert.equal(sync.json().scheduledAssignmentsImported, 1);
+    assert.equal(sync.json().itemAssignmentsImported, 2);
+
+    const services = await app.inject({ method: "GET", url: "/api/v1/church/services", headers });
+    const serviceId = services.json().services[0].id as string;
+    const workspace = await app.inject({ method: "GET", url: `/api/v1/church/services/${serviceId}/workspace`, headers });
+    assert.equal(workspace.statusCode, 200, workspace.body);
+    assert.equal(workspace.json().teams[0].name, "Worship");
+    assert.equal(workspace.json().teams[0].leaders[0], "Bob Teamlead");
+    assert.equal(workspace.json().assignments[0].personName, "Alice Singer");
+    assert.equal(workspace.json().assignments[0].positionName, "Vocals");
+    assert.equal(workspace.json().assignments[0].status, "Confirmed");
+    assert.equal(workspace.json().times[0].name, "Sunday 10:00");
+    assert.equal(workspace.json().items[0].songExternalId, "song-1");
+    assert.equal(workspace.json().items[0].assignments.length, 2);
+
+    const directory = await app.inject({ method: "GET", url: "/api/v1/church/teams", headers });
+    assert.equal(directory.statusCode, 200);
+    assert.equal(directory.json().teams[0].name, "Worship");
+    assert.equal(directory.json().teams[0].leaders[0], "Bob Teamlead");
+    assert.equal(directory.json().teams[0].positions[0].name, "Vocals");
+    assert.equal(directory.json().teams[0].positions[0].members[0].personName, "Alice Singer");
+
+    const live = await app.inject({ method: "GET", url: `/api/v1/integrations/propresenter/live?serviceId=${serviceId}`, headers });
+    assert.equal(live.statusCode, 200);
+    assert.equal(live.json().connected, true);
+    assert.equal(live.json().rundownMatch.status, "matched");
+    assert.equal(live.json().rundownMatch.itemId, workspace.json().items[0].id);
+    assert.equal(live.json().rundownMatch.matchMethod, "exact_presentation_title");
+
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      const payload = url.endsWith("/version") ? { version: "17.0.0" }
+        : url.endsWith("/v1/presentation/active") ? { presentation: { name: "Sunday Service" } }
+        : url.endsWith("/v1/status/slide") ? { current: { text: "Amazing Grace, how sweet the sound" } }
+        : { presentation: { index: 3 } };
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    const lyricOnly = await app.inject({ method: "GET", url: `/api/v1/integrations/propresenter/live?serviceId=${serviceId}`, headers });
+    assert.equal(lyricOnly.json().rundownMatch.status, "unmatched");
+    assert.equal(lyricOnly.json().rundownMatch.itemId, null);
+
+    const updatedWorkspace = await app.inject({ method: "GET", url: `/api/v1/church/services/${serviceId}/workspace`, headers });
+    assert.equal(updatedWorkspace.json().live.matchedItemId, null);
+    assert.equal(updatedWorkspace.json().live.message.includes("does not exactly match"), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalAppId === undefined) delete process.env.PLANNING_CENTER_APP_ID;
+    else process.env.PLANNING_CENTER_APP_ID = originalAppId;
+    if (originalSecret === undefined) delete process.env.PLANNING_CENTER_SECRET;
+    else process.env.PLANNING_CENTER_SECRET = originalSecret;
+    if (originalProPresenterUrl === undefined) delete process.env.PROPRESENTER_URL;
+    else process.env.PROPRESENTER_URL = originalProPresenterUrl;
+    await app.close();
+  }
+});
+
+test("ProPresenter does not guess when a song title is duplicated in the rundown", async () => {
+  const app = createTestApp();
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.PROPRESENTER_URL;
+  const originalAppId = process.env.PLANNING_CENTER_APP_ID;
+  const originalSecret = process.env.PLANNING_CENTER_SECRET;
+  process.env.PROPRESENTER_URL = "http://127.0.0.1:1025";
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    const payload = url.endsWith("/version") ? { version: "17.0.0" }
+      : url.endsWith("/v1/presentation/active") ? { name: "Amazing Grace" }
+      : url.endsWith("/v1/status/slide") ? { current: { text: "Amazing Grace" } }
+      : { presentation: { index: 1 } };
+    return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    await app.inject({ method: "POST", url: "/api/v1/setup", payload: {
+      setupKey: "test-setup-key", username: "admin", password: "a-very-long-test-password",
+    }});
+    const login = await app.inject({ method: "POST", url: "/api/v1/auth/session", payload: {
+      username: "admin", password: "a-very-long-test-password",
+    }});
+    const cookie = String(login.headers["set-cookie"]).split(";")[0];
+    process.env.PLANNING_CENTER_APP_ID = "test-client";
+    process.env.PLANNING_CENTER_SECRET = "test-secret";
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      if (url.endsWith("/service_types?per_page=100")) return new Response(JSON.stringify({ data: [{ id: "type-1", attributes: { name: "Sunday" } }] }));
+      if (url.endsWith("/service_types/type-1/teams?per_page=100")) return new Response(JSON.stringify({ data: [] }));
+      if (url.endsWith("/service_types/type-1/plans?filter=future&per_page=100")) return new Response(JSON.stringify({ data: [{ id: "plan-1", attributes: { title: "Sunday", sort_date: "2026-11-22T10:00:00Z" } }] }));
+      if (url.endsWith("/items?include=song,arrangement&per_page=100")) return new Response(JSON.stringify({ data: [
+        { id: "song-a", attributes: { title: "Amazing Grace", item_type: "song", sequence: 1 } },
+        { id: "song-b", attributes: { title: "Amazing Grace", item_type: "song", sequence: 2 } },
+      ] }));
+      return new Response(JSON.stringify({ data: [] }));
+    };
+    const sync = await app.inject({ method: "POST", url: "/api/v1/integrations/planning-center/sync", headers: { cookie } });
+    assert.equal(sync.statusCode, 200, sync.body);
+    const importedServices = await app.inject({ method: "GET", url: "/api/v1/church/services", headers: { cookie } });
+    const importedServiceId = importedServices.json().services[0].id as string;
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      const payload = url.endsWith("/version") ? { version: "17.0.0" }
+        : url.endsWith("/v1/presentation/active") ? { name: "Amazing Grace" }
+        : url.endsWith("/v1/status/slide") ? { current: { text: "Amazing Grace" } }
+        : { presentation: { index: 1 } };
+      return new Response(JSON.stringify(payload));
+    };
+    const live = await app.inject({ method: "GET", url: `/api/v1/integrations/propresenter/live?serviceId=${importedServiceId}`, headers: { cookie } });
+    assert.equal(live.json().rundownMatch.status, "ambiguous");
+    assert.equal(live.json().rundownMatch.itemId, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.PROPRESENTER_URL;
+    else process.env.PROPRESENTER_URL = originalUrl;
+    if (originalAppId === undefined) delete process.env.PLANNING_CENTER_APP_ID;
+    else process.env.PLANNING_CENTER_APP_ID = originalAppId;
+    if (originalSecret === undefined) delete process.env.PLANNING_CENTER_SECRET;
+    else process.env.PLANNING_CENTER_SECRET = originalSecret;
     await app.close();
   }
 });

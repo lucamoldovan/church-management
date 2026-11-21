@@ -3,9 +3,10 @@ import { Activity, CalendarDays, CircleAlert, LoaderCircle, Plus, RefreshCw, Use
 import {
   createChurchEvent, createChurchGroup, createChurchService, createChurchStaff,
   getChurchEvents, getChurchGroups, getChurchServices, getChurchStaff,
-  getPlanningCenterStatus, getProPresenterLive, getChurchServiceItems, sendProPresenterCommand, syncPlanningCenter,
-  type ChurchEvent, type ChurchGroup, type ChurchService, type ChurchServiceItem, type ChurchStaff,
-  type ProPresenterLive,
+  getPlanningCenterStatus, getProPresenterLive, getChurchServiceWorkspace, getChurchTeams,
+  sendProPresenterCommand, syncPlanningCenter,
+  type ChurchEvent, type ChurchGroup, type ChurchService, type ChurchStaff,
+  type ChurchServiceWorkspace, type ChurchTeamDirectory, type ProPresenterLive,
 } from "./api";
 
 export type ChurchPageId = "services" | "staff" | "events" | "groups" | "production";
@@ -26,8 +27,10 @@ function Notice({ error, success }: { error: string; success: string }) {
 
 export function ChurchPage({ page, role }: { page: ChurchPageId; role: string }) {
   const [services, setServices] = useState<ChurchService[]>([]);
-  const [expandedServiceId, setExpandedServiceId] = useState<string | null>(null);
-  const [serviceItems, setServiceItems] = useState<Record<string, ChurchServiceItem[]>>({});
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [workspace, setWorkspace] = useState<ChurchServiceWorkspace | null>(null);
+  const [teamDirectory, setTeamDirectory] = useState<ChurchTeamDirectory[]>([]);
+  const [serviceView, setServiceView] = useState<"rundown" | "teams">("rundown");
   const [staff, setStaff] = useState<ChurchStaff[]>([]);
   const [events, setEvents] = useState<ChurchEvent[]>([]);
   const [groups, setGroups] = useState<ChurchGroup[]>([]);
@@ -45,6 +48,11 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
       if (page === "services") {
         const [result, status] = await Promise.all([getChurchServices(), getPlanningCenterStatus()]);
         setServices(result.services); setPco(status);
+        if (!selectedServiceId && result.services[0]) setSelectedServiceId(result.services[0].id);
+        if (selectedServiceId && !result.services.some((service) => service.id === selectedServiceId)) {
+          setSelectedServiceId(result.services[0]?.id ?? "");
+          setWorkspace(null);
+        }
       } else if (page === "staff") {
         setStaff((await getChurchStaff()).staff);
       } else if (page === "events") {
@@ -71,6 +79,38 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     return () => window.clearInterval(timer);
   }, [page]);
 
+  useEffect(() => {
+    if (page !== "services" || !selectedServiceId) {
+      setWorkspace(null);
+      return;
+    }
+    let active = true;
+    const loadWorkspace = async () => {
+      try {
+        const [data, live] = await Promise.all([
+          getChurchServiceWorkspace(selectedServiceId),
+          getProPresenterLive(selectedServiceId),
+        ]);
+        if (!active) return;
+        setWorkspace(data);
+        setPropresenter(live);
+      } catch (e) {
+        if (active) setError(e instanceof Error ? e.message : "Could not load the service workspace.");
+      }
+    };
+    void loadWorkspace();
+    const timer = window.setInterval(() => void loadWorkspace(), 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [page, selectedServiceId]);
+
+  useEffect(() => {
+    if (page !== "services" || serviceView !== "teams") return;
+    let active = true;
+    void getChurchTeams().then((result) => { if (active) setTeamDirectory(result.teams); })
+      .catch((e) => { if (active) setError(e instanceof Error ? e.message : "Could not load Planning Center teams."); });
+    return () => { active = false; };
+  }, [page, serviceView]);
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setBusy(true); setError(""); setSuccess("");
     const data = new FormData(event.currentTarget);
@@ -94,24 +134,12 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     finally { setBusy(false); }
   };
 
-  const toggleServiceItems = async (serviceId: string) => {
-    if (expandedServiceId === serviceId) { setExpandedServiceId(null); return; }
-    setExpandedServiceId(serviceId);
-    if (serviceItems[serviceId]) return;
-    setBusy(true); setError("");
-    try {
-      const result = await getChurchServiceItems(serviceId);
-      setServiceItems(current => ({ ...current, [serviceId]: result.items }));
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not load the service order."); }
-    finally { setBusy(false); }
-  };
-
   const sync = async () => {
     setBusy(true); setError(""); setSuccess("");
     try {
       const result = await syncPlanningCenter();
-      setSuccess(`Synced ${result.imported} service plans and ${result.itemsImported} order items from Planning Center.`);
-      setServiceItems({}); setExpandedServiceId(null);
+      setSuccess(`Synced ${result.imported} plans, ${result.itemsImported} rundown items, ${result.peopleImported} people, ${result.teamsImported} teams, ${result.positionsImported} positions, ${result.scheduledAssignmentsImported} scheduled roles and ${result.itemAssignmentsImported} item assignments.`);
+      setWorkspace(null);
       await refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Planning Center sync failed."); }
     finally { setBusy(false); }
@@ -149,19 +177,108 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
     next?: { text?: string; notes?: string } | null;
   } | null;
 
-  if (page === "services") return <div>
-    <PageHeader eyebrow="SERVICE PLANNING" title="Services" description="Plan services locally and bring in existing plans from Planning Center." action={<button className="button button-dark" onClick={() => setShowForm(v => !v)}><Plus size={15}/> New service</button>}/>
-    <div className="integration-strip">
-      <div><span className={`integration-dot ${pco?.connected ? "online" : ""}`}/><div><strong>Planning Center</strong><small>{pco?.message ?? "Checking connection…"}</small></div></div>
-      {role === "admin" && <button className="button button-secondary" onClick={() => void sync()} disabled={busy || !pco?.connected}><RefreshCw size={14}/> Sync services</button>}
-    </div>
-    {showForm && <form className="panel church-form" onSubmit={submit}><h2>Create service</h2><label>Title<input name="title" required maxLength={160}/></label><label>Starts<input name="startsAt" type="datetime-local"/></label><label>Ends<input name="endsAt" type="datetime-local"/></label><label>Location<input name="location"/></label><button className="button button-dark" disabled={busy}>Save service</button></form>}
-    <Notice error={error} success={success}/>
-    {loading ? <Loading/> : <div className="church-list">{services.map(s => <div key={s.id}>
-      <article className="panel church-row"><div className="church-row-icon"><CalendarDays/></div><div className="church-row-main"><strong>{s.title}</strong><span>{dateLabel(s.startsAt)}{s.location ? ` · ${s.location}` : ""}</span></div><span className="source-pill">{s.itemCount ?? 0} items</span><span className={`source-pill ${s.source === "planning_center" ? "source-external" : ""}`}>{s.source === "planning_center" ? "Planning Center" : "Local"}</span>{(s.itemCount ?? 0) > 0 && <button className="button button-secondary" onClick={() => void toggleServiceItems(s.id)} disabled={busy}>{expandedServiceId === s.id ? "Hide order" : "View order"}</button>}</article>
-      {expandedServiceId === s.id && <div className="panel service-order">{(serviceItems[s.id] ?? []).map((item, index) => <div className="service-order-item" key={item.id}><span className="service-order-number">{item.position > 0 ? item.position : index + 1}</span><div><strong>{item.title}</strong><small>{item.itemType}{item.notes ? ` · ${item.notes}` : ""}</small></div></div>)}{!serviceItems[s.id]?.length && <Empty text="No order items found for this service."/>}</div>}
-    </div>)}{!services.length && <Empty text="No services yet. Create one or sync Planning Center."/>}</div>}
-  </div>;
+  if (page === "services") {
+    const currentItemId = propresenter?.rundownMatch?.status === "matched" ? propresenter.rundownMatch.itemId : null;
+    const currentIndex = workspace?.items.findIndex((item) => item.id === currentItemId) ?? -1;
+    const planAssignmentsForTeam = (teamId: string) => workspace?.assignments.filter((assignment) => assignment.teamId === teamId) ?? [];
+    return <div>
+      <PageHeader eyebrow="SERVICE PLANNING" title="Services" description="A live Planning Center workspace for the rundown, teams and scheduled people." action={<div className="service-page-actions"><button className="button button-secondary" onClick={() => setShowForm((value) => !value)}><Plus size={14}/> New service</button>{role === "admin" && <button className="button button-dark" onClick={() => void sync()} disabled={busy || !pco?.connected}><RefreshCw size={14}/> Sync Planning Center</button>}</div>}/>
+      <div className="integration-strip">
+        <div><span className={`integration-dot ${pco?.connected ? "online" : ""}`}/><div><strong>Planning Center Services</strong><small>{pco?.message ?? "Checking connection…"}</small></div></div>
+        <small>{workspace?.service.source === "planning_center" ? "Plan data imported from Planning Center" : "Local service plan"}</small>
+      </div>
+      {showForm && <form className="panel church-form" onSubmit={submit}>
+        <h2>Create a local service</h2>
+        <label>Title<input name="title" required maxLength={160}/></label>
+        <label>Starts<input name="startsAt" type="datetime-local"/></label>
+        <label>Ends<input name="endsAt" type="datetime-local"/></label>
+        <label>Location<input name="location"/></label>
+        <button className="button button-dark" disabled={busy}>Save service</button>
+      </form>}
+      <Notice error={error} success={success}/>
+      {loading ? <Loading/> : <>
+        <section className="panel service-selector">
+          <label htmlFor="service-plan-select">Selected service plan</label>
+          <select id="service-plan-select" value={selectedServiceId} onChange={(event) => { setSelectedServiceId(event.target.value); setWorkspace(null); setPropresenter(null); }}>
+            {services.map((service) => <option value={service.id} key={service.id}>{service.title}{service.serviceTypeName ? ` · ${service.serviceTypeName}` : ""} · {dateLabel(service.startsAt)}</option>)}
+          </select>
+          {!services.length && <Empty text="No services yet. Sync Planning Center or create a local service."/>}
+        </section>
+        {workspace && <>
+          <section className="panel service-live-banner">
+            <div className="service-live-heading">
+              <span className={`integration-dot ${propresenter?.connected ? "online" : ""}`}/>
+              <div><strong>{propresenter?.connected ? "ProPresenter connected" : "ProPresenter disconnected"}</strong><small>{propresenter?.presentationName || "No active presentation detected"}</small></div>
+              <span className={`source-pill ${propresenter?.rundownMatch?.status === "matched" ? "source-active" : ""}`}>{propresenter?.rundownMatch?.status === "matched" ? "Live item matched" : propresenter?.rundownMatch?.status === "ambiguous" ? "Ambiguous match" : propresenter?.rundownMatch?.status === "unmatched" ? "No rundown match" : "No live signal"}</span>
+            </div>
+            <p>{propresenter?.rundownMatch?.message ?? "Live matching is waiting for ProPresenter status."}</p>
+            {propresenter?.checkedAt && <small>Last checked {new Date(propresenter.checkedAt).toLocaleTimeString()}</small>}
+          </section>
+          <div className="service-view-tabs" role="tablist" aria-label="Service views">
+            <button className={serviceView === "rundown" ? "service-view-tab active" : "service-view-tab"} onClick={() => setServiceView("rundown")} role="tab" aria-selected={serviceView === "rundown"}>Service rundown</button>
+            <button className={serviceView === "teams" ? "service-view-tab active" : "service-view-tab"} onClick={() => setServiceView("teams")} role="tab" aria-selected={serviceView === "teams"}>Teams directory</button>
+          </div>
+          {serviceView === "rundown" ? <>
+            <section className="service-workspace-grid">
+              <div className="panel service-rundown-panel">
+                <div className="panel-heading"><div><h2>Service rundown</h2><p>{workspace.items.length} ordered items · refreshed every 5 seconds</p></div><CalendarDays size={18}/></div>
+                {workspace.items.map((item, index) => {
+                  const isCurrent = item.id === currentItemId;
+                  return <article key={item.id} className={`service-rundown-item ${isCurrent ? "is-current" : ""}`}>
+                    <span className="service-rundown-number">{String(index + 1).padStart(2, "0")}</span>
+                    <div className="service-rundown-copy">
+                      <div className="service-rundown-title">{isCurrent && <span className="live-now-pill"><span/> NOW</span>}<strong>{item.title}</strong></div>
+                      <small>{item.itemType}{item.durationSeconds ? ` · ${Math.round(item.durationSeconds / 60)} min` : ""}{item.servicePosition ? ` · ${item.servicePosition}` : ""}</small>
+                      {item.notes && <p>{item.notes}</p>}
+                      {!!item.assignments?.length && <div className="item-assignment-list">Assigned: {item.assignments.map((assignment) => assignment.displayName).filter(Boolean).join(", ")}</div>}
+                    </div>
+                    {isCurrent && <span className="current-indicator"><Activity size={15}/></span>}
+                  </article>;
+                })}
+                {!workspace.items.length && <Empty text="This service has no rundown items."/>}
+                {currentIndex >= 0 && <p className="service-live-foot">Live position: item {currentIndex + 1} of {workspace.items.length}</p>}
+              </div>
+              <div className="service-team-column">
+                <section className="panel service-teams-panel">
+                  <div className="panel-heading"><div><h2>Teams serving</h2><p>People scheduled for this specific service</p></div><UsersRound size={18}/></div>
+                  {workspace.teams.map((team) => {
+                    const people = planAssignmentsForTeam(team.id);
+                    return <div className="service-team-block" key={team.id}>
+                      <div className="service-team-heading"><div><strong>{team.name}</strong>{!!team.leaders?.length && <small className="service-team-leaders">Lead: {team.leaders.join(", ")}</small>}</div><span>{people.length} scheduled</span></div>
+                      {people.map((person) => <div className="service-person-row" key={person.id}>
+                        <div><strong>{person.personName}</strong><small>{person.positionName || "Team member"}{person.serviceTimes ? ` · ${person.serviceTimes}` : ""}</small></div>
+                        {person.status && <span className={`source-pill ${person.status.toLowerCase().includes("confirm") ? "source-active" : ""}`}>{person.status}</span>}
+                      </div>)}
+                      {!people.length && <small className="service-team-empty">No people scheduled on this team.</small>}
+                    </div>;
+                  })}
+                  {!workspace.teams.length && <Empty text="No teams are assigned to this service plan."/>}
+                  {workspace.assignments.some((assignment) => !assignment.teamId) && <div className="service-team-block"><div className="service-team-heading"><strong>Unassigned / guest</strong></div>{workspace.assignments.filter((assignment) => !assignment.teamId).map((person) => <div className="service-person-row" key={person.id}><div><strong>{person.personName}</strong><small>{person.positionName || "No team position"}</small></div></div>)}</div>}
+                </section>
+                <section className="panel service-times-panel">
+                  <div className="panel-heading"><div><h2>Service times</h2><p>Times and schedule blocks from Planning Center</p></div><CalendarDays size={18}/></div>
+                  {workspace.times.map((time) => <div className="service-time-row" key={time.id}><strong>{time.name}</strong><small>{dateLabel(time.startsAt)}{time.timeType ? ` · ${time.timeType}` : ""}</small></div>)}
+                  {!workspace.times.length && <Empty text="No service times were returned for this plan."/>}
+                </section>
+              </div>
+            </section>
+          </> : <section className="panel service-directory-panel">
+            <div className="panel-heading"><div><h2>Planning Center teams</h2><p>Team directory with positions and assigned members</p></div><UsersRound size={18}/></div>
+            {teamDirectory.map((team) => <div className="service-directory-team" key={team.id}>
+              <div className="service-team-heading"><div><strong>{team.name}</strong>{!!team.leaders?.length && <small className="service-team-leaders">Lead: {team.leaders.join(", ")}</small>}</div><span>{team.positions.reduce((count, position) => count + position.members.length, 0)} members</span></div>
+              <div className="service-position-grid">{team.positions.map((position) => <div className="service-position-card" key={position.id}>
+                <strong>{position.name}</strong><small>{position.members.length} members</small>
+                {position.members.map((member) => <span key={member.id}>{member.personName}{member.schedulePreference ? ` · ${member.schedulePreference}` : ""}</span>)}
+                {!position.members.length && <span className="service-team-empty">No assigned members</span>}
+              </div>)}</div>
+              {!team.positions.length && <Empty text="No positions imported for this team."/>}
+            </div>)}
+            {!teamDirectory.length && <Empty text="No teams imported yet. Run a Planning Center sync."/>}
+          </section>}
+        </>}
+      </>}
+    </div>;
+  }
 
   if (page === "staff") return <div>
     <PageHeader eyebrow="PEOPLE & ACCESS" title="Staff" description="Internal accounts for church staff, team leaders and production operators." action={role === "admin" ? <button className="button button-dark" onClick={() => setShowForm(v => !v)}><Plus size={15}/> Add staff</button> : undefined}/>

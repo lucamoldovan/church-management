@@ -285,9 +285,35 @@ export interface ChurchOverview {
 }
 export interface ChurchService {
   id: string; title: string; startsAt: string | null; endsAt: string | null;
-  status: string; location: string | null; notes: string | null; source: string; externalId: string | null; itemCount?: number;
+  status: string; location: string | null; notes: string | null; source: string; externalId: string | null;
+  serviceTypeName?: string | null; itemCount?: number;
 }
-export interface ChurchServiceItem { id: string; position: number; title: string; itemType: string; durationSeconds: number | null; assignedTo: string | null; notes: string | null; }
+export interface ChurchServiceItem {
+  id: string; position: number; title: string; itemType: string; durationSeconds: number | null;
+  assignedTo: string | null; notes: string | null; songExternalId?: string | null;
+  arrangementExternalId?: string | null; servicePosition?: string | null;
+  assignments?: Array<{ id: string; itemId: string; assignableType: string; assignableExternalId: string; displayName: string | null }>;
+}
+export interface ServicePlanTeam { id: string; externalId: string; name: string; sequence: number | null; leaders?: string[]; }
+export interface ServicePlanAssignment {
+  id: string; personId: string; personName: string; teamId: string | null; teamName: string | null;
+  positionId: string | null; positionName: string | null; status: string | null; notes: string | null; serviceTimes: string | null;
+}
+export interface ServicePlanTime { id: string; externalId: string; name: string; startsAt: string | null; endsAt: string | null; timeType: string | null; }
+export interface ServiceLiveState {
+  matchedItemId: string | null; matchMethod: string | null; presentationName: string | null;
+  currentSlideText: string | null; currentSlideUuid: string | null; connected: number;
+  observedAt: string | null; staleAt: string | null; message: string | null;
+}
+export interface ChurchServiceWorkspace {
+  service: ChurchService; items: ChurchServiceItem[]; teams: ServicePlanTeam[];
+  assignments: ServicePlanAssignment[]; times: ServicePlanTime[]; live: ServiceLiveState | null;
+}
+export interface ChurchTeamDirectory {
+  id: string; externalId: string; name: string; sequence: number | null; archivedAt: string | null; leaders?: string[];
+  positions: Array<{ id: string; externalId: string; teamId: string; name: string; sequence: number | null;
+    members: Array<{ id: string; positionId: string; personId: string; personName: string; schedulePreference: string | null }> }>;
+}
 export interface ChurchStaff {
   id: string; username: string; displayName: string; role: string; department: string | null; active: number; createdAt: string;
 }
@@ -307,6 +333,12 @@ export function getChurchServices(signal?: AbortSignal): Promise<{ services: Chu
 }
 export function getChurchServiceItems(serviceId: string): Promise<{ items: ChurchServiceItem[] }> {
   return request<{ items: ChurchServiceItem[] }>(`/api/v1/church/services/${encodeURIComponent(serviceId)}/items`);
+}
+export function getChurchServiceWorkspace(serviceId: string): Promise<ChurchServiceWorkspace> {
+  return request<ChurchServiceWorkspace>(`/api/v1/church/services/${encodeURIComponent(serviceId)}/workspace`);
+}
+export function getChurchTeams(): Promise<{ teams: ChurchTeamDirectory[] }> {
+  return request<{ teams: ChurchTeamDirectory[] }>("/api/v1/church/teams");
 }
 export function createChurchService(input: { title: string; startsAt?: string; endsAt?: string; location?: string; notes?: string }): Promise<ChurchService> {
   return request<ChurchService>("/api/v1/church/services", { method: "POST", body: JSON.stringify(input) });
@@ -332,15 +364,18 @@ export function createChurchGroup(input: { name: string; description?: string; l
 export function getPlanningCenterStatus(): Promise<{ configured: boolean; connected: boolean; message: string }> {
   return request("/api/v1/integrations/planning-center/status");
 }
-export function syncPlanningCenter(): Promise<{ imported: number; itemsImported: number; plansProcessed: number; serviceTypes: number; syncedAt: string }> {
+export function syncPlanningCenter(): Promise<{ imported: number; itemsImported: number; peopleImported: number; teamsImported: number; positionsImported: number; scheduledAssignmentsImported: number; itemAssignmentsImported: number; serviceTypes: number; syncedAt: string }> {
   return request("/api/v1/integrations/planning-center/sync", { method: "POST" });
 }
 export interface ProPresenterLive {
   configured?: boolean; connected: boolean; message?: string; version?: unknown;
-  presentation?: unknown; slide?: unknown; slideIndex?: unknown; checkedAt?: string;
+  presentation?: unknown; presentationName?: string | null; slide?: unknown; slideIndex?: unknown;
+  slideUuid?: string | null; checkedAt?: string;
+  rundownMatch?: { status: "matched" | "unmatched" | "ambiguous" | "disconnected"; itemId: string | null; matchMethod: string | null; message: string };
 }
-export function getProPresenterLive(): Promise<ProPresenterLive> {
-  return request("/api/v1/integrations/propresenter/live");
+export function getProPresenterLive(serviceId?: string): Promise<ProPresenterLive> {
+  const query = serviceId ? `?serviceId=${encodeURIComponent(serviceId)}` : "";
+  return request(`/api/v1/integrations/propresenter/live${query}`);
 }
 
 export type ProPresenterAction = "next" | "previous" | "clear_slide";

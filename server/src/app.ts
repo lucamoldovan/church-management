@@ -1237,7 +1237,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get("/api/v1/church/services", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
     const services = database.prepare(`
-      SELECT s.id, s.title, s.starts_at AS startsAt, s.ends_at AS endsAt, s.status, s.location, s.notes, s.source, s.external_id AS externalId,
+      SELECT s.id, s.title, s.starts_at AS startsAt, s.ends_at AS endsAt, s.status, s.location, s.notes, s.source, s.external_id AS externalId, s.service_type_name AS serviceTypeName,
              (SELECT COUNT(*) FROM church_service_items i WHERE i.service_id = s.id) AS itemCount
       FROM church_services s ORDER BY s.starts_at IS NULL, s.starts_at ASC LIMIT 100
     `).all();
@@ -1254,6 +1254,48 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     database.prepare("INSERT INTO church_services (id, title, starts_at, ends_at, status, location, notes, source, created_at, updated_at) VALUES (?, ?, ?, ?, 'planned', ?, ?, 'local', ?, ?)")
       .run(id, title, typeof body.startsAt === "string" ? body.startsAt : null, typeof body.endsAt === "string" ? body.endsAt : null, typeof body.location === "string" ? body.location : null, typeof body.notes === "string" ? body.notes : null, now, now);
     return reply.code(201).send({ id, title, startsAt: body.startsAt ?? null, endsAt: body.endsAt ?? null, status: "planned", source: "local" });
+  });
+
+  app.get<{ Params: { serviceId: string } }>("/api/v1/church/services/:serviceId/workspace", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const service = database.prepare("SELECT id, title, starts_at AS startsAt, ends_at AS endsAt, status, location, notes, source, external_id AS externalId, service_type_name AS serviceTypeName FROM church_services WHERE id = ?").get(request.params.serviceId);
+    if (!service) return reply.code(404).send({ error: "Service not found" });
+    const items = database.prepare("SELECT id, position, title, item_type AS itemType, duration_seconds AS durationSeconds, assigned_to AS assignedTo, notes, song_external_id AS songExternalId, arrangement_external_id AS arrangementExternalId, service_position AS servicePosition FROM church_service_items WHERE service_id = ? ORDER BY position ASC, title COLLATE NOCASE").all(request.params.serviceId) as Array<Record<string, unknown>>;
+    const itemAssignments = database.prepare("SELECT ia.id, ia.item_id AS itemId, ia.assignable_type AS assignableType, ia.assignable_external_id AS assignableExternalId, COALESCE(p.display_name, pos.name, ia.display_name) AS displayName FROM service_item_assignments ia LEFT JOIN service_people p ON p.id = ia.person_id LEFT JOIN service_positions pos ON pos.id = ia.position_id JOIN church_service_items i ON i.id = ia.item_id WHERE i.service_id = ? ORDER BY displayName COLLATE NOCASE").all(request.params.serviceId);
+    const teams = database.prepare("SELECT t.id, t.external_id AS externalId, t.name, t.sequence FROM service_plan_teams pt JOIN service_teams t ON t.id = pt.team_id WHERE pt.service_id = ? ORDER BY pt.position, t.sequence, t.name COLLATE NOCASE").all(request.params.serviceId) as Array<Record<string, unknown>>;
+    const teamLeaders = database.prepare("SELECT tl.team_id AS teamId, p.display_name AS personName FROM service_team_leaders tl JOIN service_people p ON p.id = tl.person_id ORDER BY p.display_name COLLATE NOCASE").all() as Array<{ teamId: string; personName: string }>;
+    const assignments = database.prepare("SELECT a.id, a.person_id AS personId, p.display_name AS personName, a.team_id AS teamId, t.name AS teamName, a.position_id AS positionId, COALESCE(pos.name, a.position_name) AS positionName, a.status, a.notes, (SELECT group_concat(pt.name, ', ') FROM service_assignment_times sat JOIN service_plan_times pt ON pt.id = sat.plan_time_id WHERE sat.assignment_id = a.id) AS serviceTimes FROM service_plan_assignments a JOIN service_people p ON p.id = a.person_id LEFT JOIN service_teams t ON t.id = a.team_id LEFT JOIN service_positions pos ON pos.id = a.position_id WHERE a.service_id = ? ORDER BY t.sequence, t.name COLLATE NOCASE, COALESCE(pos.sequence, 9999), positionName COLLATE NOCASE, p.display_name COLLATE NOCASE").all(request.params.serviceId);
+    const times = database.prepare("SELECT id, external_id AS externalId, name, starts_at AS startsAt, ends_at AS endsAt, time_type AS timeType FROM service_plan_times WHERE service_id = ? ORDER BY starts_at, name").all(request.params.serviceId);
+    const live = database.prepare("SELECT matched_item_id AS matchedItemId, match_method AS matchMethod, presentation_name AS presentationName, current_slide_text AS currentSlideText, current_slide_uuid AS currentSlideUuid, connected, observed_at AS observedAt, stale_at AS staleAt, message FROM service_live_state WHERE service_id = ?").get(request.params.serviceId) ?? null;
+    const assignmentsByItem = new Map<string, Array<Record<string, unknown>>>();
+    for (const assignment of itemAssignments as Array<Record<string, unknown>>) {
+      const itemId = String(assignment.itemId);
+      const list = assignmentsByItem.get(itemId) ?? [];
+      list.push(assignment);
+      assignmentsByItem.set(itemId, list);
+    }
+    return {
+      service,
+      items: items.map((item) => ({ ...item, assignments: assignmentsByItem.get(String(item.id)) ?? [] })),
+      teams: teams.map((team) => ({ ...team, leaders: teamLeaders.filter((leader) => leader.teamId === team.id).map((leader) => leader.personName) })),
+      assignments, times, live,
+    };
+  });
+
+  app.get("/api/v1/church/teams", async (request, reply) => {
+    if (!requireOperator(request, reply)) return;
+    const teams = database.prepare("SELECT id, external_id AS externalId, name, sequence, archived_at AS archivedAt FROM service_teams ORDER BY sequence, name COLLATE NOCASE").all() as Array<Record<string, unknown>>;
+    const positions = database.prepare("SELECT id, external_id AS externalId, team_id AS teamId, name, sequence FROM service_positions ORDER BY sequence, name COLLATE NOCASE").all() as Array<Record<string, unknown>>;
+    const leaders = database.prepare("SELECT tl.team_id AS teamId, p.display_name AS personName FROM service_team_leaders tl JOIN service_people p ON p.id = tl.person_id ORDER BY p.display_name COLLATE NOCASE").all() as Array<{ teamId: string; personName: string }>;
+    const members = database.prepare("SELECT m.id, m.position_id AS positionId, p.id AS personId, p.display_name AS personName, m.schedule_preference AS schedulePreference FROM service_team_memberships m JOIN service_people p ON p.id = m.person_id ORDER BY p.display_name COLLATE NOCASE").all() as Array<Record<string, unknown>>;
+    return { teams: teams.map((team) => ({
+      ...team,
+      leaders: leaders.filter((leader) => leader.teamId === team.id).map((leader) => leader.personName),
+      positions: positions.filter((position) => position.teamId === team.id).map((position) => ({
+        ...position,
+        members: members.filter((member) => member.positionId === position.id),
+      })),
+    })) };
   });
 
   app.get<{ Params: { serviceId: string } }>("/api/v1/church/services/:serviceId/items", async (request, reply) => {
@@ -1337,74 +1379,353 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       "User-Agent": "Church Operations (https://github.com/lucamoldovan/church-management)",
     };
     const apiBase = "https://api.planningcenteronline.com/services/v2";
-    const fetchJson = async (url: string) => {
-      const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
-      if (!response.ok) throw new Error("Planning Center returned HTTP " + response.status);
-      return response.json() as Promise<{ data?: Array<{ id: string; attributes?: Record<string, unknown> }> }>;
+    type PcoResource = { id: string; type?: string; attributes?: Record<string, unknown>; relationships?: Record<string, { data?: { id: string; type: string } | Array<{ id: string; type: string }> | null }> };
+    type PcoDocument = { data?: PcoResource[] | PcoResource; included?: PcoResource[]; links?: { next?: string | null } };
+    const fetchPage = async (url: string): Promise<PcoDocument> => {
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(12000) });
+      if (!response.ok) throw new Error("Planning Center returned HTTP " + response.status + " for " + new URL(url).pathname);
+      return response.json() as Promise<PcoDocument>;
+    };
+    const fetchAll = async (url: string): Promise<{ data: PcoResource[]; included: PcoResource[] }> => {
+      let next: string | null = url;
+      const data: PcoResource[] = [];
+      const included: PcoResource[] = [];
+      let pages = 0;
+      while (next) {
+        if (++pages > 100) throw new Error("Planning Center pagination exceeded 100 pages; sync stopped safely.");
+        const targetUrl: URL = new URL(next, apiBase + "/");
+        if (targetUrl.origin !== "https://api.planningcenteronline.com" || !targetUrl.pathname.startsWith("/services/v2/")) {
+          throw new Error("Planning Center returned an unexpected pagination URL; sync stopped safely.");
+        }
+        const page = await fetchPage(targetUrl.toString());
+        const pageData = Array.isArray(page.data) ? page.data : page.data ? [page.data] : [];
+        data.push(...pageData);
+        included.push(...(page.included ?? []));
+        next = page.links?.next ? new URL(page.links.next, targetUrl).toString() : null;
+      }
+      return { data, included };
+    };
+    const attr = (resource: PcoResource | undefined, key: string): unknown => resource?.attributes?.[key];
+    const relationship = (resource: PcoResource | undefined, key: string): { id: string; type: string } | null => {
+      const value = resource?.relationships?.[key]?.data;
+      return value && !Array.isArray(value) ? value : null;
+    };
+    const relationshipMany = (resource: PcoResource | undefined, key: string): Array<{ id: string; type: string }> => {
+      const value = resource?.relationships?.[key]?.data;
+      return Array.isArray(value) ? value : [];
+    };
+    const includedIndex = (resources: PcoResource[]) => new Map(resources.map((resource) => [resource.type + ":" + resource.id, resource]));
+    const displayName = (person: PcoResource | undefined, fallback?: unknown): string => {
+      const first = attr(person, "first_name");
+      const last = attr(person, "last_name");
+      const full = attr(person, "full_name") ?? attr(person, "name") ?? fallback;
+      const composed = [first, last].filter((part): part is string => typeof part === "string" && part.trim().length > 0).join(" ");
+      return String(composed || full || "Unnamed person").trim().slice(0, 160);
+    };
+    const normalizeScheduleStatus = (value: unknown): string | null => {
+      if (typeof value !== "string" || !value.trim()) return null;
+      const status = value.trim().toLowerCase();
+      if (status === "c" || status === "confirmed") return "Confirmed";
+      if (status === "u" || status === "unconfirmed") return "Unconfirmed";
+      if (status === "d" || status === "declined") return "Declined";
+      return value.trim().slice(0, 60);
+    };
+    const now = () => new Date().toISOString();
+    const upsertPerson = (person: PcoResource | undefined, externalId: string, fallback?: unknown): string => {
+      const attributes = person?.attributes ?? {};
+      const name = displayName(person, fallback);
+      const id = database.prepare("SELECT id FROM service_people WHERE external_id = ?").get(externalId) as { id: string } | undefined;
+      const localId = id?.id ?? randomUUID();
+      database.prepare("INSERT INTO service_people (id, external_id, display_name, first_name, last_name, photo_url, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET display_name=excluded.display_name, first_name=excluded.first_name, last_name=excluded.last_name, photo_url=excluded.photo_url, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
+        .run(localId, externalId, name,
+          typeof attributes.first_name === "string" ? attributes.first_name : null,
+          typeof attributes.last_name === "string" ? attributes.last_name : null,
+          typeof attributes.photo_thumbnail === "string" ? attributes.photo_thumbnail : null,
+          JSON.stringify(person ?? { attributes: { name } }), now());
+      return localId;
+    };
+    const upsertTeam = (team: PcoResource): string => {
+      const id = database.prepare("SELECT id FROM service_teams WHERE external_id = ?").get(team.id) as { id: string } | undefined;
+      const localId = id?.id ?? randomUUID();
+      const a = team.attributes ?? {};
+      database.prepare("INSERT INTO service_teams (id, external_id, name, sequence, archived_at, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET name=excluded.name, sequence=excluded.sequence, archived_at=excluded.archived_at, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
+        .run(localId, team.id, String(a.name ?? "Unnamed team").slice(0, 160),
+          typeof a.sequence === "number" ? a.sequence : null,
+          typeof a.archived_at === "string" ? a.archived_at : null, JSON.stringify(team), now());
+      return localId;
+    };
+    const upsertPosition = (position: PcoResource, teamId: string): string => {
+      const id = database.prepare("SELECT id FROM service_positions WHERE external_id = ?").get(position.id) as { id: string } | undefined;
+      const localId = id?.id ?? randomUUID();
+      const a = position.attributes ?? {};
+      database.prepare("INSERT INTO service_positions (id, external_id, team_id, name, sequence, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET team_id=excluded.team_id, name=excluded.name, sequence=excluded.sequence, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
+        .run(localId, position.id, teamId, String(a.name ?? "Unnamed position").slice(0, 160),
+          typeof a.sequence === "number" ? a.sequence : null, JSON.stringify(position), now());
+      return localId;
     };
     try {
-      const types = await fetchJson(apiBase + "/service_types?per_page=100");
-      let imported = 0;
-      let itemsImported = 0;
+      const typeResult = await fetchAll(apiBase + "/service_types?per_page=100");
       let plansProcessed = 0;
-      for (const type of types.data ?? []) {
-        if (plansProcessed >= 25) break;
-        const plans = await fetchJson(apiBase + "/service_types/" + encodeURIComponent(type.id) + "/plans?filter=future&per_page=100");
-        for (const plan of plans.data ?? []) {
-          if (plansProcessed >= 25) break;
-          const attrs = plan.attributes ?? {};
-          const title = String(attrs.series_title || attrs.title || attrs.plan_title || type.attributes?.name || "Service plan").slice(0, 160);
-          const startsAt = typeof attrs.sort_date === "string" ? attrs.sort_date : null;
-          const now = new Date().toISOString();
-          database.prepare(`INSERT INTO church_services (id, title, starts_at, status, source, external_id, raw_json, created_at, updated_at)
-            VALUES (?, ?, ?, 'planned', 'planning_center', ?, ?, ?, ?)
-            ON CONFLICT(external_id) DO UPDATE SET title=excluded.title, starts_at=excluded.starts_at, raw_json=excluded.raw_json, updated_at=excluded.updated_at`)
-            .run(randomUUID(), title, startsAt, plan.id, JSON.stringify(plan), now, now);
-          const service = database.prepare("SELECT id FROM church_services WHERE external_id = ?").get(plan.id) as { id: string } | undefined;
-          if (!service) continue;
-          imported++;
-          plansProcessed++;
-
-          const items = await fetchJson(apiBase + "/service_types/" + encodeURIComponent(type.id) + "/plans/" + encodeURIComponent(plan.id) + "/items?per_page=100");
-          // Replace the local order snapshot so removed Planning Center items do not linger.
-          database.prepare("DELETE FROM church_service_items WHERE service_id = ?").run(service.id);
-          for (const [itemIndex, item] of (items.data ?? []).entries()) {
-            const itemAttrs = item.attributes ?? {};
-            const itemTitle = String(itemAttrs.title || itemAttrs.service_position || "Untitled item").slice(0, 160);
-            const position = typeof itemAttrs.sequence === "number" ? Math.max(0, Math.floor(itemAttrs.sequence)) : itemIndex;
-            const itemType = typeof itemAttrs.item_type === "string" ? itemAttrs.item_type.slice(0, 60) : "other";
-            const notes = typeof itemAttrs.description === "string" ? itemAttrs.description.slice(0, 4000) : null;
-            database.prepare(`INSERT INTO church_service_items (id, service_id, position, title, item_type, notes, external_id, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(external_id) DO UPDATE SET service_id=excluded.service_id, position=excluded.position,
-                title=excluded.title, item_type=excluded.item_type, notes=excluded.notes, updated_at=excluded.updated_at`)
-              .run(randomUUID(), service.id, position, itemTitle, itemType, notes, plan.id + ":" + item.id, now, now);
-            itemsImported++;
+      let itemsImported = 0;
+      let peopleImported = 0;
+      let teamsImported = 0;
+      let positionsImported = 0;
+      let scheduledAssignmentsImported = 0;
+      let itemAssignmentsImported = 0;
+      const membershipSnapshot = new Map<string, { id: string; personId: string; positionId: string; schedulePreference: string | null; rawJson: string }>();
+      const teamLeaderSnapshot = new Map<string, { id: string; externalId: string; teamId: string; personId: string; rawJson: string }>();
+      for (const type of typeResult.data) {
+        const typeId = type.id;
+        const typeTeams = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/teams?per_page=100");
+        const teamResources = new Map<string, PcoResource>();
+        const teamLocalIds = new Map<string, string>();
+        const positionResources = new Map<string, PcoResource>();
+        const positionLocalIds = new Map<string, string>();
+        const positionTeamExternalIds = new Map<string, string>();
+        const personResources = new Map<string, PcoResource>();
+        const loadTeam = async (team: PcoResource) => {
+          if (teamResources.has(team.id)) return;
+          teamResources.set(team.id, team);
+          const teamLocalId = upsertTeam(team);
+          teamLocalIds.set(team.id, teamLocalId);
+          const leaders = await fetchAll(apiBase + "/teams/" + encodeURIComponent(team.id) + "/team_leaders?include=people&per_page=100");
+          for (const included of leaders.included) if (included.type === "Person") personResources.set(included.id, included);
+          for (const leader of leaders.data) {
+            const personRef = relationship(leader, "person");
+            if (!personRef) continue;
+            if (!personResources.has(personRef.id)) {
+              const personDocument = await fetchPage(apiBase + "/people/" + encodeURIComponent(personRef.id));
+              const person = Array.isArray(personDocument.data) ? personDocument.data[0] : personDocument.data;
+              if (person) personResources.set(person.id, person);
+            }
+            const personId = upsertPerson(personResources.get(personRef.id), personRef.id);
+            teamLeaderSnapshot.set(teamLocalId + ":" + personId, {
+              id: randomUUID(), externalId: leader.id, teamId: teamLocalId, personId, rawJson: JSON.stringify(leader),
+            });
           }
+          const positions = await fetchAll(apiBase + "/teams/" + encodeURIComponent(team.id) + "/team_positions?per_page=100");
+          for (const position of positions.data) {
+            positionResources.set(position.id, position);
+            positionTeamExternalIds.set(position.id, team.id);
+            const localPositionId = upsertPosition(position, teamLocalId);
+            positionLocalIds.set(position.id, localPositionId);
+            const memberships = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/team_positions/" + encodeURIComponent(position.id) + "/person_team_position_assignments?include=person&per_page=100");
+            for (const included of memberships.included) if (included.type === "Person") personResources.set(included.id, included);
+            for (const membership of memberships.data) {
+              const personRef = relationship(membership, "person");
+              if (!personRef) continue;
+              const personId = upsertPerson(personResources.get(personRef.id), personRef.id);
+              const ma = membership.attributes ?? {};
+              membershipSnapshot.set(personId + ":" + localPositionId, {
+                id: randomUUID(), personId, positionId: localPositionId,
+                schedulePreference: typeof ma.schedule_preference === "string" ? ma.schedule_preference : null,
+                rawJson: JSON.stringify(membership),
+              });
+            }
+          }
+        };
+        for (const team of typeTeams.data) await loadTeam(team);
+        const plansResult = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/plans?filter=future&per_page=100");
+        for (const plan of plansResult.data) {
+          const planPath = "/service_types/" + encodeURIComponent(typeId) + "/plans/" + encodeURIComponent(plan.id);
+          const [itemsResult, peopleResult, timesResult, signupTeamsResult] = await Promise.all([
+            fetchAll(apiBase + planPath + "/items?include=song,arrangement&per_page=100"),
+            fetchAll(apiBase + planPath + "/team_members?include=person,team&per_page=100"),
+            fetchAll(apiBase + planPath + "/plan_times?per_page=100"),
+            fetchAll(apiBase + planPath + "/signup_teams?per_page=100"),
+          ]);
+          const planIncluded = includedIndex([...itemsResult.included, ...peopleResult.included, ...timesResult.included, ...signupTeamsResult.included]);
+          for (const team of signupTeamsResult.data) await loadTeam(team);
+          for (const scheduled of peopleResult.data) {
+            const teamRef = relationship(scheduled, "team");
+            if (teamRef && !teamResources.has(teamRef.id)) {
+              const fromIncluded = planIncluded.get("Team:" + teamRef.id);
+              if (fromIncluded) await loadTeam(fromIncluded);
+            }
+          }
+          const scheduledTeamIds = new Set<string>(signupTeamsResult.data.map((team) => team.id));
+          for (const scheduled of peopleResult.data) {
+            const teamRef = relationship(scheduled, "team");
+            if (teamRef) scheduledTeamIds.add(teamRef.id);
+          }
+          for (const included of planIncluded.values()) if (included.type === "Person") personResources.set(included.id, included);
+          const planPeople = new Map<string, { resource: PcoResource; personId: string; teamId: string | null; positionName: string | null }>();
+          for (const scheduled of peopleResult.data) {
+            const personRef = relationship(scheduled, "person");
+            const personResource = personRef ? personResources.get(personRef.id) : undefined;
+            const personExternalId = personRef?.id ?? "plan-person:" + scheduled.id;
+            const personId = upsertPerson(personResource, personExternalId, attr(scheduled, "name"));
+            const teamRef = relationship(scheduled, "team");
+            const teamId = teamRef ? teamLocalIds.get(teamRef.id) ?? null : null;
+            planPeople.set(scheduled.id, {
+              resource: scheduled, personId, teamId,
+              positionName: typeof attr(scheduled, "team_position_name") === "string" ? String(attr(scheduled, "team_position_name")) : null,
+            });
+          }
+          const itemAssignmentResources = new Map<string, PcoResource[]>();
+          for (const item of itemsResult.data) {
+            const assignmentResult = await fetchAll(apiBase + planPath + "/items/" + encodeURIComponent(item.id) + "/item_assignments?per_page=100");
+            itemAssignmentResources.set(item.id, assignmentResult.data);
+            for (const included of assignmentResult.included) {
+              if (included.type === "Person") personResources.set(included.id, included);
+              if (included.type === "TeamPosition") positionResources.set(included.id, included);
+            }
+            for (const assignment of assignmentResult.data) {
+              const assignable = relationship(assignment, "assignable");
+              if (assignable?.type === "Person" && !personResources.has(assignable.id)) {
+                const personDocument = await fetchPage(apiBase + "/people/" + encodeURIComponent(assignable.id));
+                const person = Array.isArray(personDocument.data) ? personDocument.data[0] : personDocument.data;
+                if (person) personResources.set(person.id, person);
+              }
+            }
+          }
+          const transaction = database.transaction(() => {
+            const planAttrs = plan.attributes ?? {};
+            const title = String(planAttrs.series_title || planAttrs.title || type.attributes?.name || "Service plan").slice(0, 160);
+            const startsAt = typeof planAttrs.sort_date === "string" ? planAttrs.sort_date : null;
+            const existing = database.prepare("SELECT id FROM church_services WHERE external_id = ?").get(plan.id) as { id: string } | undefined;
+            const serviceId = existing?.id ?? randomUUID();
+            database.prepare("INSERT INTO church_services (id, title, starts_at, status, source, external_id, raw_json, service_type_external_id, service_type_name, created_at, updated_at) VALUES (?, ?, ?, 'planned', 'planning_center', ?, ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET title=excluded.title, starts_at=excluded.starts_at, raw_json=excluded.raw_json, service_type_external_id=excluded.service_type_external_id, service_type_name=excluded.service_type_name, updated_at=excluded.updated_at")
+              .run(serviceId, title, startsAt, plan.id, JSON.stringify(plan), typeId, String(type.attributes?.name ?? "Service").slice(0, 160), now(), now());
+            const service = database.prepare("SELECT id FROM church_services WHERE external_id = ?").get(plan.id) as { id: string };
+            const localServiceId = service.id;
+            database.prepare("DELETE FROM service_plan_teams WHERE service_id = ?").run(localServiceId);
+            database.prepare("DELETE FROM service_assignment_times WHERE assignment_id IN (SELECT id FROM service_plan_assignments WHERE service_id = ?)").run(localServiceId);
+            database.prepare("DELETE FROM service_plan_assignments WHERE service_id = ?").run(localServiceId);
+            database.prepare("DELETE FROM service_plan_times WHERE service_id = ?").run(localServiceId);
+            database.prepare("DELETE FROM church_service_items WHERE service_id = ?").run(localServiceId);
+            let teamOrder = 0;
+            for (const team of teamResources.values()) {
+              const teamId = teamLocalIds.get(team.id);
+              if (teamId && scheduledTeamIds.has(team.id)) database.prepare("INSERT INTO service_plan_teams (service_id, team_id, position) VALUES (?, ?, ?)").run(localServiceId, teamId, teamOrder++);
+            }
+            const timeIds = new Map<string, string>();
+            for (const time of timesResult.data) {
+              const timeId = randomUUID();
+              const ta = time.attributes ?? {};
+              database.prepare("INSERT INTO service_plan_times (id, service_id, external_id, name, starts_at, ends_at, time_type, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .run(timeId, localServiceId, time.id, String(ta.name ?? "Service time"), typeof ta.starts_at === "string" ? ta.starts_at : null,
+                  typeof ta.ends_at === "string" ? ta.ends_at : null, typeof ta.time_type === "string" ? ta.time_type : null, JSON.stringify(time), now());
+              timeIds.set(time.id, timeId);
+            }
+            for (const [scheduledId, info] of planPeople) {
+              const personRef = relationship(info.resource, "person");
+              const teamRef = relationship(info.resource, "team");
+              const position = [...positionResources.values()].find((candidate) =>
+                positionTeamExternalIds.get(candidate.id) === teamRef?.id &&
+                String(attr(candidate, "name") ?? "").toLowerCase() === (info.positionName ?? "").toLowerCase());
+              const positionId = position ? positionLocalIds.get(position.id) ?? null : null;
+              const assignmentId = randomUUID();
+              const sa = info.resource.attributes ?? {};
+              database.prepare("INSERT INTO service_plan_assignments (id, service_id, person_id, team_id, position_id, position_name, status, notes, plan_person_external_id, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .run(assignmentId, localServiceId, info.personId, info.teamId, positionId, info.positionName,
+                  normalizeScheduleStatus(sa.status), typeof sa.notes === "string" ? sa.notes : null,
+                  plan.id + ":" + scheduledId, JSON.stringify(info.resource), now());
+              const timeRefs = [...relationshipMany(info.resource, "times"), ...relationshipMany(info.resource, "service_times")];
+              for (const timeRef of timeRefs) {
+                const localTimeId = timeIds.get(timeRef.id);
+                if (localTimeId) database.prepare("INSERT OR IGNORE INTO service_assignment_times (assignment_id, plan_time_id) VALUES (?, ?)").run(assignmentId, localTimeId);
+              }
+              scheduledAssignmentsImported++;
+            }
+            const insertedItems = new Map<string, string>();
+            for (const [index, item] of itemsResult.data.entries()) {
+              const ia = item.attributes ?? {};
+              const itemTitle = String(ia.title || ia.service_position || "Untitled item").slice(0, 160);
+              const position = typeof ia.sequence === "number" ? Math.max(0, Math.floor(ia.sequence)) : index;
+              const itemType = typeof ia.item_type === "string" ? ia.item_type.slice(0, 60) : "other";
+              const songRef = relationship(item, "song");
+              const arrangementRef = relationship(item, "arrangement");
+              const itemId = randomUUID();
+              database.prepare("INSERT INTO church_service_items (id, service_id, position, title, item_type, duration_seconds, notes, external_id, song_external_id, arrangement_external_id, service_position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .run(itemId, localServiceId, position, itemTitle, itemType,
+                  typeof ia.length === "number" ? ia.length : null,
+                  typeof ia.description === "string" ? ia.description.slice(0, 4000) : null,
+                  plan.id + ":" + item.id, songRef?.id ?? null, arrangementRef?.id ?? null,
+                  typeof ia.service_position === "string" ? ia.service_position : null, now(), now());
+              insertedItems.set(item.id, itemId);
+              itemsImported++;
+            }
+            for (const [itemExternalId, assignments] of itemAssignmentResources) {
+              const localItemId = insertedItems.get(itemExternalId);
+              if (!localItemId) continue;
+              for (const assignment of assignments) {
+                const assignable = relationship(assignment, "assignable");
+                if (!assignable) continue;
+                const personId = assignable.type === "Person"
+                  ? upsertPerson(personResources.get(assignable.id), assignable.id)
+                  : null;
+                const positionId = assignable.type === "TeamPosition" ? positionLocalIds.get(assignable.id) ?? null : null;
+                const positionName = positionId ? String(attr(positionResources.get(assignable.id), "name") ?? "") : null;
+                const assignmentId = randomUUID();
+                database.prepare("INSERT INTO service_item_assignments (id, item_id, assignable_type, assignable_external_id, person_id, position_id, display_name, external_id, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                  .run(assignmentId, localItemId, assignable.type, assignable.id, personId, positionId,
+                    personId ? (database.prepare("SELECT display_name FROM service_people WHERE id = ?").get(personId) as { display_name: string }).display_name : positionName,
+                    plan.id + ":" + itemExternalId + ":" + assignment.id, JSON.stringify(assignment), now());
+                itemAssignmentsImported++;
+              }
+            }
+          });
+          transaction();
+          plansProcessed++;
         }
       }
-      return { imported, itemsImported, serviceTypes: (types.data ?? []).length, plansProcessed, syncedAt: new Date().toISOString() };
+      const replaceTeamDirectoryAssignments = database.transaction(() => {
+        database.prepare("DELETE FROM service_team_memberships").run();
+        database.prepare("DELETE FROM service_team_leaders").run();
+        const insertMembership = database.prepare("INSERT INTO service_team_memberships (id, person_id, position_id, schedule_preference, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
+        for (const membership of membershipSnapshot.values()) {
+          insertMembership.run(membership.id, membership.personId, membership.positionId, membership.schedulePreference, membership.rawJson, now());
+        }
+        const insertLeader = database.prepare("INSERT INTO service_team_leaders (id, external_id, team_id, person_id, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
+        for (const leader of teamLeaderSnapshot.values()) {
+          insertLeader.run(leader.id, leader.externalId, leader.teamId, leader.personId, leader.rawJson, now());
+        }
+      });
+      replaceTeamDirectoryAssignments();
+      return {
+        imported: plansProcessed, itemsImported, peopleImported: (database.prepare("SELECT COUNT(*) AS count FROM service_people").get() as { count: number }).count,
+        teamsImported: (database.prepare("SELECT COUNT(*) AS count FROM service_teams").get() as { count: number }).count,
+        positionsImported: (database.prepare("SELECT COUNT(*) AS count FROM service_positions").get() as { count: number }).count,
+        scheduledAssignmentsImported, itemAssignmentsImported, serviceTypes: typeResult.data.length,
+        syncedAt: new Date().toISOString(),
+      };
     } catch (error) {
+      request.log.error({ err: error }, "Planning Center sync failed");
       return reply.code(502).send({ error: error instanceof Error ? error.message : "Planning Center sync failed" });
     }
   });
 
   app.get("/api/v1/integrations/propresenter/live", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
+    const query = request.query as { serviceId?: string };
+    const serviceId = typeof query.serviceId === "string" ? query.serviceId : null;
+    if (serviceId && !database.prepare("SELECT id FROM church_services WHERE id = ?").get(serviceId)) {
+      return reply.code(404).send({ error: "Service not found" });
+    }
     const baseUrl = process.env.PROPRESENTER_URL?.trim().replace(/\/$/, "");
-    if (!baseUrl) return { configured: false, connected: false, message: "Set PROPRESENTER_URL on the local server." };
+    const checkedAt = new Date().toISOString();
+    const saveDisconnected = (message: string) => {
+      if (serviceId) database.prepare("INSERT INTO service_live_state (service_id, matched_item_id, match_method, connected, observed_at, stale_at, message) VALUES (?, NULL, NULL, 0, ?, ?, ?) ON CONFLICT(service_id) DO UPDATE SET matched_item_id=NULL, match_method=NULL, connected=0, observed_at=excluded.observed_at, stale_at=excluded.stale_at, message=excluded.message")
+        .run(serviceId, checkedAt, checkedAt, message);
+    };
+    if (!baseUrl) {
+      const message = "Set PROPRESENTER_URL on the local server.";
+      saveDisconnected(message);
+      return { configured: false, connected: false, message, checkedAt, rundownMatch: serviceId ? { status: "disconnected", itemId: null, matchMethod: null, message } : undefined };
+    }
     const headers: Record<string, string> = { Accept: "application/json" };
     try {
       const [versionResponse, presentationResponse, slideResponse, slideIndexResponse] = await Promise.all([
-        fetch(`${baseUrl}/version`, { headers, signal: AbortSignal.timeout(4000) }),
-        fetch(`${baseUrl}/v1/presentation/active`, { headers, signal: AbortSignal.timeout(4000) }),
-        fetch(`${baseUrl}/v1/status/slide`, { headers, signal: AbortSignal.timeout(4000) }),
-        fetch(`${baseUrl}/v1/presentation/slide_index`, { headers, signal: AbortSignal.timeout(4000) }),
+        fetch(baseUrl + "/version", { headers, signal: AbortSignal.timeout(4000) }),
+        fetch(baseUrl + "/v1/presentation/active", { headers, signal: AbortSignal.timeout(4000) }),
+        fetch(baseUrl + "/v1/status/slide", { headers, signal: AbortSignal.timeout(4000) }),
+        fetch(baseUrl + "/v1/presentation/slide_index", { headers, signal: AbortSignal.timeout(4000) }),
       ]);
-      if (!versionResponse.ok) throw new Error(`ProPresenter returned HTTP ${versionResponse.status}`);
+      if (!versionResponse.ok) throw new Error("ProPresenter returned HTTP " + versionResponse.status);
       const version = await versionResponse.json();
-      const presentation = presentationResponse.ok ? await presentationResponse.json() : null;
-      const slide = slideResponse.ok ? await slideResponse.json() : null;
+      const presentation = presentationResponse.ok ? await presentationResponse.json() as Record<string, unknown> : null;
+      const slide = slideResponse.ok ? await slideResponse.json() as Record<string, unknown> : null;
       const slideIndexData = slideIndexResponse.ok ? await slideIndexResponse.json() : null;
       const readSlideIndex = (value: unknown): number | null => {
         if (typeof value === "number" && Number.isInteger(value)) return value;
@@ -1414,25 +1735,50 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         if (typeof record.index === "number" && Number.isInteger(record.index)) return record.index;
         return readSlideIndex(record.presentation) ?? readSlideIndex(record.announcements);
       };
+      const nestedPresentation = presentation?.presentation && typeof presentation.presentation === "object"
+        ? presentation.presentation as Record<string, unknown> : null;
+      const announcements = presentation?.announcements && typeof presentation.announcements === "object"
+        ? presentation.announcements as Record<string, unknown> : null;
+      const presentationName = String(presentation?.name ?? nestedPresentation?.name ?? announcements?.name ?? "").trim() || null;
+      const currentSlide = slide?.current && typeof slide.current === "object" ? slide.current as Record<string, unknown> : null;
+      const slideText = typeof currentSlide?.text === "string" ? currentSlide.text.slice(0, 2000) : null;
+      const slideUuid = typeof currentSlide?.uuid === "string" ? currentSlide.uuid.slice(0, 160) : null;
       const slideIndex = readSlideIndex(slideIndexData);
-      const state = { connected: true, version, presentation, slide, slideIndex, checkedAt: new Date().toISOString() };
-      database.prepare(`INSERT INTO propresenter_state (id, connected, version, presentation_name, slide_index, slide_count, slide_text, last_checked_at, error)
-        VALUES (1, 1, ?, ?, ?, NULL, ?, ?, NULL)
-        ON CONFLICT(id) DO UPDATE SET connected=1, version=excluded.version, presentation_name=excluded.presentation_name,
-          slide_index=excluded.slide_index, slide_count=NULL, slide_text=excluded.slide_text,
-          last_checked_at=excluded.last_checked_at, error=NULL`)
-        .run(typeof version === "object" && version && "version" in version ? String(version.version) : JSON.stringify(version).slice(0, 160),
-          typeof presentation === "object" && presentation && "name" in presentation ? String(presentation.name).slice(0, 160) : null,
-          slideIndex,
-          slide ? JSON.stringify(slide).slice(0, 2000) : null,
-          state.checkedAt);
-      return state;
+      database.prepare("INSERT INTO propresenter_state (id, connected, version, presentation_name, slide_index, slide_count, slide_text, last_checked_at, error) VALUES (1, 1, ?, ?, ?, NULL, ?, ?, NULL) ON CONFLICT(id) DO UPDATE SET connected=1, version=excluded.version, presentation_name=excluded.presentation_name, slide_index=excluded.slide_index, slide_count=NULL, slide_text=excluded.slide_text, last_checked_at=excluded.last_checked_at, error=NULL")
+        .run(typeof version === "object" && version && "version" in version ? String((version as Record<string, unknown>).version) : JSON.stringify(version).slice(0, 160),
+          presentationName, slideIndex, slide ? JSON.stringify(slide).slice(0, 2000) : null, checkedAt);
+      let rundownMatch: { status: "matched" | "unmatched" | "ambiguous" | "disconnected"; itemId: string | null; matchMethod: string | null; message: string } | undefined;
+      if (serviceId) {
+        const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+        const songItems = database.prepare("SELECT id, title FROM church_service_items WHERE service_id = ? AND lower(item_type) = 'song'").all(serviceId) as Array<{ id: string; title: string }>;
+        const matchBy = (value: string | null, method: string) => {
+          if (!value) return null;
+          const key = normalize(value);
+          if (!key) return null;
+          const matches = songItems.filter((item) => normalize(item.title) === key);
+          return { matches, method };
+        };
+        const presentationMatch = matchBy(presentationName, "exact_presentation_title");
+        const slideMatch = presentationMatch?.matches.length ? null : matchBy(slideText, "exact_current_slide_title");
+        const selected = presentationMatch?.matches.length ? presentationMatch : slideMatch;
+        const uniqueMatchedItem = selected?.matches.length === 1 ? selected.matches[0] : undefined;
+        if (selected && uniqueMatchedItem) {
+          rundownMatch = { status: "matched", itemId: uniqueMatchedItem.id, matchMethod: selected.method, message: "ProPresenter matches one song in this service rundown." };
+        } else if (selected && selected.matches.length > 1) {
+          rundownMatch = { status: "ambiguous", itemId: null, matchMethod: selected.method, message: "More than one rundown song has this title. No item was highlighted." };
+        } else {
+          rundownMatch = { status: "unmatched", itemId: null, matchMethod: null, message: presentationName ? "ProPresenter is connected, but its active presentation does not exactly match a song in this rundown." : "ProPresenter is connected, but no active presentation title is available to match." };
+        }
+        database.prepare("INSERT INTO service_live_state (service_id, matched_item_id, match_method, presentation_name, current_slide_text, current_slide_uuid, connected, observed_at, stale_at, message) VALUES (?, ?, ?, ?, ?, ?, 1, ?, NULL, ?) ON CONFLICT(service_id) DO UPDATE SET matched_item_id=excluded.matched_item_id, match_method=excluded.match_method, presentation_name=excluded.presentation_name, current_slide_text=excluded.current_slide_text, current_slide_uuid=excluded.current_slide_uuid, connected=1, observed_at=excluded.observed_at, stale_at=NULL, message=excluded.message")
+          .run(serviceId, rundownMatch.itemId, rundownMatch.matchMethod, presentationName, slideText, slideUuid, checkedAt, rundownMatch.message);
+      }
+      return { connected: true, version, presentation, presentationName, slide, slideIndex, slideUuid, checkedAt, rundownMatch };
     } catch (error) {
       const message = error instanceof Error ? error.message : "ProPresenter connection failed";
-      database.prepare(`INSERT INTO propresenter_state (id, connected, last_checked_at, error) VALUES (1, 0, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET connected=0, last_checked_at=excluded.last_checked_at, error=excluded.error`)
-        .run(new Date().toISOString(), message);
-      return { configured: true, connected: false, message };
+      database.prepare("INSERT INTO propresenter_state (id, connected, last_checked_at, error) VALUES (1, 0, ?, ?) ON CONFLICT(id) DO UPDATE SET connected=0, last_checked_at=excluded.last_checked_at, error=excluded.error")
+        .run(checkedAt, message);
+      saveDisconnected(message);
+      return { configured: true, connected: false, message, checkedAt, rundownMatch: serviceId ? { status: "disconnected", itemId: null, matchMethod: null, message } : undefined };
     }
   });
 
