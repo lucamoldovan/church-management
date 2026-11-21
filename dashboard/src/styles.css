@@ -435,3 +435,9 @@ h1 { margin-bottom: 7px; color: #202329; font: 700 27px/1.2 'Manrope', sans-seri
 .mic-hardware-metrics small { color:#858b96; font-size:10px; }
 .mic-hardware-diagnostic { margin:14px 0 0; padding-top:10px; border-top:1px solid #eceef1; color:#9a6828; font-size:11px; }
 @media (max-width:760px) { .mic-hardware-grid { grid-template-columns:1fr; } }
+
+.staff-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.staff-role-control select{height:34px;min-width:112px;padding:0 8px;border:1px solid #e3e5e9;border-radius:7px;background:#fff;color:#454a54;font:inherit;font-size:10px}
+.staff-action-button{height:34px;padding:0 10px;font-size:10px;white-space:nowrap}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:900px){.staff-row-actions{width:100%;justify-content:flex-start}}
