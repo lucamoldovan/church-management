@@ -244,7 +244,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
                   {workspace.teams.map((team) => {
                     const people = planAssignmentsForTeam(team.id);
                     return <div className="service-team-block" key={team.id}>
-                      <div className="service-team-heading"><strong>{team.name}</strong><span>{people.length} scheduled</span></div>
+                      <div className="service-team-heading"><div><strong>{team.name}</strong>{!!team.leaders?.length && <small className="service-team-leaders">Lead: {team.leaders.join(", ")}</small>}</div><span>{people.length} scheduled</span></div>
                       {people.map((person) => <div className="service-person-row" key={person.id}>
                         <div><strong>{person.personName}</strong><small>{person.positionName || "Team member"}{person.serviceTimes ? ` · ${person.serviceTimes}` : ""}</small></div>
                         {person.status && <span className={`source-pill ${person.status.toLowerCase().includes("confirm") ? "source-active" : ""}`}>{person.status}</span>}
@@ -265,7 +265,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
           </> : <section className="panel service-directory-panel">
             <div className="panel-heading"><div><h2>Planning Center teams</h2><p>Team directory with positions and assigned members</p></div><UsersRound size={18}/></div>
             {teamDirectory.map((team) => <div className="service-directory-team" key={team.id}>
-              <div className="service-team-heading"><strong>{team.name}</strong><span>{team.positions.reduce((count, position) => count + position.members.length, 0)} members</span></div>
+              <div className="service-team-heading"><div><strong>{team.name}</strong>{!!team.leaders?.length && <small className="service-team-leaders">Lead: {team.leaders.join(", ")}</small>}</div><span>{team.positions.reduce((count, position) => count + position.members.length, 0)} members</span></div>
               <div className="service-position-grid">{team.positions.map((position) => <div className="service-position-card" key={position.id}>
                 <strong>{position.name}</strong><small>{position.members.length} members</small>
                 {position.members.map((member) => <span key={member.id}>{member.personName}</span>)}
