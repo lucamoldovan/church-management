@@ -291,7 +291,7 @@ export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "
     }
 
     if (currentVersion < 8) {
-      database.exec("
+      database.exec(`
         CREATE TABLE IF NOT EXISTS service_people (
           id TEXT PRIMARY KEY, external_id TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, first_name TEXT, last_name TEXT, photo_url TEXT, raw_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL
         );
@@ -329,7 +329,7 @@ export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "
         ALTER TABLE church_service_items ADD COLUMN service_position TEXT;
         CREATE INDEX IF NOT EXISTS church_service_items_song_idx ON church_service_items(song_external_id);
         CREATE INDEX IF NOT EXISTS service_live_state_observed_idx ON service_live_state(observed_at);
-      ");
+      `);
       database.pragma("user_version = 8");
     }
   });
