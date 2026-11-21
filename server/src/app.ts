@@ -1541,6 +1541,14 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
               if (included.type === "Person") personResources.set(included.id, included);
               if (included.type === "TeamPosition") positionResources.set(included.id, included);
             }
+            for (const assignment of assignmentResult.data) {
+              const assignable = relationship(assignment, "assignable");
+              if (assignable?.type === "Person" && !personResources.has(assignable.id)) {
+                const personDocument = await fetchPage(apiBase + "/people/" + encodeURIComponent(assignable.id));
+                const person = personDocument.data?.[0];
+                if (person) personResources.set(person.id, person);
+              }
+            }
           }
           const transaction = database.transaction(() => {
             const planAttrs = plan.attributes ?? {};
