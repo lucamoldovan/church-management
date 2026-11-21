@@ -38,6 +38,43 @@ test("health endpoint reports the local server status", async () => {
   }
 });
 
+test("service selector keeps upcoming plans ahead of old historical plans", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "kasapini-service-order-"));
+  const databasePath = join(directory, "church.sqlite");
+  const database = openDatabase(databasePath);
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const insert = database.prepare(`
+    INSERT INTO church_services (id, title, starts_at, status, source, external_id, created_at, updated_at)
+    VALUES (?, ?, ?, 'planned', 'planning_center', ?, ?, ?)
+  `);
+  for (let index = 0; index < 110; index += 1) {
+    const startsAt = new Date(now.getTime() - (index + 1) * 24 * 60 * 60 * 1000).toISOString();
+    insert.run(`past-${index}`, `Past service ${index}`, startsAt, `pco-past-${index}`, nowIso, nowIso);
+  }
+  const futureId = "next-sunday";
+  insert.run(futureId, "Next Sunday", new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(), "pco-next-sunday", nowIso, nowIso);
+  database.close();
+
+  const app = createTestApp(databasePath);
+  try {
+    const setup = await app.inject({
+      method: "POST",
+      url: "/api/v1/setup",
+      payload: { setupKey: "test-setup-key", username: "admin", password: "a-very-long-test-password" },
+    });
+    assert.equal(setup.statusCode, 201);
+    const headers = { cookie: String(setup.headers["set-cookie"]).split(";")[0] };
+    const response = await app.inject({ method: "GET", url: "/api/v1/church/services", headers });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().services.length, 100);
+    assert.equal(response.json().services[0].id, futureId);
+  } finally {
+    await app.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("unknown API routes return 404", async () => {
   const app = createTestApp();
 
