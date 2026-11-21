@@ -1239,6 +1239,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         return reply.code(409).send({ error: "The church must retain at least one active administrator" });
       }
     }
+    if (active === 0 && actor.id === current.id) return reply.code(400).send({ error: "You cannot deactivate your own account" });
 
     database.prepare("UPDATE operators SET role = COALESCE(?, role), active = COALESCE(?, active), department = COALESCE(?, department) WHERE id = ?")
       .run(role, active, department === undefined ? null : department, request.params.staffId);
