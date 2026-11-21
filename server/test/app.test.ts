@@ -54,6 +54,17 @@ test("service selector keeps upcoming plans ahead of old historical plans", asyn
   }
   const futureId = "next-sunday";
   insert.run(futureId, "Next Sunday", new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(), "pco-next-sunday", nowIso, nowIso);
+
+  const insertEvent = database.prepare(`
+    INSERT INTO church_events (id, title, starts_at, status, source, external_id, created_at, updated_at)
+    VALUES (?, ?, ?, 'planned', 'local', ?, ?, ?)
+  `);
+  for (let index = 0; index < 110; index += 1) {
+    const startsAt = new Date(now.getTime() - (index + 1) * 24 * 60 * 60 * 1000).toISOString();
+    insertEvent.run(`old-event-${index}`, `Old event ${index}`, startsAt, `local-old-event-${index}`, nowIso, nowIso);
+  }
+  const futureEventId = "upcoming-event";
+  insertEvent.run(futureEventId, "Upcoming event", new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(), "local-upcoming-event", nowIso, nowIso);
   database.close();
 
   const app = createTestApp(databasePath);
@@ -69,6 +80,11 @@ test("service selector keeps upcoming plans ahead of old historical plans", asyn
     assert.equal(response.statusCode, 200);
     assert.equal(response.json().services.length, 100);
     assert.equal(response.json().services[0].id, futureId);
+
+    const events = await app.inject({ method: "GET", url: "/api/v1/church/events", headers });
+    assert.equal(events.statusCode, 200);
+    assert.equal(events.json().events.length, 100);
+    assert.equal(events.json().events[0].id, futureEventId);
   } finally {
     await app.close();
     rmSync(directory, { recursive: true, force: true });
