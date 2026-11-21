@@ -1033,3 +1033,178 @@ test("ProPresenter live status reads the documented nested slide index and slide
     await app.close();
   }
 });
+
+
+test("Planning Center sync imports teams, positions, people, scheduled roles, service times and item assignments", async () => {
+  const app = createTestApp();
+  const originalFetch = globalThis.fetch;
+  const originalAppId = process.env.PLANNING_CENTER_APP_ID;
+  const originalSecret = process.env.PLANNING_CENTER_SECRET;
+  const originalProPresenterUrl = process.env.PROPRESENTER_URL;
+  process.env.PLANNING_CENTER_APP_ID = "test-client";
+  process.env.PLANNING_CENTER_SECRET = "test-secret";
+  process.env.PROPRESENTER_URL = "http://127.0.0.1:1025";
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    let document: { data?: unknown; included?: unknown[]; links?: { next?: string | null } } = { data: [] };
+    if (url.endsWith("/service_types?per_page=100")) {
+      document.data = [{ id: "type-1", type: "ServiceType", attributes: { name: "Sunday Service" } }];
+    } else if (url.endsWith("/service_types/type-1/teams?per_page=100")) {
+      document.data = [{ id: "team-1", type: "Team", attributes: { name: "Worship", sequence: 1 } }];
+    } else if (url.endsWith("/teams/team-1/team_positions?per_page=100")) {
+      document.data = [{ id: "position-1", type: "TeamPosition", attributes: { name: "Vocals", sequence: 1 }, relationships: { team: { data: { type: "Team", id: "team-1" } } } }];
+    } else if (url.endsWith("/person_team_position_assignments?include=person&per_page=100")) {
+      document.data = [{ id: "membership-1", type: "PersonTeamPositionAssignment", attributes: { schedule_preference: "Every week" }, relationships: { person: { data: { type: "Person", id: "person-1" } } } }];
+      document.included = [{ id: "person-1", type: "Person", attributes: { first_name: "Alice", last_name: "Singer" } }];
+    } else if (url.endsWith("/service_types/type-1/plans?filter=future&per_page=100")) {
+      document.data = [{ id: "plan-1", type: "Plan", attributes: { title: "Sunday Worship", sort_date: "2026-11-22T10:00:00Z" } }];
+    } else if (url.endsWith("/items?include=song,arrangement&per_page=100")) {
+      document.data = [{ id: "item-1", type: "Item", attributes: { title: "Amazing Grace", sequence: 1, item_type: "song", length: 240, description: "Start softly" }, relationships: { song: { data: { type: "Song", id: "song-1" } } } }];
+      document.included = [{ id: "song-1", type: "Song", attributes: { title: "Amazing Grace" } }];
+    } else if (url.endsWith("/team_members?include=person,team&per_page=100")) {
+      document.data = [{ id: "plan-person-1", type: "PlanPerson", attributes: { name: "Alice Singer", team_position_name: "Vocals", status: "confirmed", notes: "Arrive early" }, relationships: { person: { data: { type: "Person", id: "person-1" } }, team: { data: { type: "Team", id: "team-1" } }, times: { data: [{ type: "PlanTime", id: "time-1" }] } } }];
+      document.included = [
+        { id: "person-1", type: "Person", attributes: { first_name: "Alice", last_name: "Singer" } },
+        { id: "team-1", type: "Team", attributes: { name: "Worship", sequence: 1 } },
+      ];
+    } else if (url.endsWith("/plan_times?per_page=100")) {
+      document.data = [{ id: "time-1", type: "PlanTime", attributes: { name: "Sunday 10:00", starts_at: "2026-11-22T10:00:00Z", ends_at: "2026-11-22T11:30:00Z", time_type: "service" } }];
+    } else if (url.endsWith("/signup_teams?per_page=100")) {
+      document.data = [{ id: "team-1", type: "Team", attributes: { name: "Worship", sequence: 1 } }];
+    } else if (url.includes("/item_assignments?per_page=100")) {
+      document.data = [
+        { id: "item-assignment-person", type: "ItemAssignment", attributes: { assignable_type: "Person" }, relationships: { assignable: { data: { type: "Person", id: "person-1" } } } },
+        { id: "item-assignment-position", type: "ItemAssignment", attributes: { assignable_type: "TeamPosition" }, relationships: { assignable: { data: { type: "TeamPosition", id: "position-1" } } } },
+      ];
+    } else if (url === "http://127.0.0.1:1025/version") {
+      document = { data: { version: "17.0.0" } };
+    } else if (url === "http://127.0.0.1:1025/v1/presentation/active") {
+      document = { data: { presentation: { name: "Amazing Grace" } } };
+    } else if (url === "http://127.0.0.1:1025/v1/status/slide") {
+      document = { data: { current: { text: "Amazing grace, how sweet the sound", uuid: "slide-uuid" } } };
+    } else if (url === "http://127.0.0.1:1025/v1/presentation/slide_index") {
+      document = { data: { presentation: { index: 2 } } };
+    }
+    const payload = document.data && !Array.isArray(document.data) && "data" in (document.data as object)
+      ? document.data : document;
+    return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
+  };
+
+  try {
+    await app.inject({ method: "POST", url: "/api/v1/setup", payload: {
+      setupKey: "test-setup-key", username: "admin", password: "a-very-long-test-password",
+    }});
+    const login = await app.inject({ method: "POST", url: "/api/v1/auth/session", payload: {
+      username: "admin", password: "a-very-long-test-password",
+    }});
+    const cookie = String(login.headers["set-cookie"]).split(";")[0];
+    const headers = { cookie };
+
+    const sync = await app.inject({ method: "POST", url: "/api/v1/integrations/planning-center/sync", headers });
+    assert.equal(sync.statusCode, 200, sync.body);
+    assert.equal(sync.json().imported, 1);
+    assert.equal(sync.json().scheduledAssignmentsImported, 1);
+    assert.equal(sync.json().itemAssignmentsImported, 2);
+
+    const services = await app.inject({ method: "GET", url: "/api/v1/church/services", headers });
+    const serviceId = services.json().services[0].id as string;
+    const workspace = await app.inject({ method: "GET", url: `/api/v1/church/services/${serviceId}/workspace`, headers });
+    assert.equal(workspace.statusCode, 200, workspace.body);
+    assert.equal(workspace.json().teams[0].name, "Worship");
+    assert.equal(workspace.json().assignments[0].personName, "Alice Singer");
+    assert.equal(workspace.json().assignments[0].positionName, "Vocals");
+    assert.equal(workspace.json().assignments[0].status, "confirmed");
+    assert.equal(workspace.json().times[0].name, "Sunday 10:00");
+    assert.equal(workspace.json().items[0].songExternalId, "song-1");
+    assert.equal(workspace.json().items[0].assignments.length, 2);
+
+    const directory = await app.inject({ method: "GET", url: "/api/v1/church/teams", headers });
+    assert.equal(directory.statusCode, 200);
+    assert.equal(directory.json().teams[0].name, "Worship");
+    assert.equal(directory.json().teams[0].positions[0].name, "Vocals");
+    assert.equal(directory.json().teams[0].positions[0].members[0].personName, "Alice Singer");
+
+    const live = await app.inject({ method: "GET", url: `/api/v1/integrations/propresenter/live?serviceId=${serviceId}`, headers });
+    assert.equal(live.statusCode, 200);
+    assert.equal(live.json().connected, true);
+    assert.equal(live.json().rundownMatch.status, "matched");
+    assert.equal(live.json().rundownMatch.itemId, workspace.json().items[0].id);
+    assert.equal(live.json().rundownMatch.matchMethod, "exact_presentation_title");
+
+    const updatedWorkspace = await app.inject({ method: "GET", url: `/api/v1/church/services/${serviceId}/workspace`, headers });
+    assert.equal(updatedWorkspace.json().live.matchedItemId, workspace.json().items[0].id);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalAppId === undefined) delete process.env.PLANNING_CENTER_APP_ID;
+    else process.env.PLANNING_CENTER_APP_ID = originalAppId;
+    if (originalSecret === undefined) delete process.env.PLANNING_CENTER_SECRET;
+    else process.env.PLANNING_CENTER_SECRET = originalSecret;
+    if (originalProPresenterUrl === undefined) delete process.env.PROPRESENTER_URL;
+    else process.env.PROPRESENTER_URL = originalProPresenterUrl;
+    await app.close();
+  }
+});
+
+test("ProPresenter does not guess when a song title is duplicated in the rundown", async () => {
+  const app = createTestApp();
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.PROPRESENTER_URL;
+  process.env.PROPRESENTER_URL = "http://127.0.0.1:1025";
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    const payload = url.endsWith("/version") ? { version: "17.0.0" }
+      : url.endsWith("/v1/presentation/active") ? { name: "Amazing Grace" }
+      : url.endsWith("/v1/status/slide") ? { current: { text: "Amazing Grace" } }
+      : { presentation: { index: 1 } };
+    return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    await app.inject({ method: "POST", url: "/api/v1/setup", payload: {
+      setupKey: "test-setup-key", username: "admin", password: "a-very-long-test-password",
+    }});
+    const login = await app.inject({ method: "POST", url: "/api/v1/auth/session", payload: {
+      username: "admin", password: "a-very-long-test-password",
+    }});
+    const cookie = String(login.headers["set-cookie"]).split(";")[0];
+    const service = await app.inject({ method: "POST", url: "/api/v1/church/services", headers: { cookie }, payload: { title: "Sunday" } });
+    const serviceId = service.json().id as string;
+    const originalAppId = process.env.PLANNING_CENTER_APP_ID;
+    const originalSecret = process.env.PLANNING_CENTER_SECRET;
+    process.env.PLANNING_CENTER_APP_ID = "test-client";
+    process.env.PLANNING_CENTER_SECRET = "test-secret";
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      if (url.endsWith("/service_types?per_page=100")) return new Response(JSON.stringify({ data: [{ id: "type-1", attributes: { name: "Sunday" } }] }));
+      if (url.endsWith("/service_types/type-1/teams?per_page=100")) return new Response(JSON.stringify({ data: [] }));
+      if (url.endsWith("/service_types/type-1/plans?filter=future&per_page=100")) return new Response(JSON.stringify({ data: [{ id: "plan-1", attributes: { title: "Sunday", sort_date: "2026-11-22T10:00:00Z" } }] }));
+      if (url.endsWith("/items?include=song,arrangement&per_page=100")) return new Response(JSON.stringify({ data: [
+        { id: "song-a", attributes: { title: "Amazing Grace", item_type: "song", sequence: 1 } },
+        { id: "song-b", attributes: { title: "Amazing Grace", item_type: "song", sequence: 2 } },
+      ] }));
+      return new Response(JSON.stringify({ data: [] }));
+    };
+    const sync = await app.inject({ method: "POST", url: "/api/v1/integrations/planning-center/sync", headers: { cookie } });
+    assert.equal(sync.statusCode, 200, sync.body);
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      const payload = url.endsWith("/version") ? { version: "17.0.0" }
+        : url.endsWith("/v1/presentation/active") ? { name: "Amazing Grace" }
+        : url.endsWith("/v1/status/slide") ? { current: { text: "Amazing Grace" } }
+        : { presentation: { index: 1 } };
+      return new Response(JSON.stringify(payload));
+    };
+    const live = await app.inject({ method: "GET", url: `/api/v1/integrations/propresenter/live?serviceId=${serviceId}`, headers: { cookie } });
+    assert.equal(live.json().rundownMatch.status, "ambiguous");
+    assert.equal(live.json().rundownMatch.itemId, null);
+    if (originalAppId === undefined) delete process.env.PLANNING_CENTER_APP_ID;
+    else process.env.PLANNING_CENTER_APP_ID = originalAppId;
+    if (originalSecret === undefined) delete process.env.PLANNING_CENTER_SECRET;
+    else process.env.PLANNING_CENTER_SECRET = originalSecret;
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.PROPRESENTER_URL;
+    else process.env.PROPRESENTER_URL = originalUrl;
+    await app.close();
+  }
+});
