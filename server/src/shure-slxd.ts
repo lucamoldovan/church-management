@@ -245,7 +245,7 @@ export class ShureSlxdMonitor {
     if (state.model && state.deviceId && !state.deviceId.startsWith("pending:")) state.diagnostic = null;
   }
 
-  status(): { enabled: boolean; listening: boolean; host: null; port: number | null; configuredReceiverCount: number; devices: SlxdTelemetry[]; message: string } {
+  status(): { enabled: boolean; running: boolean; host: null; port: number | null; configuredReceiverCount: number; devices: SlxdTelemetry[]; message: string } {
     const devices = [...this.devices.values()].map(({ socket: _socket, frameBuffer: _frameBuffer, ...device }) => ({
       ...device,
       connected: device.connected && !device.socket.destroyed,
@@ -253,7 +253,7 @@ export class ShureSlxdMonitor {
     const connected = devices.filter((device) => device.connected).length;
     return {
       enabled: this.options.enabled,
-      listening: this.started,
+      running: this.started,
       host: null,
       port: this.options.enabled ? this.options.port : null,
       configuredReceiverCount: this.receiverIps.length,
