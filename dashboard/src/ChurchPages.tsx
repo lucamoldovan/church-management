@@ -292,7 +292,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
   </div>;
 
   return <div>
-    <PageHeader eyebrow="LIVE PRODUCTION" title="ProPresenter" description="Monitor the active presentation from the local church operations dashboard." action={<button className="button button-secondary" onClick={() => void refreshLive()} disabled={busy}><RefreshCw size={14}/> Refresh status</button>}/>
+    <PageHeader eyebrow="LIVE PRODUCTION" title="ProPresenter" description="Monitor the active presentation from Kasapini Dashboard." action={<button className="button button-secondary" onClick={() => void refreshLive()} disabled={busy}><RefreshCw size={14}/> Refresh status</button>}/>
     <Notice error={error} success={success}/>
     {loading ? <Loading/> : <div className="production-grid">
       <section className="panel production-status"><div className="production-status-icon"><RadioTower size={22}/></div><div><span className={`integration-dot ${propresenter?.connected ? "online" : ""}`}/><strong>{propresenter?.connected ? "Connected" : propresenter?.configured === false ? "Not configured" : "Disconnected"}</strong><p>{propresenter?.message ?? (propresenter?.connected ? "ProPresenter API is responding." : "Configure PROPRESENTER_URL on the local server.")}</p></div></section>
