@@ -1056,6 +1056,9 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     let document: { data?: unknown; included?: unknown[]; links?: { next?: string | null } } = { data: [] };
     if (url.endsWith("/service_types?per_page=100")) {
       document.data = [{ id: "type-1", type: "ServiceType", attributes: { name: "Sunday Service" } }];
+      document.links = { next: "/services/v2/service_types?per_page=100&offset=100" };
+    } else if (url.endsWith("/service_types?per_page=100&offset=100")) {
+      document.data = [{ id: "type-2", type: "ServiceType", attributes: { name: "Midweek" } }];
     } else if (url.endsWith("/service_types/type-1/teams?per_page=100")) {
       document.data = [{ id: "team-1", type: "Team", attributes: { name: "Worship", sequence: 1 } }];
     } else if (url.endsWith("/teams/team-1/team_leaders?include=people&per_page=100")) {
@@ -1103,6 +1106,7 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     const sync = await app.inject({ method: "POST", url: "/api/v1/integrations/planning-center/sync", headers });
     assert.equal(sync.statusCode, 200, sync.body);
     assert.equal(sync.json().imported, 1);
+    assert.equal(sync.json().serviceTypes, 2);
     assert.equal(sync.json().scheduledAssignmentsImported, 1);
     assert.equal(sync.json().itemAssignmentsImported, 2);
 
