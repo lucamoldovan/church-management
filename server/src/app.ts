@@ -1651,20 +1651,34 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.get("/api/v1/integrations/propresenter/live", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
+    const query = request.query as { serviceId?: string };
+    const serviceId = typeof query.serviceId === "string" ? query.serviceId : null;
+    if (serviceId && !database.prepare("SELECT id FROM church_services WHERE id = ?").get(serviceId)) {
+      return reply.code(404).send({ error: "Service not found" });
+    }
     const baseUrl = process.env.PROPRESENTER_URL?.trim().replace(/\/$/, "");
-    if (!baseUrl) return { configured: false, connected: false, message: "Set PROPRESENTER_URL on the local server." };
+    const checkedAt = new Date().toISOString();
+    const saveDisconnected = (message: string) => {
+      if (serviceId) database.prepare("INSERT INTO service_live_state (service_id, matched_item_id, match_method, connected, observed_at, stale_at, message) VALUES (?, NULL, NULL, 0, ?, ?, ?) ON CONFLICT(service_id) DO UPDATE SET matched_item_id=NULL, match_method=NULL, connected=0, observed_at=excluded.observed_at, stale_at=excluded.stale_at, message=excluded.message")
+        .run(serviceId, checkedAt, checkedAt, message);
+    };
+    if (!baseUrl) {
+      const message = "Set PROPRESENTER_URL on the local server.";
+      saveDisconnected(message);
+      return { configured: false, connected: false, message, checkedAt, rundownMatch: serviceId ? { status: "disconnected", itemId: null, matchMethod: null, message } : undefined };
+    }
     const headers: Record<string, string> = { Accept: "application/json" };
     try {
       const [versionResponse, presentationResponse, slideResponse, slideIndexResponse] = await Promise.all([
-        fetch(`${baseUrl}/version`, { headers, signal: AbortSignal.timeout(4000) }),
-        fetch(`${baseUrl}/v1/presentation/active`, { headers, signal: AbortSignal.timeout(4000) }),
-        fetch(`${baseUrl}/v1/status/slide`, { headers, signal: AbortSignal.timeout(4000) }),
-        fetch(`${baseUrl}/v1/presentation/slide_index`, { headers, signal: AbortSignal.timeout(4000) }),
+        fetch(baseUrl + "/version", { headers, signal: AbortSignal.timeout(4000) }),
+        fetch(baseUrl + "/v1/presentation/active", { headers, signal: AbortSignal.timeout(4000) }),
+        fetch(baseUrl + "/v1/status/slide", { headers, signal: AbortSignal.timeout(4000) }),
+        fetch(baseUrl + "/v1/presentation/slide_index", { headers, signal: AbortSignal.timeout(4000) }),
       ]);
-      if (!versionResponse.ok) throw new Error(`ProPresenter returned HTTP ${versionResponse.status}`);
+      if (!versionResponse.ok) throw new Error("ProPresenter returned HTTP " + versionResponse.status);
       const version = await versionResponse.json();
-      const presentation = presentationResponse.ok ? await presentationResponse.json() : null;
-      const slide = slideResponse.ok ? await slideResponse.json() : null;
+      const presentation = presentationResponse.ok ? await presentationResponse.json() as Record<string, unknown> : null;
+      const slide = slideResponse.ok ? await slideResponse.json() as Record<string, unknown> : null;
       const slideIndexData = slideIndexResponse.ok ? await slideIndexResponse.json() : null;
       const readSlideIndex = (value: unknown): number | null => {
         if (typeof value === "number" && Number.isInteger(value)) return value;
@@ -1674,25 +1688,49 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         if (typeof record.index === "number" && Number.isInteger(record.index)) return record.index;
         return readSlideIndex(record.presentation) ?? readSlideIndex(record.announcements);
       };
+      const nestedPresentation = presentation?.presentation && typeof presentation.presentation === "object"
+        ? presentation.presentation as Record<string, unknown> : null;
+      const announcements = presentation?.announcements && typeof presentation.announcements === "object"
+        ? presentation.announcements as Record<string, unknown> : null;
+      const presentationName = String(presentation?.name ?? nestedPresentation?.name ?? announcements?.name ?? "").trim() || null;
+      const currentSlide = slide?.current && typeof slide.current === "object" ? slide.current as Record<string, unknown> : null;
+      const slideText = typeof currentSlide?.text === "string" ? currentSlide.text.slice(0, 2000) : null;
+      const slideUuid = typeof currentSlide?.uuid === "string" ? currentSlide.uuid.slice(0, 160) : null;
       const slideIndex = readSlideIndex(slideIndexData);
-      const state = { connected: true, version, presentation, slide, slideIndex, checkedAt: new Date().toISOString() };
-      database.prepare(`INSERT INTO propresenter_state (id, connected, version, presentation_name, slide_index, slide_count, slide_text, last_checked_at, error)
-        VALUES (1, 1, ?, ?, ?, NULL, ?, ?, NULL)
-        ON CONFLICT(id) DO UPDATE SET connected=1, version=excluded.version, presentation_name=excluded.presentation_name,
-          slide_index=excluded.slide_index, slide_count=NULL, slide_text=excluded.slide_text,
-          last_checked_at=excluded.last_checked_at, error=NULL`)
-        .run(typeof version === "object" && version && "version" in version ? String(version.version) : JSON.stringify(version).slice(0, 160),
-          typeof presentation === "object" && presentation && "name" in presentation ? String(presentation.name).slice(0, 160) : null,
-          slideIndex,
-          slide ? JSON.stringify(slide).slice(0, 2000) : null,
-          state.checkedAt);
-      return state;
+      database.prepare("INSERT INTO propresenter_state (id, connected, version, presentation_name, slide_index, slide_count, slide_text, last_checked_at, error) VALUES (1, 1, ?, ?, ?, NULL, ?, ?, NULL) ON CONFLICT(id) DO UPDATE SET connected=1, version=excluded.version, presentation_name=excluded.presentation_name, slide_index=excluded.slide_index, slide_count=NULL, slide_text=excluded.slide_text, last_checked_at=excluded.last_checked_at, error=NULL")
+        .run(typeof version === "object" && version && "version" in version ? String((version as Record<string, unknown>).version) : JSON.stringify(version).slice(0, 160),
+          presentationName, slideIndex, slide ? JSON.stringify(slide).slice(0, 2000) : null, checkedAt);
+      let rundownMatch: { status: "matched" | "unmatched" | "ambiguous" | "disconnected"; itemId: string | null; matchMethod: string | null; message: string } | undefined;
+      if (serviceId) {
+        const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+        const songItems = database.prepare("SELECT id, title FROM church_service_items WHERE service_id = ? AND lower(item_type) = 'song'").all(serviceId) as Array<{ id: string; title: string }>;
+        const matchBy = (value: string | null, method: string) => {
+          if (!value) return null;
+          const key = normalize(value);
+          if (!key) return null;
+          const matches = songItems.filter((item) => normalize(item.title) === key);
+          return { matches, method };
+        };
+        const presentationMatch = matchBy(presentationName, "exact_presentation_title");
+        const slideMatch = presentationMatch?.matches.length ? null : matchBy(slideText, "exact_current_slide_title");
+        const selected = presentationMatch?.matches.length ? presentationMatch : slideMatch;
+        if (selected && selected.matches.length === 1) {
+          rundownMatch = { status: "matched", itemId: selected.matches[0].id, matchMethod: selected.method, message: "ProPresenter matches one song in this service rundown." };
+        } else if (selected && selected.matches.length > 1) {
+          rundownMatch = { status: "ambiguous", itemId: null, matchMethod: selected.method, message: "More than one rundown song has this title. No item was highlighted." };
+        } else {
+          rundownMatch = { status: "unmatched", itemId: null, matchMethod: null, message: presentationName ? "ProPresenter is connected, but its active presentation does not exactly match a song in this rundown." : "ProPresenter is connected, but no active presentation title is available to match." };
+        }
+        database.prepare("INSERT INTO service_live_state (service_id, matched_item_id, match_method, presentation_name, current_slide_text, current_slide_uuid, connected, observed_at, stale_at, message) VALUES (?, ?, ?, ?, ?, ?, 1, ?, NULL, ?) ON CONFLICT(service_id) DO UPDATE SET matched_item_id=excluded.matched_item_id, match_method=excluded.match_method, presentation_name=excluded.presentation_name, current_slide_text=excluded.current_slide_text, current_slide_uuid=excluded.current_slide_uuid, connected=1, observed_at=excluded.observed_at, stale_at=NULL, message=excluded.message")
+          .run(serviceId, rundownMatch.itemId, rundownMatch.matchMethod, presentationName, slideText, slideUuid, checkedAt, rundownMatch.message);
+      }
+      return { connected: true, version, presentation, presentationName, slide, slideIndex, slideUuid, checkedAt, rundownMatch };
     } catch (error) {
       const message = error instanceof Error ? error.message : "ProPresenter connection failed";
-      database.prepare(`INSERT INTO propresenter_state (id, connected, last_checked_at, error) VALUES (1, 0, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET connected=0, last_checked_at=excluded.last_checked_at, error=excluded.error`)
-        .run(new Date().toISOString(), message);
-      return { configured: true, connected: false, message };
+      database.prepare("INSERT INTO propresenter_state (id, connected, last_checked_at, error) VALUES (1, 0, ?, ?) ON CONFLICT(id) DO UPDATE SET connected=0, last_checked_at=excluded.last_checked_at, error=excluded.error")
+        .run(checkedAt, message);
+      saveDisconnected(message);
+      return { configured: true, connected: false, message, checkedAt, rundownMatch: serviceId ? { status: "disconnected", itemId: null, matchMethod: null, message } : undefined };
     }
   });
 
