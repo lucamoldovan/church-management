@@ -25,7 +25,7 @@ test("SLX-D device and channel reports are parsed without changing their values"
   assert.equal(parseSlxdFrame("REP RF_BAND {G55     }").rfBand, "G55");
   assert.equal(parseSlxdFrame("REP FW_VER {2.0.15.2             }").firmware, "2.0.15.2");
   assert.equal(parseSlxdFrame("REP 1 CHAN_NAME {Lead Vox                    }").channelName, "Lead Vox");
-  assert.equal(parseSlxdFrame("REP 1 FREQUENCY 0602125").frequencyHz, 602125);
+  assert.equal(parseSlxdFrame("REP 1 FREQUENCY 0602125").frequencyHz, 602125000);
   assert.equal(parseSlxdFrame("REP 1 GROUP_CHANNEL {6,100     }").groupChannel, "6,100");
   assert.equal(parseSlxdFrame("REP 1 TX_MODEL SLXD2").transmitterConnected, true);
   assert.equal(parseSlxdFrame("REP 1 TX_MODEL UNKNOWN").transmitterConnected, false);
@@ -48,17 +48,18 @@ test("SLX-D transmitter runtime sentinel values remain explicit", () => {
   assert.deepEqual(normalizeSlxdBatteryRuntime(65535), { batteryRuntimeMinutes: null, batteryRuntimeState: "unknown" });
 });
 
-test("SLX-D SAMPLE telemetry converts peak, RMS and both antenna RSSI readings", () => {
-  const sample = parseSlxdFrame("SAMPLE 1 ALL 005 000 045 062 BB 31 099 31 085");
+test("SLX-D documented SAMPLE telemetry and separate antenna RSSI reports are parsed", () => {
+  const sample = parseSlxdFrame("SAMPLE 1 ALL 045 062 086");
   assert.equal(sample.audioPeakDbfs, -75);
   assert.equal(sample.audioRmsDbfs, -58);
-  assert.equal(sample.rfAntennaADbm, -21);
-  assert.equal(sample.rfAntennaBDbm, -35);
+  assert.equal(sample.rfDbm, -34);
+  assert.equal(parseSlxdFrame("REP 1 RSSI 1 099").rfAntennaADbm, -21);
+  assert.equal(parseSlxdFrame("REP 1 RSSI 2 085").rfAntennaBDbm, -35);
   assert.equal(sample.channel, 1);
   assert.ok(sample.lastSampleAt);
 });
 
-test("SLX-D legacy metering and standalone RSSI reports are handled", () => {
+test("SLX-D sample meter and standalone RSSI reports are handled", () => {
   const sample = parseSlxdFrame("SAMPLE 1 ALL 102 102 086");
   assert.equal(sample.audioPeakDbfs, -18);
   assert.equal(sample.audioRmsDbfs, -18);
@@ -109,10 +110,12 @@ test("SLX-D monitor connects outbound and collects receiver telemetry", async ()
         "< REP FW_VER {2.0.15.2             } >" +
         "< REP 1 CHAN_NAME {Lead Vox                    } >" +
         "< REP 1 FREQUENCY 0602125 >" +
+        "< REP 1 RSSI 1 099 >" +
+        "< REP 1 RSSI 2 085 >" +
         "< REP 1 TX_MODEL SLXD2 >" +
         "< REP 1 TX_BATT_BARS 004 >" +
         "< REP 1 TX_BATT_MINS 00125 >" +
-        "< SAMPLE 1 ALL 005 000 045 062 BB 31 099 31 085 >",
+        "< SAMPLE 1 ALL 045 062 086 >",
       );
     });
   });
@@ -137,13 +140,14 @@ test("SLX-D monitor connects outbound and collects receiver telemetry", async ()
     assert.equal(device.model, "SLXD4");
     assert.equal(device.rfBand, "G55");
     assert.equal(device.channelName, "Lead Vox");
-    assert.equal(device.frequencyHz, 602125);
+    assert.equal(device.frequencyHz, 602125000);
     assert.equal(device.transmitterConnected, true);
     assert.equal(device.batteryBars, 4);
     assert.equal(device.batteryPercentEstimate, 80);
     assert.equal(device.batteryRuntimeMinutes, 125);
     assert.equal(device.audioPeakDbfs, -75);
     assert.equal(device.audioRmsDbfs, -58);
+    assert.equal(device.rfDbm, -34);
     assert.equal(device.rfAntennaADbm, -21);
     assert.equal(device.rfAntennaBDbm, -35);
   } finally {
