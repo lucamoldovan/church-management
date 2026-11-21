@@ -1132,6 +1132,18 @@ test("Planning Center sync imports teams, positions, people, scheduled roles, se
     assert.equal(live.json().rundownMatch.itemId, workspace.json().items[0].id);
     assert.equal(live.json().rundownMatch.matchMethod, "exact_presentation_title");
 
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      const payload = url.endsWith("/version") ? { version: "17.0.0" }
+        : url.endsWith("/v1/presentation/active") ? { presentation: { name: "Sunday Service" } }
+        : url.endsWith("/v1/status/slide") ? { current: { text: "Amazing Grace, how sweet the sound" } }
+        : { presentation: { index: 3 } };
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    const lyricOnly = await app.inject({ method: "GET", url: `/api/v1/integrations/propresenter/live?serviceId=${serviceId}`, headers });
+    assert.equal(lyricOnly.json().rundownMatch.status, "unmatched");
+    assert.equal(lyricOnly.json().rundownMatch.itemId, null);
+
     const updatedWorkspace = await app.inject({ method: "GET", url: `/api/v1/church/services/${serviceId}/workspace`, headers });
     assert.equal(updatedWorkspace.json().live.matchedItemId, workspace.json().items[0].id);
   } finally {
