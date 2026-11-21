@@ -1,0 +1,48 @@
+name: Local platform CI
+
+on:
+  push:
+    branches: [local-operations-platform]
+  pull_request:
+    # The current deployment PR targets cloudflare-migration.
+    # Keep local-operations-platform too for future PRs into this branch.
+    branches: [cloudflare-migration, local-operations-platform]
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build dashboard and API
+        run: npm run build
+      - name: Run API tests
+        run: npm test
+
+  receiver-sdk-independent:
+    name: Veyra renderer and control-plane tests (without NDI SDK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes cmake ninja-build g++ pkg-config \
+            nlohmann-json3-dev libsdl2-dev libsdl2-image-dev \
+            libcurl4-openssl-dev libssl-dev
+      - name: Configure receiver components without proprietary NDI SDK
+        run: >
+          cmake -S receiver -B receiver/build-ci -G Ninja
+          -DVEYRA_BUILD_PLAYER=OFF
+          -DVEYRA_BUILD_TESTS=ON
+      - name: Build renderer, control plane and tests
+        run: cmake --build receiver/build-ci --parallel
+      - name: Run native tests
+        run: ctest --test-dir receiver/build-ci --output-on-failure

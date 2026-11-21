@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ndi": {
+    "sourceName": "",
+    "sourceAddress": ""
+  },
+  "controlPlane": {
+    "serverUrl": "",
+    "deviceName": "Lobby Display",
+    "pairingCode": "",
+    "caCertificatePath": "",
+    "credentialPath": "~/.local/state/veyra/device-token",
+    "cachePath": "~/.local/state/veyra/cache",
+    "syncIntervalSeconds": 10,
+    "heartbeatIntervalSeconds": 15
+  },
+  "display": {
+    "width": 1920,
+    "height": 1080,
+    "targetFps": 30,
+    "fullscreen": true,
+    "vsync": true
+  }
+}
