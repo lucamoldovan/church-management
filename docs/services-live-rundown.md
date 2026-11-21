@@ -40,7 +40,7 @@ The local data model must remain provider-independent. Store Planning Center ide
 - The existing ProPresenter endpoint fetches the active presentation, current/next slide status, and slide index.
 - The ProPresenter dashboard currently polls every five seconds, but the Services page does not yet poll live status or highlight a matching rundown item.
 
-Not currently imported: Planning Center Services people, teams, team membership, positions, team leaders, plan-specific scheduled people/assignments, plan times, song relationships/arrangements, and detailed item metadata/attachments.
+Current importer coverage: People directory records, service-type teams and positions, team memberships and leaders, plan-specific scheduled people/assignments, plan times, song/arrangement relationships, and item-level Person/TeamPosition assignments. Optional attachments and every provider-specific detail are not currently mirrored.
 
 ## Intended Services workspace
 
