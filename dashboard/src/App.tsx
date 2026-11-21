@@ -490,8 +490,8 @@ function Overview({
     <>
       <section className="page-heading">
         <div>
-          <div className="eyebrow">CHURCH OPERATIONS AT A GLANCE</div>
-          <h1>Church operations.</h1>
+          <div className="eyebrow">KASAPINI DASHBOARD AT A GLANCE</div>
+          <h1>Church overview.</h1>
           <p>Here's what's happening across church operations and production.</p>
         </div>
         <button className="button button-secondary" onClick={() => onNavigate("devices")}>
@@ -499,7 +499,7 @@ function Overview({
         </button>
       </section>
 
-      <section className="stat-grid church-summary-grid" aria-label="Church operations summary">
+      <section className="stat-grid church-summary-grid" aria-label="Church overview summary">
         <StatCard label="Staff accounts" value={churchStats === null ? "—" : String(churchStats.staffCount)} detail="Internal team access" icon={Users} />
         <StatCard label="Upcoming services" value={churchStats === null ? "—" : String(churchStats.upcomingServices)} detail="Planned service records" icon={CalendarDays} />
         <StatCard label="Active events" value={churchStats === null ? "—" : String(churchStats.activeEvents)} detail="Church calendar" icon={CalendarDays} />
