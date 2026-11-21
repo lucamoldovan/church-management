@@ -2,7 +2,7 @@ name: Local platform CI
 
 on:
   push:
-    branches: [local-operations-platform]
+    branches: [local-operations-platform, shure-slxd-integration]
   pull_request:
     # The current deployment PR targets cloudflare-migration.
     # Keep local-operations-platform too for future PRs into this branch.
