@@ -385,3 +385,20 @@ export function sendProPresenterCommand(action: ProPresenterAction): Promise<{ s
     body: JSON.stringify({ action }),
   });
 }
+
+
+export interface MicrophoneAssignment {
+  slotKey: "mic-1" | "mic-2" | "mic-3" | "mic-4" | "mic-5" | "headset";
+  personId: string;
+  personName: string;
+  updatedAt: string;
+}
+export function getMicrophoneAssignments(serviceId: string): Promise<{ assignments: MicrophoneAssignment[] }> {
+  return request(`/api/v1/church/services/${encodeURIComponent(serviceId)}/microphones`);
+}
+export function saveMicrophoneAssignments(serviceId: string, assignments: Array<{ slotKey: MicrophoneAssignment["slotKey"]; personId: string | null }>): Promise<{ saved: true; assignments: MicrophoneAssignment[] }> {
+  return request(`/api/v1/church/services/${encodeURIComponent(serviceId)}/microphones`, {
+    method: "PUT",
+    body: JSON.stringify({ assignments }),
+  });
+}
