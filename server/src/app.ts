@@ -1461,15 +1461,15 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       if (!response.ok) throw new Error("Planning Center returned HTTP " + response.status + " for " + new URL(url).pathname);
       return response.json() as Promise<PcoDocument>;
     };
-    const fetchAll = async (url: string): Promise<{ data: PcoResource[]; included: PcoResource[] }> => {
+    const fetchAll = async (url: string, apiPrefix = "/services/v2/", maxPages = 100): Promise<{ data: PcoResource[]; included: PcoResource[] }> => {
       let next: string | null = url;
       const data: PcoResource[] = [];
       const included: PcoResource[] = [];
       let pages = 0;
       while (next) {
-        if (++pages > 100) throw new Error("Planning Center pagination exceeded 100 pages; sync stopped safely.");
-        const targetUrl: URL = new URL(next, apiBase + "/");
-        if (targetUrl.origin !== "https://api.planningcenteronline.com" || !targetUrl.pathname.startsWith("/services/v2/")) {
+        if (++pages > maxPages) throw new Error("Planning Center pagination exceeded the safety limit; sync stopped safely.");
+        const targetUrl: URL = new URL(next, "https://api.planningcenteronline.com/");
+        if (targetUrl.origin !== "https://api.planningcenteronline.com" || !targetUrl.pathname.startsWith(apiPrefix)) {
           throw new Error("Planning Center returned an unexpected pagination URL; sync stopped safely.");
         }
         const page = await fetchPage(targetUrl.toString());
