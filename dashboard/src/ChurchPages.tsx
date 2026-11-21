@@ -214,7 +214,7 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
         <section className="panel service-selector">
           <label htmlFor="service-plan-select">Selected service plan</label>
           <select id="service-plan-select" value={selectedServiceId} onChange={(event) => { setSelectedServiceId(event.target.value); setWorkspace(null); setPropresenter(null); }}>
-            {services.map((service) => <option value={service.id} key={service.id}>{service.title} · {dateLabel(service.startsAt)}</option>)}
+            {services.map((service) => <option value={service.id} key={service.id}>{service.title}{service.serviceTypeName ? ` · ${service.serviceTypeName}` : ""} · {dateLabel(service.startsAt)}</option>)}
           </select>
           {!services.length && <Empty text="No services yet. Sync Planning Center or create a local service."/>}
         </section>
