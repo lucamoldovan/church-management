@@ -1457,7 +1457,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const secret = process.env.PLANNING_CENTER_SECRET?.trim();
     if (!appId || !secret) return { configured: false, connected: false, message: "Set PLANNING_CENTER_APP_ID and PLANNING_CENTER_SECRET on the local server." };
     try {
-      const authHeaders = { Authorization: "Basic " + Buffer.from(appId + ":" + secret).toString("base64"), Accept: "application/json", "User-Agent": "Church Operations (https://github.com/lucamoldovan/church-management)" };
+      const authHeaders = { Authorization: "Basic " + Buffer.from(appId + ":" + secret).toString("base64"), Accept: "application/json", "User-Agent": "Kasapini Dashboard (https://github.com/lucamoldovan/church-management)" };
       const [servicesResponse, peopleResponse] = await Promise.all([
         fetch("https://api.planningcenteronline.com/services/v2/service_types?per_page=1", { headers: authHeaders, signal: AbortSignal.timeout(5000) }),
         fetch("https://api.planningcenteronline.com/people/v2/people?per_page=1", { headers: authHeaders, signal: AbortSignal.timeout(5000) }),
@@ -1480,7 +1480,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const headers = {
       Authorization: "Basic " + Buffer.from(appId + ":" + secret).toString("base64"),
       Accept: "application/json",
-      "User-Agent": "Church Operations (https://github.com/lucamoldovan/church-management)",
+      "User-Agent": "Kasapini Dashboard (https://github.com/lucamoldovan/church-management)",
     };
     const apiBase = "https://api.planningcenteronline.com/services/v2";
     type PcoResource = { id: string; type?: string; attributes?: Record<string, unknown>; relationships?: Record<string, { data?: { id: string; type: string } | Array<{ id: string; type: string }> | null }> };
