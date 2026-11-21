@@ -4,7 +4,7 @@ import {
   createChurchEvent, createChurchGroup, createChurchStaff,
   getChurchEvents, getChurchGroups, getChurchServices, getChurchStaff,
   getPlanningCenterStatus, getProPresenterLive, getChurchServiceWorkspace, getChurchTeams, getChurchPeople,
-  sendProPresenterCommand, syncPlanningCenter,
+  sendProPresenterCommand, syncPlanningCenter, updateChurchStaff,
   type ChurchEvent, type ChurchGroup, type ChurchService, type ChurchStaff,
   type ChurchServiceWorkspace, type ChurchTeamDirectory, type ChurchPerson, type ProPresenterLive,
 } from "./api";
@@ -25,7 +25,7 @@ function Notice({ error, success }: { error: string; success: string }) {
   return <div className={`church-notice ${error ? "church-notice-error" : "church-notice-success"}`} role="status">{error || success}</div>;
 }
 
-export function ChurchPage({ page, role }: { page: ChurchPageId; role: string }) {
+export function ChurchPage({ page, role, operatorId }: { page: ChurchPageId; role: string; operatorId: string }) {
   const [services, setServices] = useState<ChurchService[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [workspace, setWorkspace] = useState<ChurchServiceWorkspace | null>(null);
@@ -41,6 +41,8 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [staffRoleDrafts, setStaffRoleDrafts] = useState<Record<string, string>>({});
+  const [staffActionId, setStaffActionId] = useState<string | null>(null);
 
   const refresh = async () => {
     setError("");
@@ -147,6 +149,35 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
       if (serviceView === "teams") setTeamDirectory((await getChurchTeams()).teams);
     } catch (e) { setError(e instanceof Error ? e.message : "Planning Center sync failed."); }
     finally { setBusy(false); }
+  };
+
+  const saveStaffRole = async (person: ChurchStaff) => {
+    const nextRole = staffRoleDrafts[person.id] ?? person.role;
+    if (nextRole === person.role) return;
+    setStaffActionId(person.id); setError(""); setSuccess("");
+    try {
+      await updateChurchStaff(person.id, { role: nextRole });
+      setStaffRoleDrafts((current) => { const next = { ...current }; delete next[person.id]; return next; });
+      setSuccess(`Updated ${person.displayName}'s role.`);
+      await refresh();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not update this staff role."); }
+    finally { setStaffActionId(null); }
+  };
+
+  const toggleStaffActive = async (person: ChurchStaff) => {
+    if (person.id === operatorId) {
+      setError("You cannot deactivate your own account.");
+      return;
+    }
+    const nextActive = person.active !== 1;
+    if (!nextActive && !window.confirm(`Deactivate ${person.displayName}'s account? They will no longer be able to sign in.`)) return;
+    setStaffActionId(person.id); setError(""); setSuccess("");
+    try {
+      await updateChurchStaff(person.id, { active: nextActive });
+      setSuccess(nextActive ? `Reactivated ${person.displayName}'s account.` : `Deactivated ${person.displayName}'s account.`);
+      await refresh();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not update this staff account."); }
+    finally { setStaffActionId(null); }
   };
 
   const refreshLive = async () => {
