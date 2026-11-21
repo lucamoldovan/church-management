@@ -211,13 +211,13 @@ export function MicrophonesPage() {
             const age = Math.max(0, Math.round((Date.now() - new Date(device.lastSeenAt).getTime()) / 1000));
             return (
               <article className="panel mic-hardware-card" key={device.deviceId}>
-                <header><div><strong>{device.channelName || device.deviceId}</strong><span>{device.model || "SLX-D receiver"} · {device.deviceId}</span></div><span className={device.connected ? "mic-live-pill" : "mic-stale-pill"}>{device.connected ? "Connected" : "Stale"}</span></header>
+                <header><div><strong>{device.channelName || device.deviceId}</strong><span>{device.model || "SLX-D receiver"} · {device.deviceId}{device.firmware ? ` · FW ${device.firmware}` : ""}</span></div><span className={device.connected ? "mic-live-pill" : "mic-stale-pill"}>{device.connected ? "Connected" : "Stale"}</span></header>
                 <div className="mic-hardware-metrics">
                   <div><span>TRANSMITTER</span><strong>{device.transmitterConnected === true ? (device.transmitterModel || "Connected") : device.transmitterConnected === false ? "No link" : "Unknown"}</strong></div>
                   <div><span>AA BATTERY</span><strong>{batteryLabel}</strong><small>{runtimeLabel}</small></div>
                   <div><span>RF ANTENNA A / B</span><strong>{device.rfAntennaADbm === null ? "—" : `${device.rfAntennaADbm} dBm`} / {device.rfAntennaBDbm === null ? "—" : `${device.rfAntennaBDbm} dBm`}</strong></div>
                   <div><span>AUDIO PEAK / RMS</span><strong>{device.audioPeakDbfs === null ? "—" : `${device.audioPeakDbfs} dBFS`} / {device.audioRmsDbfs === null ? "—" : `${device.audioRmsDbfs} dBFS`}</strong></div>
-                  <div><span>FREQUENCY / BAND</span><strong>{device.frequencyHz === null ? "—" : `${(device.frequencyHz / 1000).toFixed(3)} MHz`} · {device.rfBand || "Unknown band"}</strong></div>
+                  <div><span>FREQUENCY / BAND</span><strong>{device.frequencyHz === null ? "—" : `${(device.frequencyHz / 1000).toFixed(3)} MHz`} · {device.rfBand || "Unknown band"}{device.groupChannel ? ` · G/C ${device.groupChannel}` : ""}</strong></div>
                   <div><span>LAST CONTACT</span><strong>{device.connected ? "Live" : `${age}s ago`}</strong><small>{device.remoteAddress}</small></div>
                 </div>
                 {device.diagnostic && <p className="mic-hardware-diagnostic">{device.diagnostic}</p>}
