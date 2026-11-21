@@ -1315,18 +1315,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         return reply.code(400).send({ error: "Each saved assignment must have a scheduled person" });
       }
       if (seenPeople.has(row.personId)) return reply.code(409).send({ error: "A person can only be assigned to one microphone for this service" });
-      const scheduledInVoci = database.prepare(`
-        SELECT 1 AS found
-        FROM service_plan_assignments a
-        INNER JOIN service_teams t ON t.id = a.team_id
-        WHERE a.service_id = ? AND a.person_id = ? AND lower(trim(t.name)) = 'voci'
-        LIMIT 1
-      `).get(serviceId, row.personId);
-      if (!scheduledInVoci) {
-        const scheduled = database.prepare("SELECT 1 AS found FROM service_plan_assignments WHERE service_id = ? AND person_id = ? LIMIT 1")
-          .get(serviceId, row.personId);
-        if (!scheduled) return reply.code(400).send({ error: "Microphones can only be assigned to people scheduled on this service plan" });
-        return reply.code(400).send({ error: "Select someone scheduled in the Voci team on this service plan" });
+      const scheduled = database.prepare("SELECT 1 AS found FROM service_plan_assignments WHERE service_id = ? AND person_id = ? LIMIT 1")
+        .get(serviceId, row.personId);
+      if (!scheduled) return reply.code(400).send({ error: "Microphones can only be assigned to people scheduled on this service plan" });
+      if (row.slotKey !== "headset") {
+        const scheduledInVoci = database.prepare(`
+          SELECT 1 AS found
+          FROM service_plan_assignments a
+          INNER JOIN service_teams t ON t.id = a.team_id
+          WHERE a.service_id = ? AND a.person_id = ? AND lower(trim(t.name)) = 'voci'
+          LIMIT 1
+        `).get(serviceId, row.personId);
+        if (!scheduledInVoci) return reply.code(400).send({ error: "Select someone scheduled in the Voci team for handheld microphone slots" });
       }
       seenSlots.add(row.slotKey);
       seenPeople.add(row.personId);
