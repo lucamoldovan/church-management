@@ -51,7 +51,7 @@ Metering:
 3. Configure the receiver's Controller Access setting to Allow, then verify an outbound TCP connection from Church Operations to one receiver on port 2202.
 4. Configure up to six receiver IP addresses explicitly. Use each Shure Device ID as stable identity; do not rely on DHCP IP addresses for long-term assignments.
 5. Enforce one controller per receiver/system. Do not compete with Wireless Workbench; provide a clear warning if another controller appears to be active or the receiver rejects/does not answer commands.
-6. Do not bind a network listener to all interfaces unless explicitly configured. Restrict the control service to the intended LAN interface and document firewall requirements.
+6. Restrict outbound connections to the explicitly configured receiver IPs; do not scan the subnet or expose a TCP listener.
 
 ## Microphone page and Sunday assignments
 
@@ -70,7 +70,7 @@ The microphone controls live in their own top-level **Microphones** tab in Churc
 
 The first implementation adds the dedicated tab, six assignment slots, automatic selection of the nearest upcoming Sunday plan (or today's plan when today is Sunday), a manual plan selector, server-side validation against that plan's scheduled `Voci` team roster, and local persistence. The selected Sunday is matched using the browser's local calendar date.
 
-The initial read-only telemetry adapter is now implemented: a TCP controller listener on port 2202, strict source-IP allowlisting, SLX-D ASCII frame parsing, device ID/model/firmware/RF band/channel/frequency, transmitter model/link state, AA battery bars (with explicitly approximate percentage), reported runtime states, both antenna RSSI values, and audio peak/RMS meters. The dashboard polls the authenticated status endpoint and labels disconnected devices as stale. Protocol parsing and conversion tests run in CI.
+The initial read-only telemetry adapter is now implemented: outbound TCP connections to up to six explicitly configured receiver IPs on port 2202, automatic reconnects, SLX-D ASCII frame parsing, device ID/model/firmware/RF band/channel/frequency, transmitter model/link state, AA battery bars (with explicitly approximate percentage), reported runtime states, both antenna RSSI values, and audio peak/RMS meters. The dashboard polls the authenticated status endpoint and labels disconnected devices as stale. Protocol parsing and conversion tests run in CI.
 
 The monitor is disabled by default. It requires `SHURE_SLXD_ENABLED=true` and `SHURE_SLXD_RECEIVER_IPS` containing the receiver IP addresses (comma-separated). Church Operations initiates outbound TCP connections to each receiver on port 2202; no inbound listener is opened on the server. This connection path, the receiver menu for setting the controller destination, and all telemetry values still require a physical one-receiver test. No RF frequency, transmitter, or audio gain settings are changed. The only SET command configures the telemetry meter interval (`METER_RATE`).
 
