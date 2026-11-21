@@ -895,6 +895,14 @@ test("church staff, services, events and groups stay behind staff authentication
     });
     assert.equal(invalidStaffRole.statusCode, 400);
 
+    const selfRoleChange = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/church/staff/${adminId}`,
+      headers,
+      payload: { role: "staff" },
+    });
+    assert.equal(selfRoleChange.statusCode, 400);
+
     const secondAdmin = await app.inject({
       method: "POST",
       url: "/api/v1/church/staff",
