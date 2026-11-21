@@ -3,10 +3,10 @@ import { Activity, CalendarDays, CircleAlert, LoaderCircle, Plus, RefreshCw, Use
 import {
   createChurchEvent, createChurchGroup, createChurchService, createChurchStaff,
   getChurchEvents, getChurchGroups, getChurchServices, getChurchStaff,
-  getPlanningCenterStatus, getProPresenterLive, getChurchServiceWorkspace, getChurchTeams,
+  getPlanningCenterStatus, getProPresenterLive, getChurchServiceWorkspace, getChurchTeams, getChurchPeople,
   sendProPresenterCommand, syncPlanningCenter,
   type ChurchEvent, type ChurchGroup, type ChurchService, type ChurchStaff,
-  type ChurchServiceWorkspace, type ChurchTeamDirectory, type ProPresenterLive,
+  type ChurchServiceWorkspace, type ChurchTeamDirectory, type ChurchPerson, type ProPresenterLive,
 } from "./api";
 
 export type ChurchPageId = "services" | "staff" | "events" | "groups" | "production";
@@ -327,3 +327,50 @@ export function ChurchPage({ page, role }: { page: ChurchPageId; role: string })
 
 function Loading() { return <div className="church-loading"><LoaderCircle className="auth-spinner" size={20}/> Loading…</div>; }
 function Empty({ text }: { text: string }) { return <div className="church-empty"><CircleAlert size={18}/>{text}</div>; }
+
+export function PeoplePage() {
+  const [people, setPeople] = useState<ChurchPerson[]>([]);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    getChurchPeople().then((result) => {
+      if (active) setPeople(result.people);
+    }).catch((e) => {
+      if (active) setError(e instanceof Error ? e.message : "Could not load people.");
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const filteredPeople = people.filter((person) =>
+    person.displayName.toLocaleLowerCase().includes(normalizedQuery) ||
+    person.teams.some((team) => team.toLocaleLowerCase().includes(normalizedQuery))
+  );
+
+  return <div>
+    <PageHeader eyebrow="CHURCH DIRECTORY" title="People" description="People imported from Planning Center, with the teams they serve on. Planning Center remains the source of truth." />
+    <div className="integration-strip">
+      <div><span className="integration-dot online"/><div><strong>Planning Center People</strong><small>Names and team memberships only · No contact details stored</small></div></div>
+      <strong>{people.length} people</strong>
+    </div>
+    <section className="panel service-directory-panel">
+      <div className="panel-heading">
+        <div><h2>People directory</h2><p>Local read-only copy of the Planning Center directory</p></div>
+        <Users size={18}/>
+      </div>
+      <label className="people-search">Search people or teams<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or team…" /></label>
+      {error && <Notice error={error} success=""/>}
+      {loading ? <div className="loading-state"><LoaderCircle className="spin" size={20}/> Loading people…</div> :
+        filteredPeople.map((person) => <div className="service-person-row" key={person.id}>
+          <div><strong>{person.displayName}</strong><small>{person.teams.length ? person.teams.join(" · ") : "No team membership recorded"}</small></div>
+          <span className="source-pill">{person.teams.length} {person.teams.length === 1 ? "team" : "teams"}</span>
+        </div>)}
+      {!loading && !error && filteredPeople.length === 0 && <Empty text={people.length ? "No people match this search." : "No people imported yet. Run Sync Planning Center from Services."}/>}
+    </section>
+  </div>;
+}
