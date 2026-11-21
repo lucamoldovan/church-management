@@ -1474,6 +1474,21 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           teamResources.set(team.id, team);
           const teamLocalId = upsertTeam(team);
           teamLocalIds.set(team.id, teamLocalId);
+          const leaders = await fetchAll(apiBase + "/teams/" + encodeURIComponent(team.id) + "/team_leaders?include=people&per_page=100");
+          for (const included of leaders.included) if (included.type === "Person") personResources.set(included.id, included);
+          database.prepare("DELETE FROM service_team_leaders WHERE team_id = ?").run(teamLocalId);
+          for (const leader of leaders.data) {
+            const personRef = relationship(leader, "person");
+            if (!personRef) continue;
+            if (!personResources.has(personRef.id)) {
+              const personDocument = await fetchPage(apiBase + "/people/" + encodeURIComponent(personRef.id));
+              const person = Array.isArray(personDocument.data) ? personDocument.data[0] : personDocument.data;
+              if (person) personResources.set(person.id, person);
+            }
+            const personId = upsertPerson(personResources.get(personRef.id), personRef.id);
+            database.prepare("INSERT INTO service_team_leaders (id, external_id, team_id, person_id, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET team_id=excluded.team_id, person_id=excluded.person_id, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
+              .run(randomUUID(), leader.id, teamLocalId, personId, JSON.stringify(leader), now());
+          }
           const positions = await fetchAll(apiBase + "/teams/" + encodeURIComponent(team.id) + "/team_positions?per_page=100");
           for (const position of positions.data) {
             positionResources.set(position.id, position);
