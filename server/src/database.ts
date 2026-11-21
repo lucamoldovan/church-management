@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 
 export type VeyraDatabase = Database.Database;
 
-const CURRENT_SCHEMA_VERSION = 9;
+const CURRENT_SCHEMA_VERSION = 10;
 
 export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "data/veyra.sqlite"): VeyraDatabase {
   const resolvedPath = databasePath === ":memory:" ? databasePath : resolve(databasePath);
@@ -357,7 +357,12 @@ export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "
       `);
       database.pragma("user_version = 9");
     }
-  });
+
+    if (currentVersion < 10) {
+      // Older syncs stored whole Planning Center person payloads. Retain only names and IDs.
+      database.exec("UPDATE service_people SET photo_url = NULL, raw_json = '{}'");
+      database.pragma("user_version = 10");
+    }  });
 
   try {
     migrate();
