@@ -36,7 +36,7 @@ Build on the target Linux receiver with the NDI SDK and SDL2 development package
 cmake -S receiver -B receiver/build -DCMAKE_BUILD_TYPE=Release
 cmake --build receiver/build --parallel
 
-Copy receiver/config/receiver.example.json to the receiver's private configuration directory, set the Church Operations server URL and display name, then pair the receiver using a one-time code generated in the dashboard. Configure the trusted local CA certificate path when the server uses HTTPS.
+Copy receiver/config/receiver.example.json to the receiver's private configuration directory, set the Kasapini Dashboard server URL and display name, then pair the receiver using a one-time code generated in the dashboard. Configure the trusted local CA certificate path when the server uses HTTPS.
 
 The receiver is independent of the dashboard process. Do not run NDI frame decoding in the browser.
 
