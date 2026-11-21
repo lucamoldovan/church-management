@@ -24,7 +24,7 @@ const slots: Array<{ key: SlotKey; label: string; detail: string }> = [
 function isOnVociTeam(teamName: string | null): boolean {
   // Every person scheduled in Planning Center's Voci team is eligible for every wireless slot.
   // Position (Voci or Lider De Închinare) does not restrict microphone choice.
-  return (teamName ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toLocaleLowerCase("ro") === "voci";
+  return (teamName ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("ro") === "voci";
 }
 
 export function MicrophonesPage() {
