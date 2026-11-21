@@ -1,134 +1,98 @@
 # Shure SLX-D integration
 
-## Goal
+## Scope and hardware
 
-Add a local, read-only Shure monitoring integration to Kasapini Dashboard for six single-channel SLX-D receivers: five singer microphones and one headset. The integration must not interfere with Wireless Workbench or change RF settings, frequencies, transmitter settings, or audio gain.
+Kasapini Dashboard has an optional, read-only telemetry adapter for up to six single-channel Shure SLX-D receivers: five handheld singer microphones and one headset/bodypack channel. The transmitters currently use AA batteries.
 
-## Confirmed equipment and operating assumptions
+The adapter is disabled by default. It has not been validated against the physical receivers yet. Do not enable it on the church network until the TCP connection direction has been confirmed with one receiver.
 
-- Six single-channel SLX-D receivers (not SLX-D+).
-- Five handheld/singer channels and one headset/bodypack channel.
-- Transmitters use AA batteries.
-- Receivers are connected by Ethernet to the same switch/LAN as the local Kasapini Dashboard server.
-- The RF band will be recorded when the user supplies it.
-- Use DHCP/automatic IP addressing by default. DHCP reservations may be used for stable addresses, but static addressing is not required merely to assign an IP.
+## Protocol details checked against Shure's SLX-D command strings
 
-## Protocol facts verified against Shure documentation
+The adapter uses the documented ASCII command-string format on TCP port 2202. Supported read-only values are:
 
-- Third-party command strings use TCP port 2202.
-- Third-party control is blocked by default on SLX-D; enable it at **Advanced Settings → Controller Access → Allow**.
-- Shure says to use only one controller per system to avoid command conflicts. Kasapini Dashboard must therefore coordinate with Wireless Workbench: do not run two competing third-party command-string controllers simultaneously.
-- Shure's support guidance clarifies that the control system must open the TCP connection to the receiver; the receiver does not send command strings to an arbitrary controller destination. Kasapini Dashboard therefore connects outbound to each configured receiver IP on TCP port 2202. Do not run a broad subnet scan; configure the six receiver IPs explicitly, preferably with DHCP reservations.
-- Shure's Wireless Workbench network guidance uses DHCP and network discovery. Shure's enterprise network guidance identifies Shure Discovery multicast at 239.255.254.253:8427 and Bonjour/mDNS at 224.0.0.251:5353. Discovery must be tested on the church switch; multicast filtering/VLAN boundaries can prevent it.
-- A receiver's DHCP address and its identity are separate concerns. Use its Shure Device ID/serial/model as stable identity, not its current IP address.
+- Receiver: model, device ID, RF band and firmware version.
+- Channel: channel name, frequency, group/channel.
+- Transmitter: model/link indication, battery bars and reported battery runtime.
+- Audio: peak and RMS levels in dBFS.
+- RF: combined RSSI from the periodic sample and individual antenna A/B RSSI reports.
 
-## Read-only telemetry to expose
+Important protocol details:
 
-Use the documented SLX-D ASCII command strings and parse only known response formats:
+- Meter requests use `< SAMPLE 1 ALL audPeak audRms rfRssi >`; the documented response contains three values after the channel identifier.
+- The meter interval is set with `< SET 1 METER_RATE 01000 >` (one sample per second). The adapter sends `METER_RATE 00000` when it shuts down cleanly.
+- Individual antenna readings are requested with `< GET 1 RSSI 0 >`, which returns separate `REP 1 RSSI 1 ...` and `REP 1 RSSI 2 ...` reports.
+- Shure's reported RF and audio values use a -120 offset to convert them to dBm and dBFS respectively.
+- The seven-character frequency value is converted to Hz before it is sent to the dashboard.
+- Battery bars range from 0–5; 255 means unknown. The displayed percentage is only an estimate (20% per bar), not a precise battery measurement.
+- Battery runtime values 65533, 65534 and 65535 remain explicit warning/calculating/unknown states.
 
-- Device: MODEL, DEVICE_ID, RF_BAND, firmware version.
-- Channel: CHAN_NAME, FREQUENCY, GROUP_CHANNEL, AUDIO_GAIN (read only), AUDIO_OUT_LVL_SWITCH.
-- Transmitter: TX_MODEL, TX_BATT_BARS, TX_BATT_MINS where supported, LINK_STATUS.
-- RF: RSSI for antenna A and B.
-- Audio: AUDIO_LEVEL_PEAK and AUDIO_LEVEL_RMS.
-- Identify: FLASH ON, only when explicitly requested by an operator.
+The adapter does not issue commands that change RF frequency, group/channel, transmitter settings, audio gain, mic/line level or other operating settings. Its only SET command configures the telemetry meter interval.
 
-Battery presentation:
-- SLX-D AA battery telemetry is based on the reported battery bars (0–5); 255 means unknown.
-- Show the raw bar count and a clearly labelled approximate percentage derived from bars (20% per bar). Never present it as an exact battery percentage or infer exact remaining minutes from AA cells.
-- If transmitter runtime is unavailable/unknown, show “Runtime unavailable” rather than fabricating a duration.
-- Preserve stale/unknown states. Do not display an old reading as live.
+## TCP connection direction: unresolved
 
-Metering:
-- Use a conservative initial sample interval (for example 1 second) only after a successful physical test.
-- Stop metering when the controller disconnects or the integration is disabled.
-- Avoid continuously issuing GET requests for metered values when SAMPLE/METER_RATE is available.
+The official [SLX-D User Guide](https://www.shure.com/en-US/docs/guide/SLXD) describes the SLX-D receiver as the TCP client on port 2202. The official [SLX-D Command Strings document](https://www.shure.com/en-US/docs/commandstrings/SLXD) says to select Client in the AMX/Crestron control program. A third-party SLX-D driver describes the controller connecting to the receiver, and Shure's general connection-support article does not explicitly list SLX-D among the models it covers.
 
-## Discovery and connection strategy
+These descriptions are not sufficiently consistent to claim the connection direction is verified. The current experimental adapter assumes that Kasapini Dashboard opens outbound TCP connections to each configured receiver IP. It is disabled by default. Confirm the actual connection behavior with one physical receiver or Shure support before enabling it. Do not configure a listener, routes or receiver destinations based on guesswork.
 
-1. Implement an isolated Shure adapter; do not mix socket/protocol logic into route handlers.
-2. Start with a diagnostic mode that reports discovery packets and device identities without changing receiver settings.
-3. Configure the receiver's Controller Access setting to Allow, then verify an outbound TCP connection from Kasapini Dashboard to one receiver on port 2202.
-4. Configure up to six receiver IP addresses explicitly. Use each Shure Device ID as stable identity; do not rely on DHCP IP addresses for long-term assignments.
-5. Enforce one controller per receiver/system. Do not compete with Wireless Workbench; provide a clear warning if another controller appears to be active or the receiver rejects/does not answer commands.
-6. Restrict outbound connections to the explicitly configured receiver IPs; do not scan the subnet or expose a TCP listener.
+Shure also says to allow third-party control under **Advanced Settings → Controller Access → Allow** and to use only one controller per system to avoid command conflicts. Perform that change only as part of the controlled hardware test, and do not run a competing controller such as Wireless Workbench at the same time.
 
-## Microphone page and Sunday assignments
+## Current implementation
 
-The microphone controls live in their own top-level **Microphones** tab in Kasapini Dashboard. They are not embedded in the Services rundown and are not tied to individual songs.
+- Up to six explicitly configured receiver IP addresses; no subnet scan or automatic discovery is implemented.
+- Default TCP port 2202 and one-second meter interval.
+- Automatic reconnect attempts, framed ASCII parsing, duplicate Shure Device ID detection and stale/disconnected status.
+- Dashboard telemetry refresh every two seconds through an authenticated API route.
+- Device identity is based on the Shure Device ID, not the current DHCP address.
+- The adapter is read-only apart from the meter interval setting described above.
+- The monitor is disabled by default with `SHURE_SLXD_ENABLED=false`.
 
-- Show six persistent receiver slots together: Microphone 1–5 and Headset.
-- Each slot has its own dropdown for the person using that receiver during the selected Sunday service.
-- The operator first selects a Planning Center service plan/date. The dropdown options come from the people actually scheduled to that plan through Planning Center Services' plan team schedule (PlanPerson / scheduled team members).
-- Do not use the church-wide People directory, team membership directory, song/item leader assignments, or item-specific assignments as the dropdown source.
-- The plan's scheduled people are the Sunday roster. Filter that roster to people belonging to the Planning Center team named `Voci`; include every position in that team (including `Voci` and `Lider De Închinare`) in all six dropdowns. Do not use the church-wide People directory as a fallback.
-- If the selected plan has no eligible scheduled singers, show an explicit empty state and leave the singer dropdowns unavailable.
-- Changing the selected Sunday loads that plan's roster and its saved microphone mapping. Assignments are local to that service plan/date and do not write to Planning Center.
-- Prevent assigning the same person to multiple microphone slots for the same service. Clearing a dropdown unassigns that slot.
-- A missing or stale assignment (person no longer scheduled on the selected plan) must be visibly flagged and require a new selection.
-- Receiver telemetry and microphone-to-receiver identity are separate from the Sunday person assignment. Stable Shure Device ID/serial identity must be used once discovery is implemented; DHCP IP changes must not break a receiver's identity.
+Example environment configuration (replace addresses with the actual DHCP-reserved receiver addresses only after the connection direction is confirmed):
 
-The first implementation adds the dedicated tab, six assignment slots, automatic selection of the nearest upcoming Sunday plan (or today's plan when today is Sunday), a manual plan selector, server-side validation against that plan's scheduled `Voci` team roster, and local persistence. The selected Sunday is matched using the browser's local calendar date.
+```env
+SHURE_SLXD_ENABLED=false
+SHURE_SLXD_RECEIVER_IPS=
+SHURE_SLXD_PORT=2202
+SHURE_SLXD_METER_RATE_MS=1000
+```
 
-The initial read-only telemetry adapter and parser tests are implemented. The current experimental adapter assumes outbound TCP connections to up to six explicitly configured receiver IPs on port 2202, with reconnects, SLX-D ASCII parsing, device ID/model/firmware/RF band/channel/frequency, transmitter model/link state, AA battery bars (with explicitly approximate percentage), runtime states, both antenna RSSI values, and audio peak/RMS meters. However, the connection direction is not considered verified because the official user guide identifies the receiver as the TCP client. Keep the adapter disabled until the physical test resolves this discrepancy.
+## Microphone assignments
 
-The monitor is disabled by default. It requires `SHURE_SLXD_ENABLED=true` and `SHURE_SLXD_RECEIVER_IPS` containing the receiver IP addresses (comma-separated). Kasapini Dashboard initiates outbound TCP connections to each receiver on port 2202; no inbound listener is opened on the server. The receiver must have Controller Access set to Allow. The network path and all telemetry values still require a physical one-receiver test. No RF frequency, transmitter, or audio gain settings are changed. The only SET command configures the telemetry meter interval (`METER_RATE`).
+The Microphones tab is separate from the Services rundown and is not tied to individual songs.
 
-## Dashboard
+- Five handheld slots (Microphone 1–5) are assigned from people scheduled in the Planning Center team named `Voci`, including every position in that team.
+- The separate Headset slot can be assigned to anyone scheduled on the selected service plan; it does not require the pastor to be part of Voci.
+- The Sunday plan is selected automatically using the browser's local calendar date, with a manual service selector available.
+- The five handheld assignments and headset assignment are saved locally against the selected service plan. They do not write back to Planning Center.
+- A person cannot occupy more than one microphone slot for the same service.
+- The Shure receiver inventory and telemetry are not yet linked to individual assignment slots. Stable receiver IDs are shown separately; receiver-to-person automation remains a later step.
 
-Create a dedicated **Wireless** section showing:
-- Discovered receiver inventory and connection freshness.
-- Model, device ID, channel name, RF band, frequency, and IP address.
-- Transmitter link state and model.
-- AA battery bars plus clearly labelled estimated percentage.
-- RF signal for both antennas, audio peak/RMS, and stale/unknown indicators.
-- Manual person/role assignment controls.
-- A clear diagnostic state when discovery or command access is unavailable.
+## People directory synchronization
 
-## Security and safety
+Planning Center remains the source of truth. The local People page is a read-only cache.
 
-- Read-only by default. The only allowed SET command in the initial release is the documented identify/flash action, and it should require an explicit user action.
-- Never expose raw TCP control to browser clients.
-- Do not accept arbitrary commands from the UI or API.
-- Validate source addresses, payload lengths, message framing, and timeouts.
-- Log device connection/disconnection and telemetry errors without logging secrets (the protocol itself does not use an app credential).
-- Keep the integration disabled until the one-receiver test passes.
+- The sync follows People API pagination and persists Planning Center person ID and name fields only.
+- Email addresses, phone numbers, household data, birthdates, medical notes and unrelated profile fields are not persisted in the People records.
+- Team membership and team-leader relationships are resolved through the Services API. The visible People directory shows names and team names.
+- Service plans, scheduled teams and scheduled people continue to come from the selected Planning Center plan; the directory never replaces a service's actual roster.
+- Manual person creation and local scheduling are not part of this phase.
 
-## Acceptance tests
+## Verification and remaining physical tests
 
-- Protocol parser tests for padded strings, braces, malformed frames, unknown values, and fragmented TCP data.
-- Battery mapping tests for 0–5 bars and unknown 255.
-- RF conversion tests using Shure's reported-value-to-dBm rule.
-- Discovery tests with packet fixtures and duplicate device announcements.
-- Reconnect and stale-state tests.
-- Assignment tests: manual assignment, reassignment, unassigned state, five singer slots, separate headset slot, and duplicate prevention.
-- Physical acceptance test with one SLX-D receiver before expanding to all six.
+Automated tests cover ASCII frame fragmentation, response parsing, battery and meter conversions, invalid configuration, an outbound mock TCP receiver, API authentication, microphone roster validation and duplicate assignments. CI also builds the dashboard, server and native receiver.
+
+Still required before calling the hardware integration ready:
+
+1. Confirm the TCP connection direction with one physical SLX-D receiver.
+2. Confirm third-party Controller Access and command responses on the actual firmware.
+3. Verify channel name, frequency, RF band, transmitter model, AA battery bars/runtime, both antenna RSSI values and audio meters against the receiver display.
+4. Repeat with all six receivers and check reconnect behavior.
+5. Confirm the monitor does not conflict with Wireless Workbench or another controller.
+
+Until those checks pass, keep the integration disabled.
 
 ## Official references
 
 - [SLX-D User Guide](https://www.shure.com/en-US/docs/guide/SLXD)
 - [SLX-D Command Strings](https://www.shure.com/en-US/docs/commandstrings/SLXD)
-- [Wireless Workbench Quick Start](https://www.shure.com/en-US/docs/quickstart/wireless-workbench)
 - [Shure Wireless Workbench ports and protocols](https://service.shure.com/articles/en_US/Knowledge/wwb6-ports-and-protocol-information)
 - [Shure enterprise network troubleshooting checklist](https://service.shure.com/articles/en_US/Knowledge/enterprise-network-troubleshooting-checklist)
-
-
-## People directory synchronization (preparation phase)
-
-Planning Center remains the source of truth. This phase is a read-only local cache, not a migration of church administration away from Planning Center.
-
-- Import every person available to the connected Planning Center account using the People API, following pagination.
-- Store only the Planning Center person ID, display name (first/last or preferred display name when available), and team memberships needed by Kasapini Dashboard. Do not import or persist email addresses, phone numbers, birthdates, medical notes, household data, or unrelated profile fields.
-- Resolve team membership through the Planning Center Services API and retain team names. Positions may be read when required to resolve membership, but the local directory's visible data is limited to names and teams.
-- Keep the Planning Center person ID as the stable external key. Re-sync updates names and team membership; it must not create duplicate local people.
-- Do not delete local records merely because they disappear from a single sync response. Handle archived/inactive/deleted status only when explicitly supported and verified by the relevant Planning Center API fields.
-- Manual person creation in Kasapini Dashboard is out of scope for this phase. If a person is missing, add them in Planning Center and run the next sync; the local directory remains a read-only mirror.
-- Service plans, scheduled teams, scheduled people, item assignments, and microphone dropdown eligibility continue to come from the selected Planning Center service plan. The local directory cache must never replace or override a plan's actual Sunday roster.
-- No local team scheduling, service-plan editing, or migration to a Kasapini Dashboard-owned planning system is part of this phase.
-
-
-## People directory implementation
-
-The Planning Center sync imports every record from the People API using paginated requests, then continues the existing Services sync for team memberships, positions, scheduled people and service plans. The local People page shows each person's name and the teams they serve on. The People API permission is checked separately in the integration status probe.
-
-Only Planning Center person ID and name fields are persisted in the people record. Photo URLs and raw People API payloads are not stored. Email, phone, household, birthdate, medical and other personal profile fields are not imported. Planning Center remains authoritative: the directory is a local read-only cache, while service plans and their scheduled rosters continue to come from Services. No changes are written back to Planning Center.
