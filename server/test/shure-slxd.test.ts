@@ -7,6 +7,7 @@ import {
   parseSlxdFrame,
   slxdReportedDbfs,
   slxdReportedDbm,
+  ShureSlxdMonitor,
 } from "../src/shure-slxd.js";
 
 test("SLX-D TCP frame parser handles fragmented and concatenated messages", () => {
@@ -70,4 +71,25 @@ test("malformed and unrelated SLX-D frames do not create telemetry", () => {
   assert.deepEqual(parseSlxdFrame("not a command"), {});
   assert.deepEqual(parseSlxdFrame("REP 8 TX_BATT_BARS 004"), { channel: 8 });
   assert.deepEqual(parseSlxdFrame("SAMPLE x ALL 005 000 045 062"), {});
+});
+
+test("SLX-D monitor stays disabled unless explicitly configured", async () => {
+  const monitor = new ShureSlxdMonitor({ enabled: false, receiverIps: [], port: 2202 });
+  await monitor.start();
+  assert.equal(monitor.status().enabled, false);
+  assert.equal(monitor.status().running, false);
+  assert.equal(monitor.status().devices.length, 0);
+  await monitor.close();
+});
+
+test("SLX-D monitor refuses to start without explicit receiver IPs", async () => {
+  const monitor = new ShureSlxdMonitor({ enabled: true, receiverIps: [], port: 2202 });
+  await assert.rejects(() => monitor.start(), /SHURE_SLXD_RECEIVER_IPS/);
+  await monitor.close();
+});
+
+test("SLX-D monitor validates explicit receiver addresses", async () => {
+  const monitor = new ShureSlxdMonitor({ enabled: true, receiverIps: ["not-an-ip"], port: 2202 });
+  await assert.rejects(() => monitor.start(), /valid receiver IP addresses/);
+  await monitor.close();
 });
