@@ -1721,8 +1721,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         const presentationMatch = matchBy(presentationName, "exact_presentation_title");
         const slideMatch = presentationMatch?.matches.length ? null : matchBy(slideText, "exact_current_slide_title");
         const selected = presentationMatch?.matches.length ? presentationMatch : slideMatch;
-        if (selected && selected.matches.length === 1) {
-          rundownMatch = { status: "matched", itemId: selected.matches[0].id, matchMethod: selected.method, message: "ProPresenter matches one song in this service rundown." };
+        const uniqueMatchedItem = selected?.matches.length === 1 ? selected.matches[0] : undefined;
+        if (selected && uniqueMatchedItem) {
+          rundownMatch = { status: "matched", itemId: uniqueMatchedItem.id, matchMethod: selected.method, message: "ProPresenter matches one song in this service rundown." };
         } else if (selected && selected.matches.length > 1) {
           rundownMatch = { status: "ambiguous", itemId: null, matchMethod: selected.method, message: "More than one rundown song has this title. No item was highlighted." };
         } else {
