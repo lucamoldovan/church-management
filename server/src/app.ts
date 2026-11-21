@@ -1272,7 +1272,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.get<{ Params: { serviceId: string } }>("/api/v1/church/services/:serviceId/microphones", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
-    const service = database.prepare("SELECT id FROM church_services WHERE id = ?").get(request.params.serviceId);
+    const service = database.prepare("SELECT id FROM church_services WHERE id = ? AND source = 'planning_center'").get(request.params.serviceId);
     if (!service) return reply.code(404).send({ error: "Service not found" });
     const assignments = database.prepare(`
       SELECT m.slot_key AS slotKey, m.person_id AS personId, p.display_name AS personName, m.updated_at AS updatedAt
@@ -1287,7 +1287,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.put<{ Params: { serviceId: string }; Body: { assignments?: unknown } }>("/api/v1/church/services/:serviceId/microphones", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
     const serviceId = request.params.serviceId;
-    if (!database.prepare("SELECT id FROM church_services WHERE id = ?").get(serviceId)) {
+    if (!database.prepare("SELECT id FROM church_services WHERE id = ? AND source = 'planning_center'").get(serviceId)) {
       return reply.code(404).send({ error: "Service not found" });
     }
     const body = request.body ?? {};
@@ -1392,7 +1392,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.get<{ Params: { serviceId: string } }>("/api/v1/church/services/:serviceId/items", async (request, reply) => {
     if (!requireOperator(request, reply)) return;
-    const service = database.prepare("SELECT id FROM church_services WHERE id = ?").get(request.params.serviceId);
+    const service = database.prepare("SELECT id FROM church_services WHERE id = ? AND source = 'planning_center'").get(request.params.serviceId);
     if (!service) return reply.code(404).send({ error: "Service not found" });
     const items = database.prepare(`
       SELECT id, position, title, item_type AS itemType, duration_seconds AS durationSeconds,
@@ -1801,7 +1801,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     if (!requireOperator(request, reply)) return;
     const query = request.query as { serviceId?: string };
     const serviceId = typeof query.serviceId === "string" ? query.serviceId : null;
-    if (serviceId && !database.prepare("SELECT id FROM church_services WHERE id = ?").get(serviceId)) {
+    if (serviceId && !database.prepare("SELECT id FROM church_services WHERE id = ? AND source = 'planning_center'").get(serviceId)) {
       return reply.code(404).send({ error: "Service not found" });
     }
     const baseUrl = process.env.PROPRESENTER_URL?.trim().replace(/\/$/, "");
