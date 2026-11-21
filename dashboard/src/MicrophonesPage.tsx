@@ -39,6 +39,7 @@ export function MicrophonesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   const candidates = useMemo<PersonOption[]>(() => {
     if (!workspace) return [];
@@ -66,6 +67,8 @@ export function MicrophonesPage() {
       setServiceId((current) => current && planningCenterPlans.some((service) => service.id === current)
         ? current
         : planningCenterPlans[0]?.id ?? "");
+      // Refreshing the plan list must also reload the selected plan roster and saved assignments.
+      setRefreshVersion((version) => version + 1);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load Planning Center services.");
     } finally {
@@ -101,7 +104,7 @@ export function MicrophonesPage() {
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [serviceId]);
+  }, [serviceId, refreshVersion]);
 
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const selectedPeople = Object.values(draft).filter(Boolean);
@@ -187,7 +190,7 @@ export function MicrophonesPage() {
             {slots.map((slot, index) => {
               const assigned = candidates.find((person) => person.id === draft[slot.key]);
               const previous = saved.find((item) => item.slotKey === slot.key);
-              const stale = Boolean(previous && !assigned);
+              const stale = Boolean(previous && draft[slot.key] === previous.personId && !candidates.some((person) => person.id === previous.personId));
               return (
                 <article className="panel mic-slot-card" key={slot.key}>
                   <div className="mic-slot-top">
