@@ -355,6 +355,12 @@ export function getChurchStaff(signal?: AbortSignal): Promise<{ staff: ChurchSta
 export function createChurchStaff(input: { username: string; displayName: string; password: string; role: string; department?: string }): Promise<ChurchStaff> {
   return request<ChurchStaff>("/api/v1/church/staff", { method: "POST", body: JSON.stringify(input) });
 }
+export function updateChurchStaff(id: string, input: { role?: string; active?: boolean }): Promise<{ updated: boolean }> {
+  return request<{ updated: boolean }>(`/api/v1/church/staff/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
 export function getChurchEvents(signal?: AbortSignal): Promise<{ events: ChurchEvent[] }> {
   return request<{ events: ChurchEvent[] }>("/api/v1/church/events", { signal });
 }
