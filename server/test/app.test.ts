@@ -1150,6 +1150,8 @@ test("ProPresenter does not guess when a song title is duplicated in the rundown
   const app = createTestApp();
   const originalFetch = globalThis.fetch;
   const originalUrl = process.env.PROPRESENTER_URL;
+  const originalAppId = process.env.PLANNING_CENTER_APP_ID;
+  const originalSecret = process.env.PLANNING_CENTER_SECRET;
   process.env.PROPRESENTER_URL = "http://127.0.0.1:1025";
   globalThis.fetch = async (input) => {
     const url = String(input);
@@ -1195,14 +1197,14 @@ test("ProPresenter does not guess when a song title is duplicated in the rundown
     const live = await app.inject({ method: "GET", url: `/api/v1/integrations/propresenter/live?serviceId=${importedServiceId}`, headers: { cookie } });
     assert.equal(live.json().rundownMatch.status, "ambiguous");
     assert.equal(live.json().rundownMatch.itemId, null);
-    if (originalAppId === undefined) delete process.env.PLANNING_CENTER_APP_ID;
-    else process.env.PLANNING_CENTER_APP_ID = originalAppId;
-    if (originalSecret === undefined) delete process.env.PLANNING_CENTER_SECRET;
-    else process.env.PLANNING_CENTER_SECRET = originalSecret;
   } finally {
     globalThis.fetch = originalFetch;
     if (originalUrl === undefined) delete process.env.PROPRESENTER_URL;
     else process.env.PROPRESENTER_URL = originalUrl;
+    if (originalAppId === undefined) delete process.env.PLANNING_CENTER_APP_ID;
+    else process.env.PLANNING_CENTER_APP_ID = originalAppId;
+    if (originalSecret === undefined) delete process.env.PLANNING_CENTER_SECRET;
+    else process.env.PLANNING_CENTER_SECRET = originalSecret;
     await app.close();
   }
 });
