@@ -1337,54 +1337,260 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       "User-Agent": "Church Operations (https://github.com/lucamoldovan/church-management)",
     };
     const apiBase = "https://api.planningcenteronline.com/services/v2";
-    const fetchJson = async (url: string) => {
-      const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
-      if (!response.ok) throw new Error("Planning Center returned HTTP " + response.status);
-      return response.json() as Promise<{ data?: Array<{ id: string; attributes?: Record<string, unknown> }> }>;
+    type PcoResource = { id: string; type?: string; attributes?: Record<string, unknown>; relationships?: Record<string, { data?: { id: string; type: string } | Array<{ id: string; type: string }> | null }> };
+    type PcoDocument = { data?: PcoResource[]; included?: PcoResource[]; links?: { next?: string | null } };
+    const fetchPage = async (url: string): Promise<PcoDocument> => {
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(12000) });
+      if (!response.ok) throw new Error("Planning Center returned HTTP " + response.status + " for " + new URL(url).pathname);
+      return response.json() as Promise<PcoDocument>;
+    };
+    const fetchAll = async (url: string): Promise<{ data: PcoResource[]; included: PcoResource[] }> => {
+      let next: string | null = url;
+      const data: PcoResource[] = [];
+      const included: PcoResource[] = [];
+      let pages = 0;
+      while (next) {
+        if (++pages > 100) throw new Error("Planning Center pagination exceeded 100 pages; sync stopped safely.");
+        const target = new URL(next, apiBase + "/");
+        if (target.origin !== "https://api.planningcenteronline.com" || !target.pathname.startsWith("/services/v2/")) {
+          throw new Error("Planning Center returned an unexpected pagination URL; sync stopped safely.");
+        }
+        const page = await fetchPage(target.toString());
+        data.push(...(page.data ?? []));
+        included.push(...(page.included ?? []));
+        next = page.links?.next ? new URL(page.links.next, target).toString() : null;
+      }
+      return { data, included };
+    };
+    const attr = (resource: PcoResource | undefined, key: string): unknown => resource?.attributes?.[key];
+    const relationship = (resource: PcoResource | undefined, key: string): { id: string; type: string } | null => {
+      const value = resource?.relationships?.[key]?.data;
+      return value && !Array.isArray(value) ? value : null;
+    };
+    const relationshipMany = (resource: PcoResource | undefined, key: string): Array<{ id: string; type: string }> => {
+      const value = resource?.relationships?.[key]?.data;
+      return Array.isArray(value) ? value : [];
+    };
+    const includedIndex = (resources: PcoResource[]) => new Map(resources.map((resource) => [resource.type + ":" + resource.id, resource]));
+    const displayName = (person: PcoResource | undefined, fallback?: unknown): string => {
+      const first = attr(person, "first_name");
+      const last = attr(person, "last_name");
+      const full = attr(person, "full_name") ?? attr(person, "name") ?? fallback;
+      const composed = [first, last].filter((part): part is string => typeof part === "string" && part.trim()).join(" ");
+      return String(composed || full || "Unnamed person").trim().slice(0, 160);
+    };
+    const now = () => new Date().toISOString();
+    const upsertPerson = (person: PcoResource | undefined, externalId: string, fallback?: unknown): string => {
+      const attributes = person?.attributes ?? {};
+      const name = displayName(person, fallback);
+      const id = database.prepare("SELECT id FROM service_people WHERE external_id = ?").get(externalId) as { id: string } | undefined;
+      const localId = id?.id ?? randomUUID();
+      database.prepare("INSERT INTO service_people (id, external_id, display_name, first_name, last_name, photo_url, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET display_name=excluded.display_name, first_name=excluded.first_name, last_name=excluded.last_name, photo_url=excluded.photo_url, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
+        .run(localId, externalId, name,
+          typeof attributes.first_name === "string" ? attributes.first_name : null,
+          typeof attributes.last_name === "string" ? attributes.last_name : null,
+          typeof attributes.photo_thumbnail === "string" ? attributes.photo_thumbnail : null,
+          JSON.stringify(person ?? { attributes: { name } }), now());
+      return localId;
+    };
+    const upsertTeam = (team: PcoResource): string => {
+      const id = database.prepare("SELECT id FROM service_teams WHERE external_id = ?").get(team.id) as { id: string } | undefined;
+      const localId = id?.id ?? randomUUID();
+      const a = team.attributes ?? {};
+      database.prepare("INSERT INTO service_teams (id, external_id, name, sequence, archived_at, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET name=excluded.name, sequence=excluded.sequence, archived_at=excluded.archived_at, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
+        .run(localId, team.id, String(a.name ?? "Unnamed team").slice(0, 160),
+          typeof a.sequence === "number" ? a.sequence : null,
+          typeof a.archived_at === "string" ? a.archived_at : null, JSON.stringify(team), now());
+      return localId;
+    };
+    const upsertPosition = (position: PcoResource, teamId: string): string => {
+      const id = database.prepare("SELECT id FROM service_positions WHERE external_id = ?").get(position.id) as { id: string } | undefined;
+      const localId = id?.id ?? randomUUID();
+      const a = position.attributes ?? {};
+      database.prepare("INSERT INTO service_positions (id, external_id, team_id, name, sequence, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET team_id=excluded.team_id, name=excluded.name, sequence=excluded.sequence, raw_json=excluded.raw_json, updated_at=excluded.updated_at")
+        .run(localId, position.id, teamId, String(a.name ?? "Unnamed position").slice(0, 160),
+          typeof a.sequence === "number" ? a.sequence : null, JSON.stringify(position), now());
+      return localId;
     };
     try {
-      const types = await fetchJson(apiBase + "/service_types?per_page=100");
-      let imported = 0;
-      let itemsImported = 0;
+      const typeResult = await fetchAll(apiBase + "/service_types?per_page=100");
       let plansProcessed = 0;
-      for (const type of types.data ?? []) {
-        if (plansProcessed >= 25) break;
-        const plans = await fetchJson(apiBase + "/service_types/" + encodeURIComponent(type.id) + "/plans?filter=future&per_page=100");
-        for (const plan of plans.data ?? []) {
-          if (plansProcessed >= 25) break;
-          const attrs = plan.attributes ?? {};
-          const title = String(attrs.series_title || attrs.title || attrs.plan_title || type.attributes?.name || "Service plan").slice(0, 160);
-          const startsAt = typeof attrs.sort_date === "string" ? attrs.sort_date : null;
-          const now = new Date().toISOString();
-          database.prepare(`INSERT INTO church_services (id, title, starts_at, status, source, external_id, raw_json, created_at, updated_at)
-            VALUES (?, ?, ?, 'planned', 'planning_center', ?, ?, ?, ?)
-            ON CONFLICT(external_id) DO UPDATE SET title=excluded.title, starts_at=excluded.starts_at, raw_json=excluded.raw_json, updated_at=excluded.updated_at`)
-            .run(randomUUID(), title, startsAt, plan.id, JSON.stringify(plan), now, now);
-          const service = database.prepare("SELECT id FROM church_services WHERE external_id = ?").get(plan.id) as { id: string } | undefined;
-          if (!service) continue;
-          imported++;
-          plansProcessed++;
-
-          const items = await fetchJson(apiBase + "/service_types/" + encodeURIComponent(type.id) + "/plans/" + encodeURIComponent(plan.id) + "/items?per_page=100");
-          // Replace the local order snapshot so removed Planning Center items do not linger.
-          database.prepare("DELETE FROM church_service_items WHERE service_id = ?").run(service.id);
-          for (const [itemIndex, item] of (items.data ?? []).entries()) {
-            const itemAttrs = item.attributes ?? {};
-            const itemTitle = String(itemAttrs.title || itemAttrs.service_position || "Untitled item").slice(0, 160);
-            const position = typeof itemAttrs.sequence === "number" ? Math.max(0, Math.floor(itemAttrs.sequence)) : itemIndex;
-            const itemType = typeof itemAttrs.item_type === "string" ? itemAttrs.item_type.slice(0, 60) : "other";
-            const notes = typeof itemAttrs.description === "string" ? itemAttrs.description.slice(0, 4000) : null;
-            database.prepare(`INSERT INTO church_service_items (id, service_id, position, title, item_type, notes, external_id, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(external_id) DO UPDATE SET service_id=excluded.service_id, position=excluded.position,
-                title=excluded.title, item_type=excluded.item_type, notes=excluded.notes, updated_at=excluded.updated_at`)
-              .run(randomUUID(), service.id, position, itemTitle, itemType, notes, plan.id + ":" + item.id, now, now);
-            itemsImported++;
+      let itemsImported = 0;
+      let peopleImported = 0;
+      let teamsImported = 0;
+      let positionsImported = 0;
+      let scheduledAssignmentsImported = 0;
+      let itemAssignmentsImported = 0;
+      const maxPlans = 250;
+      for (const type of typeResult.data) {
+        const typeId = type.id;
+        const typeTeams = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/teams?per_page=100");
+        const teamResources = new Map<string, PcoResource>(typeTeams.data.map((team) => [team.id, team]));
+        const plansResult = await fetchAll(apiBase + "/service_types/" + encodeURIComponent(typeId) + "/plans?filter=future&per_page=100");
+        for (const plan of plansResult.data) {
+          if (plansProcessed >= maxPlans) break;
+          const planPath = "/service_types/" + encodeURIComponent(typeId) + "/plans/" + encodeURIComponent(plan.id);
+          const [itemsResult, peopleResult, timesResult, signupTeamsResult] = await Promise.all([
+            fetchAll(apiBase + planPath + "/items?include=song,arrangement&per_page=100"),
+            fetchAll(apiBase + planPath + "/team_members?include=person,team&per_page=100"),
+            fetchAll(apiBase + planPath + "/plan_times?per_page=100"),
+            fetchAll(apiBase + planPath + "/signup_teams?per_page=100"),
+          ]);
+          const planIncluded = includedIndex([...itemsResult.included, ...peopleResult.included, ...timesResult.included, ...signupTeamsResult.included]);
+          for (const team of signupTeamsResult.data) teamResources.set(team.id, team);
+          for (const scheduled of peopleResult.data) {
+            const teamRef = relationship(scheduled, "team");
+            if (teamRef && !teamResources.has(teamRef.id)) {
+              const fromIncluded = planIncluded.get("Team:" + teamRef.id);
+              if (fromIncluded) teamResources.set(teamRef.id, fromIncluded);
+            }
           }
+          const positionResources = new Map<string, PcoResource>();
+          const positionLocalIds = new Map<string, string>();
+          const teamLocalIds = new Map<string, string>();
+          for (const team of teamResources.values()) {
+            const teamLocalId = upsertTeam(team);
+            teamLocalIds.set(team.id, teamLocalId);
+            const positions = await fetchAll(apiBase + "/teams/" + encodeURIComponent(team.id) + "/team_positions?per_page=100");
+            for (const position of positions.data) {
+              positionResources.set(position.id, position);
+              positionLocalIds.set(position.id, upsertPosition(position, teamLocalId));
+            }
+          }
+          const personResources = new Map<string, PcoResource>();
+          for (const included of planIncluded.values()) if (included.type === "Person") personResources.set(included.id, included);
+          const planPeople = new Map<string, { resource: PcoResource; personId: string; teamId: string | null; positionName: string | null }>();
+          for (const scheduled of peopleResult.data) {
+            const personRef = relationship(scheduled, "person");
+            const personResource = personRef ? personResources.get(personRef.id) : undefined;
+            const personExternalId = personRef?.id ?? "plan-person:" + scheduled.id;
+            const personId = upsertPerson(personResource, personExternalId, attr(scheduled, "name"));
+            const teamRef = relationship(scheduled, "team");
+            const teamId = teamRef ? teamLocalIds.get(teamRef.id) ?? null : null;
+            planPeople.set(scheduled.id, {
+              resource: scheduled, personId, teamId,
+              positionName: typeof attr(scheduled, "team_position_name") === "string" ? String(attr(scheduled, "team_position_name")) : null,
+            });
+          }
+          const itemAssignmentResources = new Map<string, PcoResource[]>();
+          for (const item of itemsResult.data) {
+            const assignmentResult = await fetchAll(apiBase + planPath + "/items/" + encodeURIComponent(item.id) + "/item_assignments?per_page=100");
+            itemAssignmentResources.set(item.id, assignmentResult.data);
+            for (const included of assignmentResult.included) {
+              if (included.type === "Person") personResources.set(included.id, included);
+              if (included.type === "TeamPosition") positionResources.set(included.id, included);
+            }
+          }
+          const transaction = database.transaction(() => {
+            const planAttrs = plan.attributes ?? {};
+            const title = String(planAttrs.series_title || planAttrs.title || type.attributes?.name || "Service plan").slice(0, 160);
+            const startsAt = typeof planAttrs.sort_date === "string" ? planAttrs.sort_date : null;
+            const existing = database.prepare("SELECT id FROM church_services WHERE external_id = ?").get(plan.id) as { id: string } | undefined;
+            const serviceId = existing?.id ?? randomUUID();
+            database.prepare("INSERT INTO church_services (id, title, starts_at, status, source, external_id, raw_json, service_type_external_id, created_at, updated_at) VALUES (?, ?, ?, 'planned', 'planning_center', ?, ?, ?, ?, ?) ON CONFLICT(external_id) DO UPDATE SET title=excluded.title, starts_at=excluded.starts_at, raw_json=excluded.raw_json, service_type_external_id=excluded.service_type_external_id, updated_at=excluded.updated_at")
+              .run(serviceId, title, startsAt, plan.id, JSON.stringify(plan), typeId, now(), now());
+            const service = database.prepare("SELECT id FROM church_services WHERE external_id = ?").get(plan.id) as { id: string };
+            const localServiceId = service.id;
+            database.prepare("DELETE FROM service_plan_teams WHERE service_id = ?").run(localServiceId);
+            database.prepare("DELETE FROM service_assignment_times WHERE assignment_id IN (SELECT id FROM service_plan_assignments WHERE service_id = ?)").run(localServiceId);
+            database.prepare("DELETE FROM service_plan_assignments WHERE service_id = ?").run(localServiceId);
+            database.prepare("DELETE FROM service_plan_times WHERE service_id = ?").run(localServiceId);
+            database.prepare("DELETE FROM church_service_items WHERE service_id = ?").run(localServiceId);
+            let teamOrder = 0;
+            for (const team of teamResources.values()) {
+              const teamId = teamLocalIds.get(team.id);
+              if (teamId) database.prepare("INSERT INTO service_plan_teams (service_id, team_id, position) VALUES (?, ?, ?)").run(localServiceId, teamId, teamOrder++);
+            }
+            const timeIds = new Map<string, string>();
+            for (const time of timesResult.data) {
+              const timeId = randomUUID();
+              const ta = time.attributes ?? {};
+              database.prepare("INSERT INTO service_plan_times (id, service_id, external_id, name, starts_at, ends_at, time_type, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .run(timeId, localServiceId, time.id, String(ta.name ?? "Service time"), typeof ta.starts_at === "string" ? ta.starts_at : null,
+                  typeof ta.ends_at === "string" ? ta.ends_at : null, typeof ta.time_type === "string" ? ta.time_type : null, JSON.stringify(time), now());
+              timeIds.set(time.id, timeId);
+            }
+            for (const team of teamResources.values()) {
+              const teamId = teamLocalIds.get(team.id);
+              if (!teamId) continue;
+              for (const position of positionResources.values()) {
+                const positionTeam = relationship(position, "team");
+                if (positionTeam?.id !== team.id) continue;
+                const assignments = awaitNeverPlaceholder;
+              }
+            }
+            for (const [scheduledId, info] of planPeople) {
+              const personRef = relationship(info.resource, "person");
+              const teamRef = relationship(info.resource, "team");
+              const position = [...positionResources.values()].find((candidate) =>
+                relationship(candidate, "team")?.id === teamRef?.id &&
+                String(attr(candidate, "name") ?? "").toLowerCase() === (info.positionName ?? "").toLowerCase());
+              const positionId = position ? positionLocalIds.get(position.id) ?? null : null;
+              const assignmentId = randomUUID();
+              const sa = info.resource.attributes ?? {};
+              database.prepare("INSERT INTO service_plan_assignments (id, service_id, person_id, team_id, position_id, position_name, status, notes, plan_person_external_id, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .run(assignmentId, localServiceId, info.personId, info.teamId, positionId, info.positionName,
+                  typeof sa.status === "string" ? sa.status : null, typeof sa.notes === "string" ? sa.notes : null,
+                  plan.id + ":" + scheduledId, JSON.stringify(info.resource), now());
+              const timeRefs = [...relationshipMany(info.resource, "times"), ...relationshipMany(info.resource, "service_times")];
+              for (const timeRef of timeRefs) {
+                const localTimeId = timeIds.get(timeRef.id);
+                if (localTimeId) database.prepare("INSERT OR IGNORE INTO service_assignment_times (assignment_id, plan_time_id) VALUES (?, ?)").run(assignmentId, localTimeId);
+              }
+              scheduledAssignmentsImported++;
+            }
+            const insertedItems = new Map<string, string>();
+            for (const [index, item] of itemsResult.data.entries()) {
+              const ia = item.attributes ?? {};
+              const itemTitle = String(ia.title || ia.service_position || "Untitled item").slice(0, 160);
+              const position = typeof ia.sequence === "number" ? Math.max(0, Math.floor(ia.sequence)) : index;
+              const itemType = typeof ia.item_type === "string" ? ia.item_type.slice(0, 60) : "other";
+              const songRef = relationship(item, "song");
+              const arrangementRef = relationship(item, "arrangement");
+              const itemId = randomUUID();
+              database.prepare("INSERT INTO church_service_items (id, service_id, position, title, item_type, duration_seconds, notes, external_id, song_external_id, arrangement_external_id, service_position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .run(itemId, localServiceId, position, itemTitle, itemType,
+                  typeof ia.length === "number" ? ia.length : null,
+                  typeof ia.description === "string" ? ia.description.slice(0, 4000) : null,
+                  plan.id + ":" + item.id, songRef?.id ?? null, arrangementRef?.id ?? null,
+                  typeof ia.service_position === "string" ? ia.service_position : null, now(), now());
+              insertedItems.set(item.id, itemId);
+              itemsImported++;
+            }
+            for (const [itemExternalId, assignments] of itemAssignmentResources) {
+              const localItemId = insertedItems.get(itemExternalId);
+              if (!localItemId) continue;
+              for (const assignment of assignments) {
+                const assignable = relationship(assignment, "assignable");
+                if (!assignable) continue;
+                const personId = assignable.type === "Person"
+                  ? upsertPerson(personResources.get(assignable.id), assignable.id)
+                  : null;
+                const positionId = assignable.type === "TeamPosition" ? positionLocalIds.get(assignable.id) ?? null : null;
+                const positionName = positionId ? String(attr(positionResources.get(assignable.id), "name") ?? "") : null;
+                const assignmentId = randomUUID();
+                database.prepare("INSERT INTO service_item_assignments (id, item_id, assignable_type, assignable_external_id, person_id, position_id, display_name, external_id, raw_json, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                  .run(assignmentId, localItemId, assignable.type, assignable.id, personId, positionId,
+                    personId ? (database.prepare("SELECT display_name FROM service_people WHERE id = ?").get(personId) as { display_name: string }).display_name : positionName,
+                    plan.id + ":" + itemExternalId + ":" + assignment.id, JSON.stringify(assignment), now());
+                itemAssignmentsImported++;
+              }
+            }
+          });
+          transaction();
+          plansProcessed++;
         }
+        if (plansProcessed >= maxPlans) break;
       }
-      return { imported, itemsImported, serviceTypes: (types.data ?? []).length, plansProcessed, syncedAt: new Date().toISOString() };
+      return {
+        imported: plansProcessed, itemsImported, peopleImported: database.prepare("SELECT COUNT(*) AS count FROM service_people").get() as { count: number }.count,
+        teamsImported: database.prepare("SELECT COUNT(*) AS count FROM service_teams").get() as { count: number }.count,
+        positionsImported: database.prepare("SELECT COUNT(*) AS count FROM service_positions").get() as { count: number }.count,
+        scheduledAssignmentsImported, itemAssignmentsImported, serviceTypes: typeResult.data.length,
+        syncedAt: new Date().toISOString(),
+      };
     } catch (error) {
+      request.log.error({ err: error }, "Planning Center sync failed");
       return reply.code(502).send({ error: error instanceof Error ? error.message : "Planning Center sync failed" });
     }
   });
