@@ -224,7 +224,6 @@ export class ShureSlxdMonitor {
     socket.on("error", (error) => { state.diagnostic = error.message.slice(0, 180); });
     socket.on("close", () => {
       state.connected = false;
-      state.lastSeenAt = new Date().toISOString();
       state.diagnostic = state.diagnostic ?? "Receiver disconnected; automatic reconnect is enabled";
     });
   }
