@@ -79,7 +79,7 @@ export function SourcesPage() {
           </div>
         )}
       </section>
-      <footer className="page-footer"><span>CHURCH OPS <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>NDI transport stays independent of server control <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> NETWORK VIDEO. SIMPLIFIED.</span><span>NDI transport stays independent of server control <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
