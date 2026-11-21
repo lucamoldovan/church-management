@@ -368,3 +368,5 @@ h1 { margin-bottom: 7px; color: #202329; font: 700 27px/1.2 'Manrope', sans-seri
 
 .service-page-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 @media(max-width:600px){.service-page-actions{width:100%}.service-page-actions .button{flex:1;justify-content:center}}
+
+.service-team-leaders{display:block;margin-top:4px;color:#8b929e;font-size:8px;font-weight:500}
