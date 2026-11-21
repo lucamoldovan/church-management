@@ -408,3 +408,22 @@ export function saveMicrophoneAssignments(serviceId: string, assignments: Array<
     body: JSON.stringify({ assignments }),
   });
 }
+
+export interface ShureSlxdDevice {
+  deviceId: string; model: string | null; firmware: string | null; rfBand: string | null;
+  channelName: string | null; frequencyHz: number | null; groupChannel: string | null;
+  transmitterModel: string | null; transmitterConnected: boolean | null;
+  batteryBars: number | null; batteryPercentEstimate: number | null; batteryRuntimeMinutes: number | null;
+  batteryRuntimeState: "available" | "calculating" | "communication_warning" | "unknown";
+  rfAntennaADbm: number | null; rfAntennaBDbm: number | null; rfDbm: number | null;
+  audioPeakDbfs: number | null; audioRmsDbfs: number | null;
+  connected: boolean; lastSeenAt: string; lastSampleAt: string | null;
+  remoteAddress: string; channel: number; diagnostic: string | null;
+}
+export interface ShureSlxdStatus {
+  enabled: boolean; listening: boolean; host: string | null; port: number | null;
+  allowedReceiverCount: number; devices: ShureSlxdDevice[]; message: string;
+}
+export function getShureSlxdStatus(): Promise<ShureSlxdStatus> {
+  return request("/api/v1/integrations/shure-slxd/status");
+}
