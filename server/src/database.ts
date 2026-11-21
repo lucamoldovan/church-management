@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 
 export type VeyraDatabase = Database.Database;
 
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "data/veyra.sqlite"): VeyraDatabase {
   const resolvedPath = databasePath === ":memory:" ? databasePath : resolve(databasePath);
@@ -288,6 +288,49 @@ export function openDatabase(databasePath = process.env.VEYRA_DATABASE_PATH ?? "
         );
       `);
       database.pragma("user_version = 7");
+    }
+
+    if (currentVersion < 8) {
+      database.exec("
+        CREATE TABLE IF NOT EXISTS service_people (
+          id TEXT PRIMARY KEY, external_id TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, first_name TEXT, last_name TEXT, photo_url TEXT, raw_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS service_teams (
+          id TEXT PRIMARY KEY, external_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, sequence INTEGER, archived_at TEXT, raw_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS service_positions (
+          id TEXT PRIMARY KEY, external_id TEXT NOT NULL UNIQUE, team_id TEXT NOT NULL REFERENCES service_teams(id) ON DELETE CASCADE, name TEXT NOT NULL, sequence INTEGER, raw_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL, UNIQUE(team_id, name)
+        );
+        CREATE TABLE IF NOT EXISTS service_team_memberships (
+          id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES service_people(id) ON DELETE CASCADE, position_id TEXT NOT NULL REFERENCES service_positions(id) ON DELETE CASCADE, schedule_preference TEXT, raw_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL, UNIQUE(person_id, position_id)
+        );
+        CREATE TABLE IF NOT EXISTS service_plan_teams (
+          service_id TEXT NOT NULL REFERENCES church_services(id) ON DELETE CASCADE, team_id TEXT NOT NULL REFERENCES service_teams(id) ON DELETE CASCADE, position INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(service_id, team_id)
+        );
+        CREATE TABLE IF NOT EXISTS service_plan_times (
+          id TEXT PRIMARY KEY, service_id TEXT NOT NULL REFERENCES church_services(id) ON DELETE CASCADE, external_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, starts_at TEXT, ends_at TEXT, time_type TEXT, raw_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS service_plan_assignments (
+          id TEXT PRIMARY KEY, service_id TEXT NOT NULL REFERENCES church_services(id) ON DELETE CASCADE, person_id TEXT NOT NULL REFERENCES service_people(id) ON DELETE CASCADE, team_id TEXT REFERENCES service_teams(id) ON DELETE SET NULL, position_id TEXT REFERENCES service_positions(id) ON DELETE SET NULL, position_name TEXT, status TEXT, notes TEXT, plan_person_external_id TEXT NOT NULL UNIQUE, raw_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS service_plan_assignments_service_idx ON service_plan_assignments(service_id, team_id, position_name);
+        CREATE TABLE IF NOT EXISTS service_assignment_times (
+          assignment_id TEXT NOT NULL REFERENCES service_plan_assignments(id) ON DELETE CASCADE, plan_time_id TEXT NOT NULL REFERENCES service_plan_times(id) ON DELETE CASCADE, PRIMARY KEY(assignment_id, plan_time_id)
+        );
+        CREATE TABLE IF NOT EXISTS service_item_assignments (
+          id TEXT PRIMARY KEY, item_id TEXT NOT NULL REFERENCES church_service_items(id) ON DELETE CASCADE, assignable_type TEXT NOT NULL, assignable_external_id TEXT NOT NULL, person_id TEXT REFERENCES service_people(id) ON DELETE SET NULL, position_id TEXT REFERENCES service_positions(id) ON DELETE SET NULL, display_name TEXT, external_id TEXT NOT NULL UNIQUE, raw_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS service_live_state (
+          service_id TEXT PRIMARY KEY REFERENCES church_services(id) ON DELETE CASCADE, matched_item_id TEXT REFERENCES church_service_items(id) ON DELETE SET NULL, match_method TEXT, presentation_name TEXT, current_slide_text TEXT, current_slide_uuid TEXT, connected INTEGER NOT NULL DEFAULT 0, observed_at TEXT, stale_at TEXT, message TEXT
+        );
+        ALTER TABLE church_services ADD COLUMN service_type_external_id TEXT;
+        ALTER TABLE church_service_items ADD COLUMN song_external_id TEXT;
+        ALTER TABLE church_service_items ADD COLUMN arrangement_external_id TEXT;
+        ALTER TABLE church_service_items ADD COLUMN service_position TEXT;
+        CREATE INDEX IF NOT EXISTS church_service_items_song_idx ON church_service_items(song_external_id);
+        CREATE INDEX IF NOT EXISTS service_live_state_observed_idx ON service_live_state(observed_at);
+      ");
+      database.pragma("user_version = 8");
     }
   });
 
