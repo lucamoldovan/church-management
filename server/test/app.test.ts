@@ -831,6 +831,14 @@ test("church staff, services, events and groups stay behind staff authentication
     assert.equal(staffList.statusCode, 200);
     assert.equal(staffList.json().staff.length, 2);
 
+    const invalidStaffRole = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/church/staff/${adminId}`,
+      headers,
+      payload: { role: "" },
+    });
+    assert.equal(invalidStaffRole.statusCode, 400);
+
     const disableLastAdmin = await app.inject({
       method: "PATCH",
       url: `/api/v1/church/staff/${adminId}`,
@@ -857,6 +865,22 @@ test("church staff, services, events and groups stay behind staff authentication
     });
     assert.equal(event.statusCode, 201);
 
+    const invalidEventRange = await app.inject({
+      method: "POST",
+      url: "/api/v1/church/events",
+      headers,
+      payload: { title: "Invalid range", startsAt: "2026-12-02T12:00:00.000Z", endsAt: "2026-12-02T11:00:00.000Z" },
+    });
+    assert.equal(invalidEventRange.statusCode, 400);
+
+    const invalidEventCapacity = await app.inject({
+      method: "POST",
+      url: "/api/v1/church/events",
+      headers,
+      payload: { title: "Invalid capacity", capacity: -1 },
+    });
+    assert.equal(invalidEventCapacity.statusCode, 400);
+
     const group = await app.inject({
       method: "POST",
       url: "/api/v1/church/groups",
@@ -864,6 +888,14 @@ test("church staff, services, events and groups stay behind staff authentication
       payload: { name: "Youth study group", meetingDay: "Wednesday" },
     });
     assert.equal(group.statusCode, 201);
+
+    const invalidGroupTime = await app.inject({
+      method: "POST",
+      url: "/api/v1/church/groups",
+      headers,
+      payload: { name: "Invalid time group", meetingTime: "25:61" },
+    });
+    assert.equal(invalidGroupTime.statusCode, 400);
 
     const overview = await app.inject({ method: "GET", url: "/api/v1/church/overview", headers });
     assert.equal(overview.statusCode, 200);
