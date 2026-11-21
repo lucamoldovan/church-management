@@ -1320,8 +1320,18 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         return reply.code(400).send({ error: "Each saved assignment must have a scheduled person" });
       }
       if (seenPeople.has(row.personId)) return reply.code(409).send({ error: "A person can only be assigned to one microphone for this service" });
-      const scheduled = database.prepare("SELECT 1 AS found FROM service_plan_assignments WHERE service_id = ? AND person_id = ? LIMIT 1").get(serviceId, row.personId);
+      const scheduled = database.prepare(`
+        SELECT COALESCE(pos.name, a.position_name) AS positionName, t.name AS teamName
+        FROM service_plan_assignments a
+        LEFT JOIN service_teams t ON t.id = a.team_id
+        LEFT JOIN service_positions pos ON pos.id = a.position_id
+        WHERE a.service_id = ? AND a.person_id = ?
+        LIMIT 1
+      `).get(serviceId, row.personId) as { positionName: string | null; teamName: string | null } | undefined;
       if (!scheduled) return reply.code(400).send({ error: "Microphones can only be assigned to people scheduled on this service plan" });
+      const singerRole = /singer|vocal|choir|worship leader/i.test(scheduled.positionName ?? "") ||
+        /singer|vocal|choir/i.test(scheduled.teamName ?? "");
+      if (!singerRole) return reply.code(400).send({ error: "Select someone scheduled in a singer or vocal role on this service plan" });
       seenSlots.add(row.slotKey);
       seenPeople.add(row.personId);
       normalized.push({ slotKey: row.slotKey, personId: row.personId });
