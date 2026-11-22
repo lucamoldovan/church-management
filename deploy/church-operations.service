@@ -1,5 +1,5 @@
 [Unit]
-Description=Kasapini Dashboard local staff platform
+Description=Casa Painii local staff platform
 After=network-online.target
 Wants=network-online.target
 

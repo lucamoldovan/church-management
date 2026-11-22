@@ -298,7 +298,7 @@ export function MicrophonesPage() {
           </div>
         </>
       )}
-      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> WIRELESS</span><span>Local assignments · Planning Center read-only</span></footer>
+      <footer className="page-footer"><span>CASA PAINII <span className="footer-separator">/</span> WIRELESS</span><span>Local assignments · Planning Center read-only</span></footer>
     </>
   );
 }

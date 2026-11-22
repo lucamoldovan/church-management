@@ -2,22 +2,22 @@
 
 ## ProPresenter: enable the local API
 
-The Kasapini Dashboard connector talks directly to the ProPresenter computer over the church LAN. It does not use a cloud service or a browser-to-ProPresenter connection.
+The Casa Painii connector talks directly to the ProPresenter computer over the church LAN. It does not use a cloud service or a browser-to-ProPresenter connection.
 
 1. Open ProPresenter on the production computer.
 2. Open **ProPresenter → Settings → Network**.
 3. Enable the Network/API listener.
 4. Record the exact IP address and port displayed by ProPresenter. The port can differ between installations; Renewed Vision's example uses 1025, but do not assume that value.
 5. On that same Network settings page, open **API Documentation**. This is the documentation generated for the installed ProPresenter version and is the final authority for that installation.
-6. Keep the ProPresenter computer on the same trusted wired LAN as the Kasapini Dashboard server.
-7. Configure the ProPresenter computer's firewall to allow the API TCP port only from the Kasapini Dashboard server's reserved IP address.
+6. Keep the ProPresenter computer on the same trusted wired LAN as the Casa Painii server.
+7. Configure the ProPresenter computer's firewall to allow the API TCP port only from the Casa Painii server's reserved IP address.
 
 Official references:
 - API reference: https://openapi.propresenter.com/
 - Renewed Vision network setup: https://support.renewedvision.com/hc/en-us/articles/6024791423763-Connecting-to-ProPresenter-Control
 - API TCP/IP documentation: https://support.renewedvision.com/hc/en-us/articles/31606866768147-TCP-IP-Connections-with-ProPresenter-API
 
-## Configure Kasapini Dashboard
+## Configure Casa Painii
 
 On the server, set the ProPresenter base URL in the private root `.env` file:
 
@@ -32,7 +32,7 @@ sudo systemctl restart church-operations
 sudo journalctl -u church-operations -n 50 --no-pager
 ```
 
-Open **ProPresenter** in the Kasapini Dashboard dashboard. The current integration checks:
+Open **ProPresenter** in the Casa Painii dashboard. The current integration checks:
 
 - `GET /version` — ProPresenter version and instance information.
 - `GET /v1/presentation/active` — active presentation.
@@ -64,7 +64,7 @@ PLANNING_CENTER_APP_ID=your_client_id
 PLANNING_CENTER_SECRET=your_secret
 ```
 
-6. Restart Kasapini Dashboard.
+6. Restart Casa Painii.
 7. Open **Services** in the dashboard. The Planning Center status indicator should report that the Services API is reachable.
 8. As an administrator, select **Sync services**. Confirm the imported plans and service-order items appear in the local Services list.
 
@@ -72,7 +72,7 @@ The current importer reads future Service Types, plans and their ordered items. 
 
 ### Optional: ProPresenter's own Planning Center integration
 
-This is separate from the Kasapini Dashboard server connector. If you want ProPresenter itself to import and use Planning Center service plans, open **ProPresenter → Settings → Integrations → Planning Center**, sign in, select the church organization if prompted, and approve access. Renewed Vision recommends an account with Editor or Administrator privileges on the Planning Center plan; this feature also requires an active Planning Center Services subscription. The server-side PAT does not sign ProPresenter in.
+This is separate from the Casa Painii server connector. If you want ProPresenter itself to import and use Planning Center service plans, open **ProPresenter → Settings → Integrations → Planning Center**, sign in, select the church organization if prompted, and approve access. Renewed Vision recommends an account with Editor or Administrator privileges on the Planning Center plan; this feature also requires an active Planning Center Services subscription. The server-side PAT does not sign ProPresenter in.
 
 Official references:
 - Getting started: https://api.planningcenteronline.com/docs/overview/getting-started

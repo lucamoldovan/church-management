@@ -2,7 +2,7 @@
 
 ## Scope and hardware
 
-Kasapini Dashboard has an optional, read-only telemetry adapter for up to six single-channel Shure SLX-D receivers: five handheld singer microphones and one headset/bodypack channel. The transmitters currently use AA batteries.
+Casa Painii has an optional, read-only telemetry adapter for up to six single-channel Shure SLX-D receivers: five handheld singer microphones and one headset/bodypack channel. The transmitters currently use AA batteries.
 
 The adapter is disabled by default. It has not been validated against the physical receivers yet. Do not enable it on the church network until the TCP connection direction has been confirmed with one receiver.
 
@@ -32,7 +32,7 @@ The adapter does not issue commands that change RF frequency, group/channel, tra
 
 The official [SLX-D User Guide](https://www.shure.com/en-US/docs/guide/SLXD) describes the SLX-D receiver as the TCP client on port 2202. The official [SLX-D Command Strings document](https://www.shure.com/en-US/docs/commandstrings/SLXD) says to select Client in the AMX/Crestron control program. A third-party SLX-D driver describes the controller connecting to the receiver, and Shure's general connection-support article does not explicitly list SLX-D among the models it covers.
 
-These descriptions are not sufficiently consistent to claim the connection direction is verified. The current experimental adapter assumes that Kasapini Dashboard opens outbound TCP connections to each configured receiver IP. It is disabled by default. Confirm the actual connection behavior with one physical receiver or Shure support before enabling it. Do not configure a listener, routes or receiver destinations based on guesswork.
+These descriptions are not sufficiently consistent to claim the connection direction is verified. The current experimental adapter assumes that Casa Painii opens outbound TCP connections to each configured receiver IP. It is disabled by default. Confirm the actual connection behavior with one physical receiver or Shure support before enabling it. Do not configure a listener, routes or receiver destinations based on guesswork.
 
 Shure also says to allow third-party control under **Advanced Settings → Controller Access → Allow** and to use only one controller per system to avoid command conflicts. Perform that change only as part of the controlled hardware test, and do not run a competing controller such as Wireless Workbench at the same time.
 

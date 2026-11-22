@@ -49,12 +49,12 @@ function readSetupKey(database: VeyraDatabase, options: BuildAppOptions): { key:
   if (existsSync(setupKeyPath)) {
     const fileInfo = lstatSync(setupKeyPath);
     if (!fileInfo.isFile()) {
-      throw new Error("Kasapini Dashboard setup key path must be a regular file, not a symlink or special file");
+      throw new Error("Casa Painii setup key path must be a regular file, not a symlink or special file");
     }
     chmodSync(setupKeyPath, 0o600);
     const existingKey = readFileSync(setupKeyPath, "utf8").trim();
     if (existingKey.length < 32) {
-      throw new Error("Kasapini Dashboard setup key file is empty or invalid; remove it to generate a new key");
+      throw new Error("Casa Painii setup key file is empty or invalid; remove it to generate a new key");
     }
     return { key: existingKey, path: setupKeyPath, generated: false };
   }
@@ -67,7 +67,7 @@ function readSetupKey(database: VeyraDatabase, options: BuildAppOptions): { key:
 function readPairingSecret(options: BuildAppOptions): Buffer {
   if (options.pairingSecret) {
     const secret = Buffer.from(options.pairingSecret, "utf8");
-    if (secret.length < 32) throw new Error("Kasapini Dashboard receiver pairing secret must be at least 32 bytes");
+    if (secret.length < 32) throw new Error("Casa Painii receiver pairing secret must be at least 32 bytes");
     return secret;
   }
 
@@ -76,11 +76,11 @@ function readPairingSecret(options: BuildAppOptions): Buffer {
 
   if (existsSync(secretPath)) {
     const fileInfo = lstatSync(secretPath);
-    if (!fileInfo.isFile()) throw new Error("Kasapini Dashboard receiver pairing secret path must be a regular file");
+    if (!fileInfo.isFile()) throw new Error("Casa Painii receiver pairing secret path must be a regular file");
     chmodSync(secretPath, 0o600);
     const value = readFileSync(secretPath, "utf8").trim();
     if (!/^[a-f0-9]{64}$/i.test(value)) {
-      throw new Error("Kasapini Dashboard receiver pairing secret file is invalid; restore it from backup or remove it to rotate pairing verification");
+      throw new Error("Casa Painii receiver pairing secret file is invalid; restore it from backup or remove it to rotate pairing verification");
     }
     return Buffer.from(value, "hex");
   }
@@ -133,7 +133,7 @@ function ensurePrivateDirectory(path: string): void {
   const absolutePath = resolve(path);
   const homeDirectory = process.env.HOME ? resolve(process.env.HOME) : "";
   if (absolutePath === process.cwd() || (homeDirectory && absolutePath === homeDirectory)) {
-    throw new Error("Kasapini Dashboard media storage must use a dedicated subdirectory");
+    throw new Error("Casa Painii media storage must use a dedicated subdirectory");
   }
   const unsafeTargets = new Set([
     "/", "/tmp", "/var", "/var/cache", "/var/lib", "/home", "/root",
@@ -141,12 +141,12 @@ function ensurePrivateDirectory(path: string): void {
     "/sys", "/boot",
   ]);
   if (unsafeTargets.has(absolutePath)) {
-    throw new Error("Kasapini Dashboard media storage must use a dedicated private directory");
+    throw new Error("Casa Painii media storage must use a dedicated private directory");
   }
   mkdirSync(absolutePath, { recursive: true, mode: 0o700 });
   const info = lstatSync(absolutePath);
   if (!info.isDirectory() || info.isSymbolicLink()) {
-    throw new Error("Kasapini Dashboard media storage path must be a real directory, not a symlink");
+    throw new Error("Casa Painii media storage path must be a real directory, not a symlink");
   }
   chmodSync(absolutePath, 0o700);
 }
@@ -241,7 +241,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   });
 
   if (setup.generated && setup.key) {
-    app.log.warn({ setupKey: setup.key }, "Kasapini Dashboard first-run setup key — enter this in the dashboard");
+    app.log.warn({ setupKey: setup.key }, "Casa Painii first-run setup key — enter this in the dashboard");
   }
 
   app.register(cookie);
@@ -263,7 +263,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.get("/api/v1/health", async () => ({
     status: "ok",
-    service: "kasapini-dashboard-server",
+    service: "casa-painii-server",
     version: "0.1.0",
   }));
 
@@ -311,7 +311,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       if (error instanceof Error && error.message === "SETUP_ALREADY_COMPLETED") {
         return reply.code(409).send({ error: "Initial setup has already been completed" });
       }
-      request.log.error(error, "Could not create initial Kasapini Dashboard operator");
+      request.log.error(error, "Could not create initial Casa Painii operator");
       return reply.code(409).send({ error: "Initial setup could not be completed" });
     }
 
@@ -1512,7 +1512,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const secret = process.env.PLANNING_CENTER_SECRET?.trim();
     if (!appId || !secret) return { configured: false, connected: false, message: "Set PLANNING_CENTER_APP_ID and PLANNING_CENTER_SECRET on the local server." };
     try {
-      const authHeaders = { Authorization: "Basic " + Buffer.from(appId + ":" + secret).toString("base64"), Accept: "application/json", "User-Agent": "Kasapini Dashboard (https://github.com/lucamoldovan/church-management)" };
+      const authHeaders = { Authorization: "Basic " + Buffer.from(appId + ":" + secret).toString("base64"), Accept: "application/json", "User-Agent": "Casa Painii (https://github.com/lucamoldovan/church-management)" };
       const [servicesResponse, peopleResponse] = await Promise.all([
         fetch("https://api.planningcenteronline.com/services/v2/service_types?per_page=1", { headers: authHeaders, signal: AbortSignal.timeout(5000) }),
         fetch("https://api.planningcenteronline.com/people/v2/people?per_page=1", { headers: authHeaders, signal: AbortSignal.timeout(5000) }),
@@ -1535,7 +1535,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const headers = {
       Authorization: "Basic " + Buffer.from(appId + ":" + secret).toString("base64"),
       Accept: "application/json",
-      "User-Agent": "Kasapini Dashboard (https://github.com/lucamoldovan/church-management)",
+      "User-Agent": "Casa Painii (https://github.com/lucamoldovan/church-management)",
     };
     const apiBase = "https://api.planningcenteronline.com/services/v2";
     type PcoResource = { id: string; type?: string; attributes?: Record<string, unknown>; relationships?: Record<string, { data?: { id: string; type: string } | Array<{ id: string; type: string }> | null }> };

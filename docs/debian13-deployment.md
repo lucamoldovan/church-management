@@ -1,4 +1,4 @@
-# Kasapini Dashboard — Debian 13 deployment runbook
+# Casa Painii — Debian 13 deployment runbook
 
 This is the deployment path for the `local-operations-platform` branch. It keeps the central server headless and runs the NDI receiver as a separate native process on each display computer.
 
@@ -80,7 +80,7 @@ sudo openssl req -x509 -new -nodes \
   -key /root/church-local-ca/ca.key \
   -sha256 -days 3650 \
   -out /etc/church-operations/tls/ca.crt \
-  -subj "/CN=Kasapini Dashboard Local CA" \
+  -subj "/CN=Casa Painii Local CA" \
   -addext "basicConstraints=critical,CA:TRUE" \
   -addext "keyUsage=critical,keyCertSign,cRLSign" \
   -addext "subjectKeyIdentifier=hash"

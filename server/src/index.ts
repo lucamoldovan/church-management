@@ -38,7 +38,7 @@ const https = certificatePath && privateKeyPath
 
 if (!isLoopbackHost(host) && !https) {
   throw new Error(
-    "Refusing to bind Kasapini Dashboard to a non-loopback interface without TLS. " +
+    "Refusing to bind Casa Painii to a non-loopback interface without TLS. " +
     "Configure CHURCH_TLS_CERT_PATH and CHURCH_TLS_KEY_PATH.",
   );
 }
@@ -61,18 +61,18 @@ try {
   await shureMonitor.start();
   await app.listen({ host, port });
 } catch (error) {
-  app.log.error(error, "Kasapini Dashboard server failed to start");
+  app.log.error(error, "Casa Painii server failed to start");
   await shureMonitor.close().catch(() => undefined);
   process.exitCode = 1;
 }
 
 async function shutdown(signal: string): Promise<void> {
-  app.log.info({ signal }, "Shutting down Kasapini Dashboard server");
+  app.log.info({ signal }, "Shutting down Casa Painii server");
   try {
     await app.close();
     await shureMonitor.close();
   } catch (error) {
-    app.log.error(error, "Error while closing Kasapini Dashboard server");
+    app.log.error(error, "Error while closing Casa Painii server");
     process.exitCode = 1;
   }
 }

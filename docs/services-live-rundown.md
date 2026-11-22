@@ -26,7 +26,7 @@ Official references:
 
 ## Goal
 
-Build a staff-facing Services workspace that mirrors the useful operational parts of Planning Center Services while keeping Kasapini Dashboard self-hosted and keeping Planning Center as the read-only source of truth during this integration phase.
+Build a staff-facing Services workspace that mirrors the useful operational parts of Planning Center Services while keeping Casa Painii self-hosted and keeping Planning Center as the read-only source of truth during this integration phase.
 
 The local data model must remain provider-independent. Store Planning Center identifiers as external IDs and normalize people, teams, positions, service plans, plan items, and scheduled assignments locally. This keeps the read-only Planning Center mirror provider-independent. It does not imply a migration to local planning; Planning Center remains authoritative unless that scope is explicitly changed later.
 
@@ -95,7 +95,7 @@ Keep normalized local entities with provider-independent primary keys and nullab
 - service_plan_assignments (person + team + position + service time + response status)
 - service_live_state (plan/item match, ProPresenter presentation/slide metadata, observed timestamp)
 
-Do not overload the existing internal operators/church_staff table with Planning Center volunteers. A volunteer does not need a Kasapini Dashboard login to appear in the schedule.
+Do not overload the existing internal operators/church_staff table with Planning Center volunteers. A volunteer does not need a Casa Painii login to appear in the schedule.
 
 Use database migrations, foreign keys, unique external-ID constraints, and transactional per-plan sync so a failed import does not leave a half-replaced team/rundown snapshot. Paginate every Planning Center collection; do not silently assume the first 100 records are complete.
 

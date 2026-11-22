@@ -167,7 +167,7 @@ function App() {
       <aside className={`sidebar ${mobileNavOpen ? "sidebar-open" : ""}`}>
         <div className="brand">
           <div className="brand-copy">
-            <span className="brand-name">Kasapini Dashboard</span>
+            <span className="brand-name">Casa Painii</span>
             <span className="brand-caption">OPERATIONS + MEDIA</span>
           </div>
           <button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => setMobileNavOpen(false)}>
@@ -322,13 +322,13 @@ function AuthScreen({
     <main className="auth-shell">
       <div className="auth-card">
         <div className="auth-brand">
-          <div className="brand-copy"><span className="brand-name">Kasapini Dashboard</span><span className="brand-caption">OPERATIONS + MEDIA</span></div>
+          <div className="brand-copy"><span className="brand-name">Casa Painii</span><span className="brand-caption">OPERATIONS + MEDIA</span></div>
         </div>
 
         {mode === "checking" && (
           <div className="auth-message">
             <LoaderCircle className="auth-spinner" size={25} />
-            <h1>Connecting to Kasapini Dashboard</h1>
+            <h1>Connecting to Casa Painii</h1>
             <p>Checking your local workspace…</p>
           </div>
         )}
@@ -418,7 +418,7 @@ function AuthScreen({
           </>
         )}
       </div>
-      <div className="auth-background-mark">KASAPINI DASHBOARD</div>
+      <div className="auth-background-mark">CASA PAINII</div>
     </main>
   );
 }
@@ -490,7 +490,7 @@ function Overview({
     <>
       <section className="page-heading">
         <div>
-          <div className="eyebrow">KASAPINI DASHBOARD AT A GLANCE</div>
+          <div className="eyebrow">CASA PAINII AT A GLANCE</div>
           <h1>Church overview.</h1>
           <p>Here's what's happening across church operations and production.</p>
         </div>
@@ -582,7 +582,7 @@ function Overview({
         </div>
       </section>
 
-      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>Local-first by design <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>CASA PAINII <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>Local-first by design <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
@@ -836,7 +836,7 @@ function DevicesPage() {
         )}
       </section>
 
-      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>Receiver status from local heartbeats <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>CASA PAINII <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>Receiver status from local heartbeats <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
@@ -853,7 +853,7 @@ function SystemPage({
   return (
     <>
       <section className="page-heading">
-        <div><div className="eyebrow">PLATFORM HEALTH</div><h1>System</h1><p>Health and diagnostics for your local Kasapini Dashboard installation.</p></div>
+        <div><div className="eyebrow">PLATFORM HEALTH</div><h1>System</h1><p>Health and diagnostics for your local Casa Painii installation.</p></div>
         <span className={`pill ${connection === "online" ? "pill-success" : connection === "offline" ? "pill-danger" : "pill-neutral"}`}><span className="status-dot" />{connection === "online" ? "Operational" : connection === "offline" ? "Disconnected" : "Checking"}</span>
       </section>
       <section className="system-grid">
@@ -890,9 +890,9 @@ function SystemPage({
         <div className="panel-heading"><div><h2>Platform components</h2><p>Implementation status of the local platform</p></div><Command size={18} className="muted-icon" /></div>
         <div className="component-row"><div className="component-icon"><MonitorPlay size={17} /></div><div className="component-copy"><strong>NDI Receiver Engine</strong><span>Native C++ / NDI / SDL2</span></div><span className="component-status status-foundation">Foundation</span></div>
         <div className="component-row"><div className="component-icon"><Server size={17} /></div><div className="component-copy"><strong>Local API Server</strong><span>TypeScript / Fastify</span></div><span className="component-status status-foundation">Foundation</span></div>
-        <div className="component-row"><div className="component-icon"><LayoutDashboard size={17} /></div><div className="component-copy"><strong>Kasapini Dashboard</strong><span>React / Vite</span></div><span className="component-status status-foundation">Foundation</span></div>
+        <div className="component-row"><div className="component-icon"><LayoutDashboard size={17} /></div><div className="component-copy"><strong>Casa Painii</strong><span>React / Vite</span></div><span className="component-status status-foundation">Foundation</span></div>
       </section>
-      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>Local-first by design <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>CASA PAINII <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>Local-first by design <ShieldCheck size={13} /></span></footer>
     </>
   );
 }

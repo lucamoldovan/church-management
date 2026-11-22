@@ -79,7 +79,7 @@ export function SourcesPage() {
           </div>
         )}
       </section>
-      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>NDI transport stays independent of server control <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>CASA PAINII <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>NDI transport stays independent of server control <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
@@ -188,7 +188,7 @@ export function MediaPage() {
           </div>
         )}
       </section>
-      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>Stored on the local server <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>CASA PAINII <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>Stored on the local server <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
@@ -410,7 +410,7 @@ export function PlaylistsPage() {
           )}
         </section>
       </div>
-      <footer className="page-footer"><span>KASAPINI DASHBOARD <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>Image sequences · Local storage <ShieldCheck size={13} /></span></footer>
+      <footer className="page-footer"><span>CASA PAINII <span className="footer-separator">/</span> OPERATIONS + MEDIA</span><span>Image sequences · Local storage <ShieldCheck size={13} /></span></footer>
     </>
   );
 }
