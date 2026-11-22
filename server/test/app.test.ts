@@ -33,7 +33,7 @@ test("health endpoint reports the local server status", async () => {
     assert.equal(response.headers["permissions-policy"], "camera=(), microphone=(), geolocation=()");
     assert.deepEqual(response.json(), {
       status: "ok",
-      service: "kasapini-dashboard-server",
+      service: "casa-painii-server",
       version: "0.1.0",
     });
   } finally {
@@ -42,7 +42,7 @@ test("health endpoint reports the local server status", async () => {
 });
 
 test("service selector keeps upcoming plans ahead of old historical plans", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "kasapini-service-order-"));
+  const directory = mkdtempSync(join(tmpdir(), "casa-painii-service-order-"));
   const databasePath = join(directory, "church.sqlite");
   const database = openDatabase(databasePath);
   const now = new Date();
