@@ -24,7 +24,7 @@ for required in "$unit_source" "$env_file" "$app_root/server/dist/index.js" "$ap
   [[ -s "$required" ]] || { echo "Missing or empty required file: $required" >&2; exit 1; }
 done
 id churchops >/dev/null 2>&1 || { echo "Missing churchops service account." >&2; exit 1; }
-runuser -u churchops -- test -r "$env_file" || { echo "churchops cannot read $env_file." >&2; exit 1; }
+[[ -r "$env_file" ]] || { echo "Root cannot read $env_file." >&2; exit 1; }
 
 read_env_value() {
   awk -v wanted="$1" '
