@@ -1,7 +1,8 @@
 [Unit]
 Description=Casa Painii local staff platform
-After=network-online.target
 Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -9,10 +10,13 @@ User=churchops
 Group=churchops
 WorkingDirectory=/opt/church-operations/server
 Environment=NODE_ENV=production
+Environment=CHURCH_ALLOW_INSECURE_HTTP=true
+Environment=HOME=/var/lib/church-operations/runtime-home
 EnvironmentFile=/opt/church-operations/.env
 ExecStart=/usr/bin/node /opt/church-operations/server/dist/index.js
 Restart=on-failure
 RestartSec=5
+TimeoutStartSec=45
 TimeoutStopSec=30
 UMask=0077
 StateDirectory=church-operations
@@ -24,6 +28,7 @@ ProtectHome=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
+ProtectKernelLogs=true
 LockPersonality=true
 RestrictSUIDSGID=true
 ReadWritePaths=/var/lib/church-operations

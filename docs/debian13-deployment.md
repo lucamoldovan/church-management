@@ -1,5 +1,7 @@
 # Casa Painii — Debian 13 deployment runbook
 
+> **Scope:** This is a clean-install/bootstrap reference for a new Debian deployment. For the already-installed Casa Painii server and the two existing Mac mini receivers, use [docs/independent-startup.md](independent-startup.md). Do not create a new `veyra` Linux account or apply the legacy receiver setup to the existing machines.
+
 This is the deployment path for the `local-operations-platform` branch. It keeps the central server headless and runs the NDI receiver as a separate native process on each display computer.
 
 ## 0. Important boundaries
@@ -69,7 +71,7 @@ sudo install -d -o churchops -g churchops -m 0700 /var/lib/church-operations/bac
 
 ## 3. Create a local TLS certificate
 
-Choose the server's reserved IP. This example uses `192.168.1.10`; replace it with the real address. Avahi should make `church-server.local` resolve on the same LAN.
+Choose the server's reserved IP. This example uses `192.168.0.67`; replace it with the real address. Avahi should make `church-server.local` resolve on the same LAN.
 
 ```bash
 sudo install -d -m 0700 /root/church-local-ca
@@ -98,7 +100,7 @@ extendedKeyUsage=serverAuth
 subjectAltName=@alt_names
 [alt_names]
 DNS.1=church-server.local
-IP.1=192.168.1.10
+IP.1=192.168.0.67
 EOF
 
 sudo openssl x509 -req -in /root/church-local-ca/server.csr \
@@ -133,6 +135,8 @@ CHURCH_HOST=0.0.0.0
 CHURCH_PORT=8787
 CHURCH_TLS_CERT_PATH=/etc/church-operations/tls/server.crt
 CHURCH_TLS_KEY_PATH=/etc/church-operations/tls/server.key
+CHURCH_TLS_CA_CERT_PATH=/etc/church-operations/tls/ca.crt
+CHURCH_TLS_EXPECTED_HOST=192.168.0.67
 CHURCH_DASHBOARD_DIRECTORY=/opt/church-operations/dashboard/dist
 VEYRA_COOKIE_SECURE=true
 VEYRA_DATABASE_PATH=/var/lib/church-operations/church.sqlite
@@ -146,7 +150,7 @@ PLANNING_CENTER_SECRET=
 PROPRESENTER_URL=
 ```
 
-Keep the Planning Center credentials server-side. Never put them in dashboard code, receiver config, Git, screenshots or chat messages. Set `PROPRESENTER_URL` to the ProPresenter computer's actual address and port, e.g. `http://192.168.1.50:1025`; do not assume the example port is yours.
+Keep the Planning Center credentials server-side. Never put them in dashboard code, receiver config, Git, screenshots or chat messages. Set `PROPRESENTER_URL` to the ProPresenter computer's actual address and port, e.g. `http://192.168.0.50:1025`; do not assume the example port is yours.
 
 ## 5. Install the server systemd unit
 
@@ -176,10 +180,10 @@ Replace the subnet with the actual church LAN. Example:
 ```bash
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
-sudo ufw allow from 192.168.1.0/24 to any port 22 proto tcp
-sudo ufw allow from 192.168.1.0/24 to any port 8787 proto tcp
-sudo ufw allow from 192.168.1.0/24 to any port 445 proto tcp
-sudo ufw allow from 192.168.1.0/24 to any port 5353 proto udp
+sudo ufw allow from 192.168.0.0/22 to any port 22 proto tcp
+sudo ufw allow from 192.168.0.0/22 to any port 8787 proto tcp
+sudo ufw allow from 192.168.0.0/22 to any port 445 proto tcp
+sudo ufw allow from 192.168.0.0/22 to any port 5353 proto udp
 sudo ufw enable
 sudo ufw status verbose
 ```
@@ -267,111 +271,12 @@ The script backs up the SQLite database, Veyra pairing secret and media director
 
 RAID is not a backup. Back up the database, media directory, pairing secret, TLS CA and private key, and the application environment to a second physical device. Test restoring a backup before relying on it.
 
-## 9. NDI receiver — separate display computer
+## 9. Existing Casa Painii receiver installations
 
-The receiver target documented in this project is a Late-2014 Intel Mac mini running Debian 13 x86_64 with XFCE/X11. The server itself does not need the NDI SDK if it is not displaying NDI video.
+For the currently installed machines and existing Linux accounts (`reciver1` and `reciver-2`), do not follow the older dedicated-`veyra`-user setup below. Use the maintained, machine-specific runbook instead:
 
-On the receiver computer:
+- [Independent startup and recovery](independent-startup.md)
 
-```bash
-sudo apt update
-sudo apt install -y build-essential cmake ninja-build pkg-config git \
-  libsdl2-dev libsdl2-image-dev libcurl4-openssl-dev libssl-dev \
-  libspdlog-dev nlohmann-json3-dev avahi-daemon avahi-utils \
-  x11-xserver-utils
-sudo systemctl enable --now avahi-daemon
-```
+That guide preserves the installed Veyra binaries, receiver configs, device tokens, caches, NDI SDK, and existing users. It also documents the current server IP and the verified startup sequence.
 
-Download the official NDI SDK for Linux from https://ndi.video/for-developers/ndi-sdk/download/ and install it according to its license and instructions. Do not commit SDK files to Git. The repository CMake project expects the SDK directory via `NDI_SDK_DIR`. The official download page currently lists NDI SDK 6.3.2, while NDI 6.4 was announced on 18 November 2026. Use the downloadable 6.3.2 SDK for the first build rather than introducing the just-announced 6.4 release immediately before the service. Important: this repository does not yet record a successful full-player build against a specific installed SDK version; the first full build and hardware test are still required.
-
-Copy the church CA certificate to the receiver, for example `/etc/veyra/church-ca.crt`, and ensure the receiver user can read it.
-
-Build the receiver from this repository branch:
-
-```bash
-git clone --branch local-operations-platform --single-branch \
-  https://github.com/lucamoldovan/church-management.git
-cd church-management
-cmake -S receiver -B receiver/build -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DVEYRA_BUILD_PLAYER=ON \
-  -DVEYRA_BUILD_TESTS=ON \
-  -DNDI_SDK_DIR=/absolute/path/to/installed/ndi-sdk
-cmake --build receiver/build --parallel
-ctest --test-dir receiver/build --output-on-failure
-sudo cmake --install receiver/build --prefix /usr/local
-ldd /usr/local/bin/veyra
-```
-
-There must be no `not found` entries from `ldd`. If CMake or linking fails, keep the complete output; do not patch SDK headers or guess symbol names.
-
-Create the config:
-
-```bash
-sudo install -d -m 0755 /etc/veyra
-sudo install -m 0640 receiver/config/receiver.example.json /etc/veyra/config.json
-sudo nano /etc/veyra/config.json
-```
-
-Set `controlPlane.serverUrl` to `https://church-server.local:8787`, `deviceName` to a clear display name, `caCertificatePath` to `/etc/veyra/church-ca.crt`, and keep fullscreen enabled. Leave the source unassigned until the receiver reports discovered sources in the dashboard. Keep the pairing code empty until you create a fresh one in **NDI screens**.
-
-Create a dedicated desktop user (the graphical autologin account) and group before applying the ownership above:
-
-```bash
-sudo adduser veyra
-getent group render >/dev/null || sudo groupadd --system render
-sudo usermod -aG video,render veyra
-sudo apt install -y xfce4 lightdm libgl1-mesa-dri x11-xserver-utils
-sudo install -d -m 0755 /etc/lightdm/lightdm.conf.d
-sudo tee /etc/lightdm/lightdm.conf.d/50-veyra-autologin.conf >/dev/null <<'EOF'
-[Seat:*]
-autologin-user=veyra
-autologin-user-timeout=0
-user-session=xfce
-EOF
-sudo systemctl enable lightdm
-sudo install -d -o root -g veyra -m 0755 /etc/veyra
-sudo chown root:veyra /etc/veyra/config.json
-sudo install -o root -g veyra -m 0644 /path/to/church-ca.crt /etc/veyra/church-ca.crt
-```
-
-Pair only one receiver at a time. Enter the 12-digit code in its config, start Veyra, wait for successful pairing, then remove the pairing code from the config and restart the receiver. Its device token is stored separately under the receiver user's state directory.
-
-## 10. XFCE automatic startup and fullscreen
-
-Log into the receiver's XFCE desktop as the dedicated `veyra` user, then install the user service and autostart entry from this repository:
-
-```bash
-mkdir -p ~/.config/systemd/user ~/.config/autostart
-cp receiver/systemd/church-receiver.service ~/.config/systemd/user/veyra.service
-cp receiver/autostart/veyra.desktop ~/.config/autostart/veyra.desktop
-systemctl --user daemon-reload
-```
-
-Enable XFCE autologin for the dedicated receiver user on the display computer. The desktop autostart entry imports the actual X11 session's `DISPLAY` (and `XAUTHORITY` when set), disables screen blanking/DPMS, and starts the receiver only after the graphical session exists. If `XAUTHORITY` is not set, X11 uses the dedicated user's default `~/.Xauthority` file. Do not enable the user service against `default.target` separately; the XDG autostart entry is the session-aware trigger.
-
-After login:
-
-```bash
-systemctl --user status veyra.service
-journalctl --user -u veyra.service -f
-```
-
-The receiver creates an SDL desktop-fullscreen window, preserves video/image aspect ratio, and letterboxes rather than stretching. Its display mode is the desktop mode selected by XFCE/ the monitor; set the desired resolution and refresh rate in XFCE Display settings. Use a single display on the receiver for the first deployment.
-
-## 11. Tomorrow's acceptance test
-
-Do these in order, on the actual church LAN:
-
-1. Reboot the receiver computer and confirm it logs into XFCE and opens Veyra fullscreen without a keyboard/mouse.
-2. Start an NDI sender on the same wired LAN and run `/usr/local/bin/veyra --list-sources`; wait several seconds for discovery to populate.
-3. Pair the receiver and confirm it appears online in **NDI screens**.
-4. Confirm the source appears in **NDI sources**; assign the exact source to the receiver and save.
-5. Confirm 1080p30 video appears, fills the display without stretching, and remains stable for at least 30 minutes.
-6. Upload two test images, create a playlist, assign it to the receiver, and confirm the receiver downloads and verifies the fallback manifest.
-7. Stop the NDI sender; confirm timed fallback images appear. Restart the sender; confirm NDI resumes.
-8. Stop the central server while NDI is playing; confirm video continues. While the server remains stopped, stop the NDI sender and confirm the cached fallback still works.
-9. Restart the server, change the playlist, and confirm the receiver applies the new cache only after successful sync.
-10. Reboot the receiver once more and confirm the complete automatic startup sequence.
-
-Do not call the system production-ready if any of steps 1–9 fail. A successful GitHub build is not proof of real NDI reception or 24-hour stability.
+The remaining clean-room build and hardware acceptance instructions in this older guide are intentionally not duplicated here. A full NDI SDK build and real TV test are still required for a brand-new receiver installation; the automatic-startup installer does not perform or claim those tests.
