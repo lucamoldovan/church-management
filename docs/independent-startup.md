@@ -182,7 +182,96 @@ At XFCE login, the helper checks the connected display's advertised modes. If ex
 
 If needed, edit `/etc/veyra/display.conf` as root and select a mode actually advertised by that TV. Veyra's `targetFps=30` is the target video frame rate; it is not a request to force the TV's refresh rate to 30 Hz.
 
-## 7. Cold-boot acceptance test
+## 7. HDMI signal / screen blanking troubleshooting
+
+### Symptom
+
+The TV reports **No HDMI Input** or loses the picture after the Mac mini has been left running, but the Mac mini still responds to ping/SSH and Veyra may still be running.
+
+Do not immediately assume the whole Mac mini has suspended. Check the Linux host, graphical session, HDMI output and Veyra separately.
+
+### Why it can happen
+
+On the Main Display receiver, an SSH diagnostic found these X11 settings:
+
+- X11 screen-saver timeout: `600` seconds (10 minutes).
+- Screen blanking preference: enabled.
+- DPMS: enabled.
+- DPMS standby: `600` seconds (10 minutes).
+- DPMS display-off: `900` seconds (15 minutes).
+
+These settings can blank or power down the display output while Linux and Veyra remain running. This was observed on Main Display; check Hallway Display rather than assuming it has identical settings.
+
+### Immediate, temporary recovery / prevention
+
+Run as the existing receiver user (for example, `reciver1`) over SSH. Use the actual graphical X11 display and that user's Xauthority file:
+
+```bash
+export DISPLAY=:0
+export XAUTHORITY=/home/reciver1/.Xauthority
+
+xset s off
+xset s noblank
+xset -dpms
+
+echo "===== VERIFY ====="
+xset q
+```
+
+For Hallway Display, use:
+
+```bash
+export DISPLAY=:0
+export XAUTHORITY=/home/reciver-2/.Xauthority
+
+xset s off
+xset s noblank
+xset -dpms
+xset q
+```
+
+Expected verification: screen-saver timeout is `0`, blanking is disabled, and `DPMS is Disabled`. This is a runtime change to the current X11 session only; it is not persistent across a reboot or graphical-session restart.
+
+If the TV still reports no signal after disabling blanking/DPMS, inspect the HDMI connector and available modes:
+
+```bash
+export DISPLAY=:0
+export XAUTHORITY=/home/reciver1/.Xauthority
+xrandr --query
+```
+
+Use the matching home directory for the hallway receiver. Do not force a mode that is not listed by `xrandr`. Also inspect the TV's own Eco/Auto Power Off/HDMI-CEC settings and try reseating the HDMI cable or selecting the correct TV input if Linux reports the monitor disconnected.
+
+### Check the graphical session from SSH
+
+A plain SSH shell normally has no `DISPLAY` variable, so `xset q` or `xrandr --query` may report that they cannot open the display. This does not prove HDMI is disconnected. Find the XFCE environment and Xauthority path:
+
+```bash
+ps aux | grep -E 'xfce4-session|Xorg|lightdm' | grep -v grep
+tr '\\0' '\\n' < /proc/$(pgrep -u "$USER" -x xfce4-session | head -n1)/environ | grep -E '^(DISPLAY|XAUTHORITY|XDG_SESSION_TYPE)='
+```
+
+For this installation, the expected display is usually `:0`, with Xauthority at `/home/RECEIVER_USER/.Xauthority`. Set `DISPLAY` and `XAUTHORITY` before running X11 diagnostics.
+
+### Permanent behavior after the receiver autostart installer
+
+The installed `/usr/local/bin/veyra-session-start` helper runs after XFCE creates the X11 session. It applies the display setup, imports the X11 environment into the user systemd manager, then runs:
+
+```bash
+xset s off
+xset -dpms
+xset s noblank
+```
+
+It then starts `veyra.service`. These X11 settings are therefore reapplied each time the XFCE session starts. The receiver installation must still be cold-boot tested on the physical TV.
+
+The X11 commands do not, by themselves, prevent Linux system suspend. Verify that system suspend/hibernate is separately disabled or masked as part of the receiver power-management setup before treating the machine as an unattended appliance. Do not assume disabling DPMS disables system sleep.
+
+### Veyra CPU usage is a separate diagnostic
+
+During the Main Display investigation, Veyra was observed using approximately 125% CPU while still running. This is not proof that Veyra caused the HDMI loss. If unusually high CPU usage continues, record it and inspect Veyra logs/process state separately; do not kill or restart the receiver merely because the TV has lost signal.
+
+## 8. Cold-boot acceptance test
 
 Do not mark the setup complete until all checks pass:
 
@@ -197,7 +286,7 @@ Do not mark the setup complete until all checks pass:
 
 A passing GitHub build, an active systemd unit, or a successful API health check does not prove HDMI output or real NDI playback. Both physical receivers must pass the cold-boot and live-feed checks.
 
-## 8. Receiver diagnostics
+## 9. Receiver diagnostics
 
 Run these only when troubleshooting; no terminal needs to remain open during normal operation.
 
