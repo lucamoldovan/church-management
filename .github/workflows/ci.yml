@@ -1,11 +1,11 @@
-name: Kasapini Dashboard CI
+name: Casa Painii CI
 
 on:
   push:
     branches: [local-operations-platform, shure-slxd-integration, kasapini-dashboard-audit]
   pull_request:
-    # The current deployment PR targets cloudflare-migration.
-    # Keep local-operations-platform too for future PRs into this branch.
+    # Keep the active project branches covered; the current local startup PR
+    # targets kasapini-dashboard-audit.
     branches: [cloudflare-migration, local-operations-platform, shure-slxd-integration, kasapini-dashboard-audit]
 
 concurrency:
@@ -53,3 +53,43 @@ jobs:
         run: cmake --build receiver/build-ci --parallel
       - name: Run native tests
         run: ctest --test-dir receiver/build-ci --output-on-failure
+
+  autostart-validation:
+    name: Linux autostart and deployment validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck desktop-file-utils systemd
+      - name: Check shell syntax
+        run: |
+          bash -n receiver/install-autostart.sh
+          bash -n receiver/scripts/veyra-display-setup.sh
+          bash -n receiver/scripts/veyra-session-start.sh
+          bash -n deploy/enable-server-autostart.sh
+          bash -n receiver/tests/test-autostart.sh
+      - name: Lint shell scripts
+        run: |
+          shellcheck receiver/install-autostart.sh
+          shellcheck receiver/scripts/veyra-display-setup.sh
+          shellcheck receiver/scripts/veyra-session-start.sh
+          shellcheck deploy/enable-server-autostart.sh
+          shellcheck receiver/tests/test-autostart.sh
+      - name: Test safe display-mode selection
+        run: bash receiver/tests/test-autostart.sh
+      - name: Validate XFCE desktop entry
+        run: desktop-file-validate receiver/autostart/veyra.desktop
+      - name: Validate systemd unit syntax
+        run: |
+          mkdir -p /tmp/systemd-check
+          sed -e '/^User=/d' -e '/^Group=/d' \
+              -e 's|^WorkingDirectory=.*|WorkingDirectory=/tmp|' \
+              -e 's|^EnvironmentFile=.*|EnvironmentFile=-/dev/null|' \
+              -e 's|^ExecStart=.*|ExecStart=/bin/true|' \
+              deploy/church-operations.service > /tmp/systemd-check/church-operations.service
+          sed -e 's|^ExecStart=.*|ExecStart=/bin/true|' \
+              receiver/systemd/church-receiver.service > /tmp/systemd-check/veyra.service
+          systemd-analyze verify /tmp/systemd-check/church-operations.service
+          systemd-analyze verify /tmp/systemd-check/veyra.service
