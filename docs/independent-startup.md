@@ -33,7 +33,7 @@ bash deploy/enable-server-autostart.sh
 
 The installer expects the existing production deployment at `/opt/church-operations`, Node 22+ at `/usr/bin/node`, the `churchops` account, and the already-built dashboard/API. The mutable state paths configured by `VEYRA_DATABASE_PATH`, `VEYRA_SETUP_KEY_PATH`, `VEYRA_PAIRING_SECRET_PATH`, and `VEYRA_MEDIA_DIRECTORY` must resolve beneath `/var/lib/church-operations/`.
 
-The unit sets a dedicated runtime HOME at `/var/lib/church-operations/runtime-home` and allows HTTP for this LAN deployment. Existing `.env` permissions are not changed; systemd reads the EnvironmentFile as root and the service account must be able to read it.
+The unit sets a dedicated runtime HOME at `/var/lib/church-operations/runtime-home` and allows HTTP for this LAN deployment. Existing `.env` permissions are not changed; systemd's manager reads the EnvironmentFile as root, so the `churchops` account does not need direct read access.
 
 Check the result:
 
