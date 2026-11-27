@@ -131,11 +131,20 @@ int main() {
 
     writeFile(
         configPath,
-        R"({"schemaVersion":1,"controlPlane":{"serverUrl":"http://192.168.1.10:8787"}})"
+        R"({"schemaVersion":1,"controlPlane":{"serverUrl":"http://192.168.0.67:8787"}})"
+    );
+    check(
+        veyra::config::load(configPath).controlPlane.serverUrl == "http://192.168.0.67:8787",
+        "allows plain HTTP to an RFC1918 church LAN server"
+    );
+
+    writeFile(
+        configPath,
+        R"({"schemaVersion":1,"controlPlane":{"serverUrl":"http://8.8.8.8:8787"}})"
     );
     check(
         throws([&] { (void)veyra::config::load(configPath); }),
-        "rejects plain HTTP to a LAN host"
+        "rejects plain HTTP to a public internet address"
     );
 
     writeFile(
