@@ -54,7 +54,7 @@ if [[ ! -x "$binary" ]]; then
   echo "Veyra binary is not executable: $binary" >&2
   exit 1
 fi
-for command_name in python3 curl grep lightdm systemctl xrandr xset runuser install; do
+for command_name in python3 openssl curl grep lightdm systemctl xrandr xset runuser install; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Required command '$command_name' is not installed." >&2
     exit 1
