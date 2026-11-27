@@ -217,14 +217,52 @@ done
 # Validate the candidate before replacing the installed unit.
 systemd-analyze verify "$unit_source"
 
-# Preserve the previous unit for a straightforward manual rollback.
-if [[ -f "$unit_target" ]]; then
-  cp -a "$unit_target" "$unit_target.bak.$(date +%Y%m%d%H%M%S)"
+# Remember the prior service state so a failed health check cannot leave
+# a broken unit installed over a previously working server.
+backup_path=""
+was_active=0
+was_enabled=0
+if systemctl is-active --quiet church-operations.service; then
+  was_active=1
 fi
+if systemctl is-enabled --quiet church-operations.service; then
+  was_enabled=1
+fi
+if [[ -f "$unit_target" ]]; then
+  backup_path="$unit_target.bak.$(date +%Y%m%d%H%M%S)"
+  cp -a "$unit_target" "$backup_path"
+fi
+
+restore_previous_unit() {
+  if [[ -n "$backup_path" && -f "$backup_path" ]]; then
+    cp -a "$backup_path" "$unit_target"
+  else
+    rm -f "$unit_target"
+  fi
+  systemctl daemon-reload || true
+  if [[ "$was_active" -eq 1 ]]; then
+    systemctl restart church-operations.service || true
+  else
+    systemctl stop church-operations.service || true
+  fi
+  if [[ "$was_enabled" -eq 1 ]]; then
+    systemctl enable church-operations.service >/dev/null 2>&1 || true
+  else
+    systemctl disable church-operations.service >/dev/null 2>&1 || true
+  fi
+}
+
 install -m 0644 "$unit_source" "$unit_target"
-systemd-analyze verify "$unit_target"
-systemctl daemon-reload
-systemctl restart church-operations.service
+if ! systemd-analyze verify "$unit_target"; then
+  echo "Installed systemd unit failed validation; restoring the previous unit." >&2
+  restore_previous_unit
+  exit 1
+fi
+if ! systemctl daemon-reload || ! systemctl restart church-operations.service; then
+  echo "Could not reload or restart Casa Painii; restoring the previous unit." >&2
+  restore_previous_unit
+  exit 1
+fi
 
 echo "Waiting for the HTTPS health endpoint..."
 healthy=0
@@ -243,11 +281,17 @@ if [[ "$healthy" -ne 1 ]]; then
   echo "Casa Painii did not pass its HTTPS health check." >&2
   systemctl --no-pager --full status church-operations.service || true
   journalctl -u church-operations.service -n 60 --no-pager || true
+  echo "Restoring the previous service configuration." >&2
+  restore_previous_unit
   exit 1
 fi
 
 # Enable boot startup only after the new service has passed its health check.
-systemctl enable church-operations.service >/dev/null
+if ! systemctl enable church-operations.service >/dev/null; then
+  echo "Could not enable Casa Painii at boot; restoring the previous service configuration." >&2
+  restore_previous_unit
+  exit 1
+fi
 
 echo
 systemctl --no-pager --full status church-operations.service
