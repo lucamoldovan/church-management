@@ -95,7 +95,7 @@ void validateServerUrl(const std::string& url) {
     if (url.empty()) return;
     const auto schemeEnd = url.find("://");
     if (schemeEnd == std::string::npos) {
-        throw std::runtime_error("controlPlane.serverUrl must use https:// (or loopback http://)");
+        throw std::runtime_error("controlPlane.serverUrl must use http:// or https://");
     }
     std::string scheme = url.substr(0, schemeEnd);
     std::transform(scheme.begin(), scheme.end(), scheme.begin(),
