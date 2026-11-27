@@ -2,7 +2,7 @@ name: Casa Painii CI
 
 on:
   push:
-    branches: [local-operations-platform, shure-slxd-integration, kasapini-dashboard-audit]
+    branches: [local-operations-platform, shure-slxd-integration, kasapini-dashboard-audit, fix/independent-autostart-http]
   pull_request:
     # Keep the active project branches covered; the current local startup PR
     # targets kasapini-dashboard-audit.
