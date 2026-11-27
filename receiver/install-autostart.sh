@@ -192,10 +192,17 @@ fi
 
 systemctl set-default graphical.target >/dev/null
 systemctl enable lightdm.service >/dev/null
+
+# A receiver is an unattended appliance: prevent system-wide suspend,
+# hibernation, hybrid sleep, and suspend-then-hibernate. This is separate
+# from X11 DPMS/screen blanking, which the XFCE session helper disables.
+systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target >/dev/null
 systemctl daemon-reload
 
 echo
 echo "Veyra unattended startup installed for '$receiver_user'."
 echo "Display target: $(awk -F= '$1 == "VEYRA_DISPLAY_MODE" {print $2; exit}' /etc/veyra/display.conf)"
+echo "System suspend, hibernation, hybrid sleep, and suspend-then-hibernate are masked."
+echo "X11 screen blanking and DPMS are disabled at every XFCE login."
 echo "Existing Veyra config, device token, cache, and NDI SDK were preserved."
 echo "Reboot this receiver once to verify XFCE autologin and fullscreen startup."
