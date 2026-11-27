@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 
 #include <cstdint>
+#include <arpa/inet.h>
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -129,8 +130,17 @@ void validateServerUrl(const std::string& url) {
         }
         std::transform(host.begin(), host.end(), host.begin(),
                        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (host != "127.0.0.1" && host != "localhost" && host != "[::1]") {
-            throw std::runtime_error("Plain HTTP is allowed only for a loopback control-plane URL");
+        bool privateAddress = host == "127.0.0.1" || host == "localhost" || host == "[::1]";
+        in_addr ipv4{};
+        if (::inet_pton(AF_INET, host.c_str(), &ipv4) == 1) {
+            const std::uint32_t address = ntohl(ipv4.s_addr);
+            privateAddress = privateAddress ||
+                (address >> 24U) == 10U ||
+                (address >> 20U) == 0xAC1U ||
+                (address >> 16U) == 0xC0A8U;
+        }
+        if (!privateAddress) {
+            throw std::runtime_error("Plain HTTP is allowed only for loopback or RFC1918 private IPv4 addresses");
         }
     }
 }
