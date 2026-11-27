@@ -265,7 +265,7 @@ xset s noblank
 
 It then starts `veyra.service`. These X11 settings are therefore reapplied each time the XFCE session starts. The receiver installation must still be cold-boot tested on the physical TV.
 
-The X11 commands do not, by themselves, prevent Linux system suspend. Verify that system suspend/hibernate is separately disabled or masked as part of the receiver power-management setup before treating the machine as an unattended appliance. Do not assume disabling DPMS disables system sleep.
+The receiver installer also masks these systemd sleep targets system-wide: `sleep.target`, `suspend.target`, `hibernate.target`, `hybrid-sleep.target`, and `suspend-then-hibernate.target`. This prevents normal systemd suspend/hibernate transitions independently of X11 DPMS. Verify after installation with `systemctl is-enabled sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target` (each should report `masked`). The installer makes this change at the system level because these machines are dedicated receivers. To deliberately restore normal sleep behavior in the future, run as root: `systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target` and review desktop power settings. Do not unmask them for unattended receiver operation.
 
 ### Veyra CPU usage is a separate diagnostic
 
