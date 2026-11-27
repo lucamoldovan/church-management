@@ -31,26 +31,30 @@ fi
 
 binary="/usr/local/bin/veyra"
 config="/etc/veyra/config.json"
+source_config="$config"
+if [[ ! -s "$source_config" && -s "$home/.config/veyra/config.json" ]]; then
+  source_config="$home/.config/veyra/config.json"
+fi
 display_helper="$repo_root/receiver/scripts/veyra-display-setup.sh"
 session_helper="$repo_root/receiver/scripts/veyra-session-start.sh"
 unit_source="$repo_root/receiver/systemd/church-receiver.service"
 desktop_source="$repo_root/receiver/autostart/veyra.desktop"
 
-for required in "$binary" "$config" "$display_helper" "$session_helper" "$unit_source" "$desktop_source"; do
+for required in "$binary" "$source_config" "$display_helper" "$session_helper" "$unit_source" "$desktop_source"; do
   if [[ ! -s "$required" ]]; then
     echo "Required file is missing or empty: $required" >&2
     exit 1
   fi
 done
-if [[ -L "$config" || ! -f "$config" ]]; then
-  echo "The Veyra config must be a regular file, not a symlink: $config" >&2
+if [[ -L "$source_config" || ! -f "$source_config" ]]; then
+  echo "The Veyra config must be a regular file, not a symlink: $source_config" >&2
   exit 1
 fi
 if [[ ! -x "$binary" ]]; then
   echo "Veyra binary is not executable: $binary" >&2
   exit 1
 fi
-for command_name in python3 openssl curl grep lightdm systemctl xrandr xset runuser install; do
+for command_name in python3 curl grep lightdm systemctl xrandr xset runuser install; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Required command '$command_name' is not installed." >&2
     exit 1
@@ -65,9 +69,9 @@ if ! getent group video >/dev/null 2>&1; then
   exit 1
 fi
 
-# Validate JSON and require an absolute CA path. The receiver uses this CA to
-# verify the HTTPS server; no insecure HTTP fallback is permitted.
-mapfile -t control_plane_config < <(python3 - "$config" <<'PY'
+# Validate the existing config. HTTP is accepted for the private church LAN;
+# HTTPS remains supported when a CA certificate is configured.
+mapfile -t control_plane_config < <(python3 - "$source_config" <<'PY'
 import json
 import sys
 from urllib.parse import urlsplit
@@ -84,10 +88,10 @@ ca_path = control.get("caCertificatePath", "")
 if not isinstance(server_url, str) or not isinstance(ca_path, str):
     raise SystemExit("serverUrl and caCertificatePath must be strings")
 parsed = urlsplit(server_url)
-if (parsed.scheme.lower() != "https" or not parsed.hostname or
+if (parsed.scheme.lower() not in ("http", "https") or not parsed.hostname or
         parsed.username or parsed.password or parsed.query or parsed.fragment or
         parsed.path not in ("", "/")):
-    raise SystemExit("serverUrl must be an HTTPS origin without credentials, path, query, or fragment")
+    raise SystemExit("serverUrl must be an HTTP(S) origin without credentials, path, query, or fragment")
 try:
     parsed.port
 except ValueError as error:
@@ -99,38 +103,46 @@ PY
 server_url="${control_plane_config[0]:-}"
 ca_certificate="${control_plane_config[1]:-}"
 server_url="${server_url%/}"
-if [[ "$server_url" != https://* || "$server_url" == *[[:space:]]* ]]; then
-  echo "controlPlane.serverUrl must be a valid HTTPS URL to the church server." >&2
-  exit 1
-fi
-if [[ "$ca_certificate" != /* || ! -s "$ca_certificate" ]]; then
-  echo "controlPlane.caCertificatePath must point to an existing absolute CA certificate path." >&2
-  exit 1
-fi
-if ! runuser -u "$receiver_user" -- test -r "$ca_certificate"; then
-  echo "The CA certificate is not readable by '$receiver_user': $ca_certificate" >&2
-  exit 1
-fi
-openssl x509 -in "$ca_certificate" -noout >/dev/null
-if ! openssl x509 -in "$ca_certificate" -noout -ext basicConstraints 2>/dev/null | grep -q 'CA:TRUE'; then
-  echo "The configured CA certificate must have CA:TRUE basic constraints." >&2
+if [[ "$server_url" != http://* && "$server_url" != https://* ]] || [[ "$server_url" == *[[:space:]]* ]]; then
+  echo "controlPlane.serverUrl must be a valid HTTP(S) URL to the church server." >&2
   exit 1
 fi
 
-# The server is installed first. Verify TLS trust, hostname, and API health
-# now; after setup the receiver remains independent during server outages.
-if ! health_response="$(curl --silent --show-error --fail --cacert "$ca_certificate" \
-    --connect-timeout 3 --max-time 5 "$server_url/api/v1/health" 2>&1)" ||
+if [[ "$server_url" == https://* ]]; then
+  if [[ "$ca_certificate" != /* || ! -s "$ca_certificate" ]]; then
+    echo "HTTPS requires controlPlane.caCertificatePath to point to an existing CA certificate." >&2
+    exit 1
+  fi
+  if ! runuser -u "$receiver_user" -- test -r "$ca_certificate"; then
+    echo "The CA certificate is not readable by '$receiver_user': $ca_certificate" >&2
+    exit 1
+  fi
+  openssl x509 -in "$ca_certificate" -noout >/dev/null
+  if ! openssl x509 -in "$ca_certificate" -noout -ext basicConstraints 2>/dev/null | grep -q 'CA:TRUE'; then
+    echo "The configured CA certificate must have CA:TRUE basic constraints." >&2
+    exit 1
+  fi
+fi
+
+# Confirm the local server is healthy before changing startup configuration.
+curl_args=(--silent --show-error --fail --connect-timeout 3 --max-time 5)
+if [[ "$server_url" == https://* ]]; then
+  curl_args+=(--cacert "$ca_certificate")
+fi
+if ! health_response="$(curl "${curl_args[@]}" "$server_url/api/v1/health" 2>&1)" ||
    ! grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' <<< "$health_response"; then
-  echo "Could not verify the church server over HTTPS at $server_url." >&2
+  echo "Could not verify the church server at $server_url." >&2
   echo "$health_response" >&2
-  echo "Start the server first and confirm this receiver trusts its CA certificate." >&2
+  echo "Start the server first and confirm its health endpoint is reachable." >&2
   exit 1
 fi
 
 # Do not replace the existing Veyra config or its pairing/device-token files.
 # Only tighten the config's permissions so the receiver account can read it.
 install -d -m 0755 /etc/veyra
+if [[ "$source_config" != "$config" ]]; then
+  install -o root -g "$gid" -m 0640 "$source_config" "$config"
+fi
 chown "root:$gid" "$config"
 chmod 0640 "$config"
 
