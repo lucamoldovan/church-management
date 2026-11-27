@@ -36,10 +36,12 @@ const https = certificatePath && privateKeyPath
     }
   : undefined;
 
-if (!isLoopbackHost(host) && !https) {
+const allowInsecureLanHttp = process.env.CHURCH_ALLOW_INSECURE_HTTP === "true";
+
+if (!isLoopbackHost(host) && !https && !allowInsecureLanHttp) {
   throw new Error(
     "Refusing to bind Casa Painii to a non-loopback interface without TLS. " +
-    "Configure CHURCH_TLS_CERT_PATH and CHURCH_TLS_KEY_PATH.",
+    "For a trusted private LAN only, explicitly set CHURCH_ALLOW_INSECURE_HTTP=true.",
   );
 }
 
