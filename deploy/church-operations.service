@@ -10,6 +10,7 @@ User=churchops
 Group=churchops
 WorkingDirectory=/opt/church-operations/server
 Environment=NODE_ENV=production
+Environment=CHURCH_ALLOW_INSECURE_HTTP=true
 Environment=HOME=/var/lib/church-operations/runtime-home
 EnvironmentFile=/opt/church-operations/.env
 ExecStart=/usr/bin/node /opt/church-operations/server/dist/index.js
