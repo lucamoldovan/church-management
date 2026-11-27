@@ -37,6 +37,13 @@ if ! runuser -u churchops -- test -r "$env_file"; then
   echo "The 'churchops' account cannot read $env_file. Use root:churchops ownership and mode 0640." >&2
   exit 1
 fi
+# systemd EnvironmentFile does not accept shell's "export KEY=value" syntax.
+# Reject it rather than letting the installer validate values that systemd
+# would silently fail to pass to the Node process.
+if grep -Eq '^[[:space:]]*export[[:space:]]+[A-Za-z_][A-Za-z0-9_]*=' "$env_file"; then
+  echo "Remove 'export' prefixes from $env_file; systemd requires plain KEY=value entries." >&2
+  exit 1
+fi
 
 node_major="$(/usr/bin/node -p 'Number(process.versions.node.split(".")[0])')"
 if [[ ! "$node_major" =~ ^[0-9]+$ ]] || (( node_major < 22 )); then
