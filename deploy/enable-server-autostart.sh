@@ -50,7 +50,10 @@ port="$(read_env_value CHURCH_PORT)"
 [[ -n "$host" ]] || host="0.0.0.0"
 [[ -n "$port" ]] || port="8787"
 [[ "$host" == "0.0.0.0" ]] || { echo "CHURCH_HOST must be 0.0.0.0; found '$host'." >&2; exit 1; }
-[[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || { echo "Invalid CHURCH_PORT: $port" >&2; exit 1; }
+if [[ ! "$port" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
+  echo "Invalid CHURCH_PORT: $port" >&2
+  exit 1
+fi
 node_major="$(/usr/bin/node -p 'Number(process.versions.node.split(".")[0])')"
 (( node_major >= 22 )) || { echo "Node.js 22+ required." >&2; exit 1; }
 
