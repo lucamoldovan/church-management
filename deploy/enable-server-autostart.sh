@@ -17,13 +17,13 @@ env_file="$app_root/.env"
 state_root="/var/lib/church-operations"
 unit_target="/etc/systemd/system/church-operations.service"
 
-for command_name in awk openssl curl node systemctl systemd-analyze runuser install stat realpath sha256sum grep sleep; do
+for command_name in awk openssl curl /usr/bin/node systemctl systemd-analyze runuser install stat realpath sha256sum grep sleep; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Required command '$command_name' is not installed." >&2
     exit 1
   fi
 done
-for required in "$unit_source" "$env_file" "$app_root/server/dist/index.js" "$app_root/dashboard/dist/index.html"; do
+for required in "$unit_source" "$env_file" "$app_root/server/dist/index.js"; do
   if [[ ! -s "$required" ]]; then
     echo "Required deployment file is missing or empty: $required" >&2
     exit 1
@@ -38,9 +38,9 @@ if ! runuser -u churchops -- test -r "$env_file"; then
   exit 1
 fi
 
-node_major="$(node -p 'Number(process.versions.node.split(".")[0])')"
+node_major="$(/usr/bin/node -p 'Number(process.versions.node.split(".")[0])')"
 if [[ ! "$node_major" =~ ^[0-9]+$ ]] || (( node_major < 22 )); then
-  echo "Node.js 22 or newer is required; found $(node --version)." >&2
+  echo "Node.js 22 or newer is required; found $(/usr/bin/node --version)." >&2
   exit 1
 fi
 
@@ -210,6 +210,7 @@ for state_file in "$database_path" "$setup_key_path" "$pairing_secret_path"; do
       echo "The churchops account must be able to read and write $state_file." >&2
       exit 1
     fi
+    chmod 0600 "$state_file"
   fi
 done
 
@@ -223,7 +224,6 @@ fi
 install -m 0644 "$unit_source" "$unit_target"
 systemd-analyze verify "$unit_target"
 systemctl daemon-reload
-systemctl enable church-operations.service >/dev/null
 systemctl restart church-operations.service
 
 echo "Waiting for the HTTPS health endpoint..."
@@ -245,6 +245,9 @@ if [[ "$healthy" -ne 1 ]]; then
   journalctl -u church-operations.service -n 60 --no-pager || true
   exit 1
 fi
+
+# Enable boot startup only after the new service has passed its health check.
+systemctl enable church-operations.service >/dev/null
 
 echo
 systemctl --no-pager --full status church-operations.service

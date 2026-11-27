@@ -67,15 +67,16 @@ The TLS private key should be root-owned and readable by the `churchops` group o
 On the Debian server, use a checkout containing this branch. The installed application checkout may still be on `kasapini-dashboard-audit`; do not switch or overwrite that working tree just to obtain the installer. If the script is not already present, create a temporary Git worktree:
 
 ```bash
+su -
 git -C /opt/church-operations fetch origin fix/independent-autostart
 git -C /opt/church-operations worktree add --detach /tmp/casa-painii-startup origin/fix/independent-autostart
-su -
 cd /tmp/casa-painii-startup
 bash deploy/enable-server-autostart.sh
+git -C /opt/church-operations worktree remove /tmp/casa-painii-startup
 exit
 ```
 
-If the script is already present in the current checkout, run it there instead. The installer targets the existing `/opt/church-operations` deployment regardless of which checkout supplied the script. Use a root shell (`su -`) if the `server` account does not have sudo access. After a successful run, remove the temporary worktree as the `server` user with `git -C /opt/church-operations worktree remove /tmp/casa-painii-startup`.
+If the script is already present in the current checkout, run it there instead. The installer targets the existing `/opt/church-operations` deployment regardless of which checkout supplied the script. The fetch, temporary worktree, installer, and cleanup are all run as root because the production checkout under `/opt` is root-managed. The temporary worktree is removed before leaving the root shell.
 
 The installer validates the current deployment and systemd unit, preserves a backup of an existing unit, enables and restarts the service, and waits for a verified HTTPS health response. It exits when the check is complete; systemd continues running the server in the background.
 
